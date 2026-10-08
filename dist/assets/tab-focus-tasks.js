@@ -71,7 +71,7 @@ function formatTimeBengali(timeStr) {
     return `${toBanglaNumber(h12)}:${toBanglaNumber(m)} ${ampm}`;
 }
 
-function formatTaskDueDateTime(dueTimestamp) {
+function formatTaskDueDateTime(dueTimestamp, hasTime = false) {
     if (!dueTimestamp) return '';
     const date = new Date(dueTimestamp);
     if (isNaN(date.getTime())) return '';
@@ -83,21 +83,30 @@ function formatTaskDueDateTime(dueTimestamp) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const isTomorrow = (date.toDateString() === tomorrow.toDateString());
 
-    const hours = date.getHours();
-    const mins = String(date.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'অপরাহ্ন' : 'পূর্বাহ্ন';
-    const formattedHours = hours % 12 || 12;
-    const timeStr = `${toBanglaNumber(formattedHours)}:${toBanglaNumber(mins)} ${ampm}`;
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = (date.toDateString() === yesterday.toDateString());
+
+    let timeSuffix = '';
+    if (hasTime) {
+        const hours = date.getHours();
+        const mins = String(date.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'অপরাহ্ন' : 'পূর্বাহ্ন';
+        const formattedHours = hours % 12 || 12;
+        timeSuffix = `, ${toBanglaNumber(formattedHours)}:${toBanglaNumber(mins)} ${ampm}`;
+    }
 
     if (isToday) {
-        return `আজ, ${timeStr}`;
+        return `আজ${timeSuffix}`;
     } else if (isTomorrow) {
-        return `আগামীকাল, ${timeStr}`;
+        return `আগামীকাল${timeSuffix}`;
+    } else if (isYesterday) {
+        return `গতকাল${timeSuffix}`;
     } else {
         const day = toBanglaNumber(date.getDate());
         const months = ['জানু', 'ফেব্রু', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টে', 'অক্টো', 'নভে', 'ডিসে'];
         const month = months[date.getMonth()];
-        return `${day} ${month}, ${timeStr}`;
+        return `${day} ${month}${timeSuffix}`;
     }
 }
 
@@ -134,13 +143,15 @@ function renderTaskScheduleBadge(task) {
     }
 
     if (task.dueTimestamp) {
-        const dueText = formatTaskDueDateTime(task.dueTimestamp);
+        const hasTime = Boolean(task.dueTimeStr);
+        const dueText = formatTaskDueDateTime(task.dueTimestamp, hasTime);
         const isOverdue = task.dueTimestamp < Date.now();
+        const displayLabel = isOverdue ? (dueText.includes('গতকাল') ? dueText : `মেয়াদোত্তীর্ণ • ${dueText}`) : dueText;
         return `
             <div style="display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 2px 8px; border-radius: 8px; background: ${isOverdue ? 'rgba(239, 68, 68, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; border: 1px solid ${isOverdue ? 'rgba(239, 68, 68, 0.3)' : 'rgba(56, 189, 248, 0.3)'}; color: ${isOverdue ? '#ef4444' : '#38bdf8'};">
                 <svg viewBox="0 0 24 24" style="width: 12px; height: 12px; fill: currentColor;"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
                 <span style="font-size: 11.5px; font-weight: 700; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                    ${dueText}
+                    ${displayLabel}
                 </span>
             </div>
         `;
@@ -393,7 +404,7 @@ function renderFocusTasksTab() {
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <div id="wrapper-task-date" style="flex: 1;">
                             <label style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">তারিখ:</label>
-                            <input id="input-task-date" type="date" style="width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 10px; font-size: 13px; color: #ffffff; outline: none; color-scheme: dark; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;" />
+                            <input id="input-task-date" type="date" value="${getTodayDateString()}" style="width: 100%; box-sizing: border-box; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 10px; font-size: 13px; color: #ffffff; outline: none; color-scheme: dark; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;" />
                         </div>
                         <div style="flex: 1;">
                             <label id="label-task-time" style="font-size: 11px; color: #94a3b8; font-weight: 700; display: block; margin-bottom: 4px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">সময় (ঐচ্ছিক):</label>
@@ -536,8 +547,7 @@ function bindFocusTasksEvents() {
             if (inputTitle) inputTitle.value = '';
             if (inputDetails) inputDetails.value = '';
             if (inputDate) {
-                const today = new Date().toISOString().split('T')[0];
-                inputDate.value = today;
+                inputDate.value = getTodayDateString();
             }
             if (inputTime) inputTime.value = '';
 
@@ -590,7 +600,7 @@ function bindFocusTasksEvents() {
             }
 
             const details = (inputDetails?.value || '').trim();
-            const dateStr = (currentRepeatType === 'once') ? (inputDate?.value || '') : '';
+            const dateStr = (currentRepeatType === 'once') ? (inputDate?.value || getTodayDateString()) : '';
             const timeStr = inputTime?.value || '';
 
             let dueTimestamp = null;
