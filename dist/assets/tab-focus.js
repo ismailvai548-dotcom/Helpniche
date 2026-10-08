@@ -9,10 +9,15 @@ let currentPreviewUrl = null;
 function renderFocusTab() {
     return `
         <div class="screen-wrapper">
-            <div class="header-row">
+            <div class="header-row" style="display:flex; align-items:center; gap:12px;">
+                ${!isFocusSessionActive ? `
+                    <button id="btn-back-to-home-focus" style="background: #1e293b; border: 1px solid #334155; border-radius: 10px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; color: #cbd5e1; cursor: pointer; outline: none;">
+                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    </button>
+                ` : ''}
                 <div>
-                    <h1 class="app-title">Deep Focus</h1>
-                    <p class="app-subtitle">Minimal Audio & Focus Session</p>
+                    <h1 class="app-title" style="margin:0; font-family:'Kalpurush', sans-serif;">${currentLang === 'bn' ? 'ডিপ ফোকাস' : 'Deep Focus'}</h1>
+                    <p class="app-subtitle" style="margin:0; font-family:'Kalpurush', sans-serif;">${currentLang === 'bn' ? 'অডিও ও ফোকাস টাইমার সেশন' : 'Minimal Audio & Focus Session'}</p>
                 </div>
             </div>
             ${isFocusSessionActive ? renderActiveHypnoticFocus() : renderFocusDashboard()}
@@ -353,6 +358,12 @@ function bindLibraryEvents() {
 }
 
 function bindFocusTabEvents() {
+    // Back to Home Button
+    const btnBackFocus = document.getElementById('btn-back-to-home-focus');
+    if (btnBackFocus) {
+        btnBackFocus.onclick = () => switchTab('home');
+    }
+
     // Interactive Mute/Unmute Button Handler for Active Focus Session
     const btnMuteToggle = document.getElementById('btn-focus-mute-toggle');
     if (btnMuteToggle) {

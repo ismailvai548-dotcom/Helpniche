@@ -142,26 +142,26 @@ function renderHomeDashboard() {
                 </div>
             </div>
 
-            <!-- Focus Task CTA (Replaced Deep Focus Session) -->
-            <div class="dash-card home-focus-task-card" id="btn-home-focus-tasks" style="background: linear-gradient(135deg, rgba(2, 132, 199, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%); border: 1.5px solid #38bdf8; border-radius: 16px; padding: 14px 16px; margin: 0 0 14px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 6px 20px rgba(56, 189, 248, 0.15); transition: transform 0.2s;">
+            <!-- Deep Focus Session CTA -->
+            <div class="dash-card home-deep-focus-card" id="btn-home-deep-focus" style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(15, 23, 42, 0.8) 100%); border: 1.5px solid #a855f7; border-radius: 16px; padding: 14px 16px; margin: 0 0 14px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 6px 20px rgba(168, 85, 247, 0.15); transition: transform 0.2s;">
                 <div style="display: flex; align-items: center; gap: 12px;">
-                    <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; color: #38bdf8;">
-                            <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-9 14l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; color: #c084fc;">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
                         </svg>
                     </div>
                     <div>
-                        <span style="font-size: 15px; font-weight: 800; color: #ffffff; display: block; letter-spacing: 0.2px;">
-                            ফোকাস টাস্ক
+                        <span style="font-size: 15px; font-weight: 800; color: #ffffff; display: block; letter-spacing: 0.2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ${t('deepFocus')}
                         </span>
-                        <span id="home-focus-task-subtitle" style="font-size: 11px; color: #94a3b8; font-weight: 600; display: block; margin-top: 2px;">
-                            ${typeof getFocusTasksSummaryText === 'function' ? getFocusTasksSummaryText() : 'দৈনিক কাজের তালিকা ও লক্ষ্য'}
+                        <span style="font-size: 11px; color: #94a3b8; font-weight: 600; display: block; margin-top: 2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ${isFocusSessionActive ? (currentLang === 'bn' ? 'সেশন চলমান...' : 'Session in progress...') : t('deepFocusSub')}
                         </span>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);">
-                        টাস্ক
+                    <span style="font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 10px; background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.4); font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                        ${isFocusSessionActive ? (currentLang === 'bn' ? 'চলমান' : 'Active') : (currentLang === 'bn' ? 'টাইমার' : 'Timer')}
                     </span>
                     <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #94a3b8;"><path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
                 </div>
@@ -206,8 +206,8 @@ function bindHomeEvents() {
 
 
 
-    const btnFocusTasks = document.getElementById('btn-home-focus-tasks');
-    if (btnFocusTasks) btnFocusTasks.onclick = () => switchTab('focus-tasks');
+    const btnDeepFocus = document.getElementById('btn-home-deep-focus');
+    if (btnDeepFocus) btnDeepFocus.onclick = () => switchTab('focus');
 
     const btnPanic = document.getElementById('btn-open-panic-modal');
     if (btnPanic) {

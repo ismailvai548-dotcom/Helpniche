@@ -44,7 +44,10 @@ var i18n = {
         days: 'দিন',
         hours: 'ঘণ্টা',
         videoDownloader: 'ভিডিও ডাউনলোডার',
-        videoDownloaderSub: 'YouTube, Facebook, Insta, TikTok ভিডিও ও অডিও ডাউনলোড'
+        videoDownloaderSub: 'YouTube, Facebook, Insta, TikTok ভিডিও ও অডিও ডাউনলোড',
+        navTasks: 'টাস্ক',
+        deepFocus: 'ডিপ ফোকাস',
+        deepFocusSub: 'মনোযোগ ও পড়াশোনার ফোকাস টাইমার সেশন'
     },
     en: {
         appSubtitle: 'Protect your attention & mental clarity',
@@ -73,7 +76,10 @@ var i18n = {
         days: 'Days',
         hours: 'Hours',
         videoDownloader: 'Video Downloader',
-        videoDownloaderSub: 'Download YouTube, Facebook, Insta, TikTok Videos & Audio'
+        videoDownloaderSub: 'Download YouTube, Facebook, Insta, TikTok Videos & Audio',
+        navTasks: 'Tasks',
+        deepFocus: 'Deep Focus',
+        deepFocusSub: 'Distraction-free focus timer session'
     }
 };
 
