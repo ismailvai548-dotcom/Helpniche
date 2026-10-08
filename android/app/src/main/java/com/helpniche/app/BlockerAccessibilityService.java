@@ -586,10 +586,9 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         long now = SystemClock.elapsedRealtime();
-        if (now - lastReelsCheckTime < 100) {
+        if (now - lastReelsBlockedActionTime < 350) {
             return false;
         }
-        lastReelsCheckTime = now;
 
         AccessibilityNodeInfo rootNode = null;
         try {
@@ -602,7 +601,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
             } catch (Exception ignored) {}
         }
 
-        if (rootNode == null) return false;
+        if (rootNode == null && event == null) return false;
 
         try {
             CharSequence classNameSeq = event != null ? event.getClassName() : null;
@@ -610,7 +609,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
             boolean isReelsDetected = false;
 
-            if (isYouTube) {
+            if (isYouTube && rootNode != null) {
                 if (className.contains("reelwatchfragment") || className.contains("shorts")) {
                     isReelsDetected = true;
                 } else if (scanNodeTreeForIds(rootNode,
@@ -627,31 +626,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
                     isReelsDetected = true;
                 }
             } else if (isFacebook) {
-                // Facebook Katana & Facebook Lite Detection
-                if (className.contains("reelsvieweractivity") || className.contains("fbshorts") || className.contains("reelsmediaviewer")) {
-                    isReelsDetected = true;
-                } else if (isShortsTabSelected(rootNode)) {
-                    isReelsDetected = true;
-                } else if (scanNodeTreeForText(rootNode,
-                        "original audio", "মূল অডিও",
-                        "use audio", "অডিও ব্যবহার করুন",
-                        "remix this reel", "রিল রিমিক্স",
-                        "watch more reels", "আরও রিল দেখুন",
-                        "create a reel", "রিল তৈরি করুন",
-                        "reels audio", "fb_shorts",
-                        "reel video", "রিল ভিডিও",
-                        "send in messenger")) {
-                    isReelsDetected = true;
-                } else if (scanNodeTreeForText(rootNode, "reels", "রিলস", "reels tab") &&
-                        !scanNodeTreeForText(rootNode, "what's on your mind", "whats on your mind", "আপনার মনে কী আছে", "create a post", "পোস্ট তৈরি করুন", "write something", "কিছু লিখুন")) {
-                    // Facebook Lite & Katana Reels Page/Tab detection (when newsfeed post box is absent)
-                    isReelsDetected = true;
-                } else if (scanNodeTreeForIds(rootNode,
-                        "reels_viewer", "fb_shorts_container", "reel_video_player",
-                        "fb_shorts_bottom_sheet", "reels_tray")) {
-                    isReelsDetected = true;
-                }
-            } else if (isInstagram) {
+                isReelsDetected = isFacebookReelsDetected(rootNode, event, packageName);
+            } else if (isInstagram && rootNode != null) {
                 if (className.contains("clipsvieweractivity") || className.contains("reelsvieweractivity")) {
                     isReelsDetected = true;
                 } else if (isShortsTabSelected(rootNode)) {
@@ -671,7 +647,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
             }
 
             if (isReelsDetected) {
-                if (now - lastReelsBlockedActionTime < 1500) {
+                if (now - lastReelsBlockedActionTime < 1800) {
                     reelsConsecutiveBackCount++;
                 } else {
                     reelsConsecutiveBackCount = 1;
@@ -680,23 +656,133 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
                 if (reelsConsecutiveBackCount >= 2) {
                     performGlobalAction(GLOBAL_ACTION_HOME);
+                    try {
+                        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                        homeIntent.addCategory(Intent.CATEGORY_HOME);
+                        homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(homeIntent);
+                    } catch (Exception ignored) {}
                     reelsConsecutiveBackCount = 0;
                 } else {
                     performGlobalAction(GLOBAL_ACTION_BACK);
-                    performGlobalAction(GLOBAL_ACTION_BACK);
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            AccessibilityNodeInfo checkNode = getRootInActiveWindow();
+                            if (checkNode != null) {
+                                try {
+                                    if (isFacebook && isFacebookReelsDetected(checkNode, null, packageName)) {
+                                        performGlobalAction(GLOBAL_ACTION_BACK);
+                                    }
+                                } finally {
+                                    checkNode.recycle();
+                                }
+                            }
+                        } catch (Exception ignored) {}
+                    }, 140);
                 }
 
                 if (now - lastReelsToastTime > 2500) {
                     lastReelsToastTime = now;
-                    String targetName = isYouTube ? "ইউটিউব শর্টস" : (isFacebook ? "ফেসবুক রিলস" : "ইনস্টাগ্রাম রিলস");
+                    String targetName = isYouTube ? "ইউটিউব শর্টস" : (isFacebook ? (packageName.contains("lite") ? "ফেসবুক লাইট রিলস" : "ফেসবুক রিলস") : "ইনস্টাগ্রাম রিলস");
                     Toast.makeText(this, targetName + " ব্লক করা রয়েছে!", Toast.LENGTH_SHORT).show();
                 }
                 return true;
             }
         } finally {
+            if (rootNode != null) {
+                try {
+                    rootNode.recycle();
+                } catch (Exception ignored) {}
+            }
+        }
+
+        return false;
+    }
+
+    private boolean isFacebookReelsDetected(AccessibilityNodeInfo rootNode, AccessibilityEvent event, String packageName) {
+        String eventText = "";
+        String eventDesc = "";
+        String className = "";
+        if (event != null) {
+            if (event.getText() != null) eventText = event.getText().toString().toLowerCase();
+            if (event.getContentDescription() != null) eventDesc = event.getContentDescription().toString().toLowerCase();
+            if (event.getClassName() != null) className = event.getClassName().toString().toLowerCase();
+        }
+
+        // ১. ফেসবুক অফিশিয়াল (Katana) স্পেসিফিক ক্লাস নেম চেক
+        if (className.contains("reelsvieweractivity") ||
+                className.contains("fbshorts") ||
+                className.contains("reelsmediaviewer") ||
+                className.contains("reels_viewer")) {
+            return true;
+        }
+
+        // ২. হাই-কনফিডেন্স রিলস টার্মস (Katana এবং FB Lite উভয়ের জন্যই প্রযোজ্য)
+        if (rootNode != null && scanNodeTreeForText(rootNode,
+                "original audio", "মূল অডিও", "অরিজিনাল অডিও",
+                "remix this reel", "remix with reel", "রিল রিমিক্স", "রিমিক্স",
+                "watch more reels", "আরও রিল দেখুন", "আরও রিলস",
+                "create a reel", "create reel", "রিল তৈরি করুন",
+                "reels audio", "use audio", "অডিও ব্যবহার করুন",
+                "fb_shorts", "fbshorts",
+                "reel video", "রিল ভিডিও",
+                "send in messenger", "হোয়াটসঅ্যাপে পাঠান")) {
+            return true;
+        }
+
+        // ৩. রিলস ট্যাব সিলেক্টেড আছে কিনা চেক
+        if (rootNode != null && isShortsTabSelected(rootNode)) {
+            return true;
+        }
+
+        // ৪. Katana ভিউ আইডি চেক
+        if (rootNode != null && scanNodeTreeForIds(rootNode,
+                "reels_viewer", "fb_shorts_container", "reel_video_player",
+                "fb_shorts_bottom_sheet", "reels_tray")) {
+            return true;
+        }
+
+        // ৫. ফেসবুক লাইট ও কাটানা: রিলস পেজ/ভিউয়ার ডিটেকশন
+        boolean hasReelsKeyword = (rootNode != null && scanNodeTreeForText(rootNode, "reels", "রিলস", "reels tab")) ||
+                eventText.contains("reels") || eventText.contains("রিলস") ||
+                eventDesc.contains("reels") || eventDesc.contains("রিলস");
+
+        if (hasReelsKeyword && rootNode != null) {
+            // ফেসবুক লাইট নিউজফিড ইন্ডিকেটর
+            boolean hasNewsfeedNav = scanNodeTreeForText(rootNode,
+                    "notifications", "নোটিফিকেশন", "বিজ্ঞপ্তি",
+                    "marketplace", "মার্কেটপ্লেস",
+                    "what's on your mind", "whats on your mind", "আপনার মনে কী আছে",
+                    "create a post", "পোস্ট তৈরি করুন",
+                    "write something", "কিছু লিখুন");
+
+            // ফুলস্ক্রিন রিলস ভিউয়ারে নিউজফিডের মূল বার থাকে না
+            if (!hasNewsfeedNav) {
+                return true;
+            }
+        }
+
+        // ৬. ইভেন্ট সোর্স নোড চেক (যদি রুট নোড আলাদা উইন্ডো হয়)
+        if (event != null) {
+            AccessibilityNodeInfo sourceNode = null;
             try {
-                rootNode.recycle();
+                sourceNode = event.getSource();
             } catch (Exception ignored) {}
+            if (sourceNode != null && sourceNode != rootNode) {
+                try {
+                    if (scanNodeTreeForText(sourceNode,
+                            "original audio", "মূল অডিও", "অরিজিনাল অডিও",
+                            "remix this reel", "রিল রিমিক্স", "রিমিক্স",
+                            "watch more reels", "আরও রিল দেখুন",
+                            "create a reel", "রিল তৈরি করুন",
+                            "reels audio", "use audio", "অডিও ব্যবহার করুন",
+                            "reels", "রিলস")) {
+                        return true;
+                    }
+                } finally {
+                    try { sourceNode.recycle(); } catch (Exception ignored) {}
+                }
+            }
         }
 
         return false;
