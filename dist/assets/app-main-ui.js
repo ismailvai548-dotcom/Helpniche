@@ -1,0 +1,1179 @@
+/* ==========================================================================
+   MAIN ORCHESTRATOR & ROUTER (UPDATED WITH ADVANCED AI & DUROOD ACTIONS)
+   ========================================================================== */
+document.addEventListener('DOMContentLoaded', initMainUI);
+
+function initMainUI() {
+    injectGlobalStyles();
+    applyTheme(currentTheme);
+
+    const root = document.getElementById('root') || document.body;
+
+    root.innerHTML = `
+        <div id="app-container">
+            <main id="app-content-area"></main>
+            ${renderBottomNav()}
+        </div>
+        ${renderModalsAndOverlays()}
+        <audio id="target-audio-player"></audio>
+        <audio id="alarm-audio-player" loop></audio>
+    `;
+
+    targetAudioPlayer = document.getElementById('target-audio-player');
+    alarmAudioPlayer = document.getElementById('alarm-audio-player');
+
+    bindGlobalEvents();
+    if (isFocusSessionActive) {
+        switchTab('focus');
+    } else {
+        switchTab('home');
+    }
+
+    setInterval(updateStreakDisplays, 1000);
+    fetchOnboardingStatusFromNative();
+}
+
+function applyTheme(theme) {
+    currentTheme = theme;
+    localStorage.setItem('APP_THEME', theme);
+    if (theme === 'light') {
+        document.body.classList.add('light-theme');
+    } else {
+        document.body.classList.remove('light-theme');
+    }
+}
+
+function switchTab(tabName) {
+    if (isFocusSessionActive && tabName !== 'focus') {
+        alert('Focus Session Active! সেশন চলাকালীন অন্য ট্যাবে যাওয়া নিষিদ্ধ।');
+        tabName = 'focus';
+    }
+
+    currentTab = tabName;
+    document.querySelectorAll('.app-nav-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.tab === tabName);
+    });
+
+    const content = document.getElementById('app-content-area');
+    if (!content) return;
+
+    if (tabName === 'home') {
+        content.innerHTML = renderHomeDashboard();
+        bindHomeEvents();
+    } else if (tabName === 'focus') {
+        content.innerHTML = renderFocusTab();
+        bindFocusTabEvents();
+    } else if (tabName === 'streak') {
+        content.innerHTML = renderStreakTab();
+        bindStreakTabEvents();
+    } else if (tabName === 'routine') {
+        content.innerHTML = renderRoutineTab();
+        bindRoutineTabEvents();
+    } else if (tabName === 'settings') {
+        content.innerHTML = renderSettingsTab();
+        bindSettingsTabEvents();
+    } else if (tabName === 'social-control') {
+        content.innerHTML = renderSocialControlTab();
+        bindSocialControlEvents();
+    } else if (tabName === 'network-control') {
+        content.innerHTML = renderNetworkControlTab();
+        bindNetworkControlEvents();
+    } else if (tabName === 'video-downloader') {
+        content.innerHTML = renderVideoDownloaderTab();
+        bindVideoDownloaderEvents();
+    } else if (tabName === 'focus-tasks') {
+        content.innerHTML = renderFocusTasksTab();
+        bindFocusTasksEvents();
+    }
+
+    window.scrollTo(0, 0);
+}
+
+function renderBottomNav() {
+    return `
+        <nav id="app-bottom-nav">
+            <div class="app-nav-item active" data-tab="home">
+                <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                <span>Home</span>
+            </div>
+            <div class="app-nav-item" data-tab="focus">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                <span>Focus</span>
+            </div>
+            <div class="app-nav-item" data-tab="streak">
+                <svg viewBox="0 0 24 24"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>
+                <span>Streak</span>
+            </div>
+            <div class="app-nav-item" data-tab="routine">
+                <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 13 6.5z"/></svg>
+                <span>Routine</span>
+            </div>
+            <div class="app-nav-item" data-tab="settings">
+                <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                <span>Settings</span>
+            </div>
+        </nav>
+    `;
+}
+
+function renderModalsAndOverlays() {
+    return `
+        <!-- Panic SOS Modal -->
+        <div class="modal-overlay" id="panic-modal">
+            <div class="modal-card" style="border-color: #EF5350;">
+                <div style="font-family:'Kalpurush'; font-size:22px; font-weight:700; color:#EF5350; margin-bottom:10px;">
+                    শান্ত হোন ও চোখ বন্ধ করুন!
+                </div>
+                <p style="font-size: 13px; color: #E2E8F0; line-height: 1.6; margin-bottom: 18px; text-align: left;">
+                    ১. ফোনটি হাত থেকে নামিয়ে রাখুন।<br>
+                    ২. ৪ সেকেন্ড নাক দিয়ে শ্বাস নিন, ৭ সেকেন্ড ধরে রাখুন এবং ৮ সেকেন্ড মুখ দিয়ে ছাড়ুন।<br>
+                    ৩. ঠান্ডা পানি দিয়ে মুখ ধুয়ে আসুন। এই তাড়না মাত্র ৩-৫ মিনিট থাকবে, তারপর মিলিয়ে যাবে।
+                </p>
+                <button class="btn-primary-focus" id="btn-close-panic" style="background:#EF5350; color:#FFF; margin-bottom:0;">
+                    আমি নিজেকে নিয়ন্ত্রণ করেছি
+                </button>
+            </div>
+        </div>
+
+        <!-- Relapse Modal -->
+        <div class="modal-overlay" id="relapse-modal">
+            <div class="modal-card">
+                <h3 style="font-family:'Kalpurush'; color:var(--danger); margin-bottom:10px; font-size:20px;">রিসেট নিশ্চিতকরণ</h3>
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">কারণ বা সমস্যা লিখে রাখুন (অপশনাল):</p>
+                <textarea id="relapse-reason-input" class="input-dark" style="height:70px;" placeholder="যেমন: রাতে দেরি করে ঘুমানো, স্ট্রেস..."></textarea>
+                <div class="modal-btn-row">
+                    <button class="btn-modal" style="background:rgba(128,128,128,0.2); color:var(--text-color);" id="btn-modal-cancel-relapse">বাতিল</button>
+                    <button class="btn-modal" style="background:var(--danger); color:#FFF;" id="btn-modal-confirm-relapse">রিসেট করুন</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audio Category & Offline Library Modal -->
+        <div class="modal-overlay" id="audio-category-modal-overlay">
+            <div class="modal-card" style="max-height: 85vh; overflow-y: auto; text-align: left;">
+                <h3 style="color:var(--accent-green); font-size:18px; margin-bottom:6px; display:flex; align-items:center; gap:6px;">
+                    <svg class="svg-icon" viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                    অডিও লাইব্রেরি (Supabase)
+                </h3>
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom:14px;">এক ক্লিকে ক্যাশ করে অফলাইনে শুনুন:</p>
+                <div id="audio-categories-list-container"></div>
+                <button class="btn-modal" id="btn-close-audio-modal" style="width:100%; margin-top:10px; background:#263238; color:#FFF;">সম্পন্ন / বন্ধ করুন</button>
+            </div>
+        </div>
+
+        <!-- Target Customization Modal -->
+        <div class="modal-overlay" id="target-custom-modal">
+            <div class="modal-card" style="text-align: left; max-width: 360px;">
+                <h3 style="font-family:'Kalpurush'; color:var(--accent-green); margin-bottom:12px; font-size:18px;">ডেইলি টার্গেট কাস্টমাইজ</h3>
+
+                <label style="font-size: 11px; color: var(--text-muted);">শিরোনাম বা শব্দ</label>
+                <input type="text" id="target-title-input" class="input-dark" placeholder="যেমন: দরূদ শরীফ">
+                <label style="font-size: 11px; color: var(--text-muted);">উচ্চারণ / অর্থ</label>
+                <input type="text" id="target-meaning-input" class="input-dark" placeholder="যেমন: আল্লাহুম্মা সাল্লি আলা মুহাম্মাদ">
+                <label style="font-size: 11px; color: var(--text-muted);">লক্ষ্যমাত্রা (সংখ্যা)</label>
+                <input type="number" id="target-goal-input" class="input-dark" min="1" max="1000" placeholder="100">
+                <label style="font-size: 11px; color: var(--text-muted);">কাস্টম অডিও ফাইল (অপশনাল)</label>
+                <input type="file" id="target-audio-file" accept="audio/*" style="font-size:12px; color:var(--text-muted); margin-bottom:12px; width:100%;">
+                <div class="modal-btn-row">
+                    <button class="btn-modal" style="background:#263238; color:#FFF;" id="btn-close-target-modal">বাতিল</button>
+                    <button class="btn-modal" style="background:var(--accent-green); color:#000;" id="btn-save-target-custom">সংরক্ষণ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Unlock Alert (Unlock Guard) Config Modal -->
+        <div class="modal-overlay" id="unlock-alert-modal">
+            <div class="modal-card" style="text-align: left; border: 1.5px solid rgba(239, 68, 68, 0.4); max-width: 360px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid var(--card-border); padding-bottom:10px;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:20px; height:20px; color:#f87171; flex-shrink:0;"><path fill="currentColor" d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM8.9 6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2H8.9V6zM18 20H6V10h12v10z"/></svg>
+                        <span style="font-weight:800; font-size:16px; color:#ffffff;">আনলক অ্যালার্ট</span>
+                    </div>
+                    <label class="alarm-switch">
+                        <input type="checkbox" id="modal-guard-toggle-chk">
+                        <span class="switch-slider"></span>
+                    </label>
+                </div>
+
+                <!-- সাউন্ড নির্বাচন সেকশন -->
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:12px; color:var(--text-muted); font-weight:700; display:flex; align-items:center; gap:6px; margin-bottom:8px;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px; color:#38bdf8;"><path fill="currentColor" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                        <span>আনলক সাউন্ড সিলেক্ট করুন:</span>
+                    </label>
+
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                        <label style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.05); padding:10px 12px; border-radius:8px; cursor:pointer;">
+                            <input type="radio" name="modal-guard-sound-choice" value="durood_sharif" style="accent-color:var(--accent-green);">
+                            <div>
+                                <div style="font-size:13px; font-weight:700; color:#fff;">দরূদ শরীফ (ডিফল্ট)</div>
+                                <div style="font-size:11px; color:var(--text-muted);">ফোন আনলকে স্বয়ংক্রিয়ভাবে দরূদ পাঠ হবে</div>
+                            </div>
+                        </label>
+
+                        <label style="display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.05); padding:10px 12px; border-radius:8px; cursor:pointer;">
+                            <input type="radio" name="modal-guard-sound-choice" value="custom" style="accent-color:var(--accent-green);">
+                            <div style="flex:1; overflow:hidden;">
+                                <div style="font-size:13px; font-weight:700; color:#fff;">নিজের পছন্দের অডিও</div>
+                                <div id="modal-guard-custom-audio-label" style="font-size:11px; color:var(--accent-green); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                    ফোন থেকে অডিও দিন
+                                </div>
+                            </div>
+
+                            <button type="button" id="modal-btn-pick-custom-audio" style="background:#1565C0; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:11px; font-weight:bold; cursor:pointer; flex-shrink:0; display:flex; align-items:center; gap:4px;">
+                                <svg class="svg-icon" viewBox="0 0 24 24" style="width:12px; height:12px;"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                                <span>অডিও</span>
+                            </button>
+                        </label>
+                    </div>
+
+                    <input type="file" id="modal-guard-audio-file-input" accept="audio/*" style="display:none;" />
+                </div>
+
+                <!-- ঐচ্ছিক পপ-আপ মেসেজ -->
+                <div style="margin-bottom:18px;">
+                    <label style="font-size:11px; color:var(--text-muted); font-weight:700; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px; color:#38bdf8;"><path fill="currentColor" d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                        <span>আনলক স্ক্রিন বার্তা (ঐচ্ছিক):</span>
+                    </label>
+                    <input type="text" id="modal-guard-caution-text" class="input-dark" style="height:42px; margin-bottom:0; font-size:14px;" placeholder="صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ" value="صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ" />
+                </div>
+
+                <div class="modal-btn-row">
+                    <button class="btn-modal" style="background:#263238; color:#FFF;" id="btn-close-unlock-guard-modal">বাতিল</button>
+                    <button class="btn-modal" style="background:#22c55e; color:#000; font-weight:bold;" id="btn-save-unlock-guard-modal">সংরক্ষণ (Save)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Guide Modal -->
+        <div class="modal-overlay" id="about-apps-modal" style="display: none;">
+            <div class="modal-card" style="text-align: left; border: 1.5px solid rgba(16, 185, 129, 0.4); max-width: 420px; width: 95%; max-height: 88vh; display: flex; flex-direction: column; padding: 18px 16px; box-sizing: border-box; background: #0b1326; border-radius: 20px;">
+
+                <!-- Modal Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 12px; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; color: #10b981; flex-shrink: 0;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        <div>
+                            <span style="font-weight: 800; font-size: 16px; color: #ffffff;">ফিচার গাইড</span>
+                            <p style="font-size: 11px; color: #94a3b8; margin-top: 1px;">Helpniche অ্যাপের মূল ফিচার ও ব্যবহার নির্দেশিকা</p>
+                        </div>
+                    </div>
+                    <button id="btn-close-about-apps-modal" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 6px 10px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
+                </div>
+
+                <!-- Scrollable Content -->
+                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
+
+                    <!-- Point 1: Core Protection -->
+                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #34d399; flex-shrink: 0;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                            <span style="font-weight: 700; font-size: 13px; color: #34d399;">১. কোর প্রটেকশন (পর্নো ও অ্যাডাল্ট কনটент ফিল্টার)</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                            ফ্যামিলি ডিএনএস (Family DNS) এবং স্ট্রিক্ট ফিল্টারিং প্রযুক্তির মাধ্যমে আপনার ডিভাইসের সকল ব্রাউজারে পর্নোগ্রাফি ও অ্যাডাল্ট কনটেন্ট স্বয়ংক্রিয়ভাবে ব্লক থাকে। এটি সার্বক্ষণিকভাবে সচল থেকে আপনার চোখ ও মনকে পবিত্র রাখতে সাহায্য করে।
+                        </p>
+                    </div>
+
+                    <!-- Point 2: Social Control -->
+                    <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #38bdf8; flex-shrink: 0;"><path fill="currentColor" d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>
+                            <span style="font-weight: 700; font-size: 13px; color: #38bdf8;">২. সোশ্যাল কন্ট্রোল</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                            ফেসবুক, ইউটিউব, ইনস্টাগ্রাম, টিকটক ইত্যাদি সোশ্যাল মিডিয়া ও শর্টস/রিলসের অতিরিক্ত আসক্তি রুখতে নির্দিষ্ট সময়সীমা নির্ধারণ করে লক করে রাখা যায়। সময় শেষ হলে অ্যাপ স্বয়ংক্রিয়ভাবে স্ক্রিন আটকে দেয়।
+                        </p>
+                    </div>
+
+                    <!-- Point 3: Deep Focus Session -->
+                    <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #c084fc; flex-shrink: 0;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                            <span style="font-weight: 700; font-size: 13px; color: #c084fc;">৩. ডিপ ফোকাস সেশন</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                            পড়াশোনা, কাজ বা ইবাদতের সময় ফোকাস লক চালুর মাধ্যমে নির্ধারিত সময়ের জন্য পুরো ফোনকে বিভ্রান্তিমুক্ত রাখা যায়। এটি ইচ্ছাশক্তি দুর্বল হলেও ডিজিটাল ডিস্ট্র্যাকশন থেকে আপনাকে মুক্ত রাখবে।
+                        </p>
+                    </div>
+
+                    <!-- Point 4: Streak & Protection Counter -->
+                    <div style="background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.25); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #fb923c; flex-shrink: 0;"><path fill="currentColor" d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67z"/></svg>
+                            <span style="font-weight: 700; font-size: 13px; color: #fb923c;">৪. স্ট্রাইক ও প্রটেকশন কাউন্টার</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                            আপনার আত্মনিয়ন্ত্রণ ও লক্ষ্যমাত্রা পূরণের ধারাবাহিকতা ট্র্যাকিং হয়। অ্যাপ ব্যবহারের কতদিন এবং কত ঘণ্টা সুরক্ষিত আছেন তার লাইভ হিসাব এবং ইসলামিক পদবী অর্জনের অগ্রগতি দেখায়।
+                        </p>
+                    </div>
+
+                    <!-- Point 5: Routine, Unlock Guard & Tasbih -->
+                    <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #facc15; flex-shrink: 0;"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>
+                            <span style="font-weight: 700; font-size: 13px; color: #facc15;">৫. রুটিন, আনলক গার্ড ও তাসবিহ</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                            দৈনন্দিন ১০০ বার দরূদ শরীফ পাঠের ডেইলি টার্গেট, শক্তিশালী অ্যালার্ম এবং ফোন আনলক করলেই দরূদ পাঠের স্মারক ও ভাইব্রেশনাল সচেতনতা কার্যকর থাকে। সাথে রয়েছে ডিজিটাল তাসবিহ ও তাসবিহ-ই-ফাতিমি মোড।
+                        </p>
+                    </div>
+
+                    <!-- Point 6: Settings & Anti-Tampering -->
+                    <div style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #fb7185; flex-shrink: 0;"><path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                            <span style="font-weight: 700; font-size: 13px; color: #fb7185;">৬. সেটিংস ও অ্যান্টি-ট্যাম্পারিং (আনইনস্টল গার্ড)</span>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0;">
+                            আবেগের বশে অ্যাপ আনইনস্টল বা বন্ধ করা রোধ করতে ডিভাইস অ্যাডমিন এবং অ্যাক্সেসিবিলিটি সার্ভিস গুরুত্বপূর্ণ ভূমিকা পালন করে। টেলিগ্রাম অ্যাডমিন মাস্টার কোড ছাড়া অ্যাপ সরানো অসম্ভব।
+                        </p>
+                    </div>
+
+                </div>
+
+                <button class="btn-primary-focus" id="btn-understand-about-apps" style="margin-top: 12px; margin-bottom: 0; background: #10b981; color: #000; font-weight: bold; flex-shrink: 0;">
+                    ঠিক আছে
+                </button>
+
+            </div>
+        </div>
+                </button>
+
+            </div>
+        </div>
+
+        <!-- Onboarding Permission Wizard Modal -->
+        <div class="modal-overlay" id="onboarding-wizard-modal" style="display: none; z-index: 100005;">
+            <div class="modal-card onboarding-wizard-card">
+                <!-- Header with Title & Dynamic Progress Tracker -->
+                <div class="onboarding-header">
+                    <div class="onboarding-title-row">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: #10b981; flex-shrink: 0;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                        <span class="onboarding-title">Helpniche সেটআপ উইজার্ড</span>
+                    </div>
+                    <div class="onboarding-counter" id="onboarding-progress-text">প্রয়োজনীয় পারমিশন: ০/৫ সম্পন্ন</div>
+                </div>
+
+                <!-- Smooth Progress Indicator Bar -->
+                <div class="onboarding-progress-track">
+                    <div class="onboarding-progress-fill" id="onboarding-progress-bar" style="width: 0%;"></div>
+                </div>
+
+                <!-- Unlock Alert Card -->
+                <div class="onboarding-unlock-alert-card" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 16px; padding: 12px 14px; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 14px; font-weight: 800; color: #ffffff;">Unlock Alert</div>
+                            <div style="font-size: 12px; color: #34d399; margin-top: 2px;">সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম</div>
+                        </div>
+                        <label class="alarm-switch">
+                            <input type="checkbox" id="onboarding-unlock-alert-toggle">
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Central Focus Card (Displays ONLY current active step) -->
+                <div class="onboarding-focus-step" id="onboarding-step-card">
+                    <div class="onboarding-step-icon" id="onboarding-step-icon"></div>
+                    <h3 class="onboarding-step-title" id="onboarding-step-title"></h3>
+                    <p class="onboarding-step-desc" id="onboarding-step-desc"></p>
+                </div>
+
+                <!-- Professional One-Click Action Button -->
+                <button class="onboarding-action-btn" id="btn-onboarding-action">
+                    <span id="onboarding-btn-text">অপশন চালু করুন</span>
+                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42L16.86 11H5v2z"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- New Alarm Modal -->
+        <div class="modal-overlay" id="alarm-modal">
+            <div class="modal-card" style="text-align: left; max-width: 360px;">
+                <h3 style="font-family:'Kalpurush'; color:var(--accent-green); margin-bottom:12px; font-size:18px;">নতুন অ্যালার্ম</h3>
+                <input type="time" id="new-alarm-time" class="input-dark" style="font-size:22px; text-align:center;" value="12:00">
+                <input type="text" id="new-alarm-title" class="input-dark" placeholder="শিরোনাম (যেমন: তাহাজ্জুদ সালাত)">
+
+                <!-- রিপিট মোড ও কাস্টম দিন সিলেকশন -->
+                <div style="margin-bottom:12px;">
+                    <label style="font-size:12px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:4px;">রিপিট অপশন:</label>
+                    <select id="new-alarm-repeat-mode" class="input-dark" style="height:38px; padding:6px 10px; font-size:13px; font-weight:bold; margin-bottom:8px;" onchange="
+                        const customBox = document.getElementById('alarm-custom-days-box');
+                        if (customBox) customBox.style.display = (this.value === 'custom') ? 'flex' : 'none';
+                    ">
+                        <option value="everyday">প্রতিদিন (Everyday)</option>
+                        <option value="once">একবার (Once)</option>
+                        <option value="custom">নির্দিষ্ট দিন (Custom Days)</option>
+                    </select>
+
+                    <div id="alarm-custom-days-box" style="display:none; flex-wrap:wrap; gap:8px; margin-top:6px; background:rgba(255,255,255,0.05); padding:8px; border-radius:8px;">
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="7" checked> শনি</label>
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="1" checked> রবি</label>
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="2" checked> সোম</label>
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="3" checked> মঙ্গল</label>
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="4" checked> বুধ</label>
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="5" checked> বৃহস্পতি</label>
+                        <label style="font-size:11px; color:#fff; display:flex; align-items:center; gap:3px;"><input type="checkbox" class="chk-alarm-day" value="6" checked> শুক্র</label>
+                    </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                    <button class="btn-modal" style="background:#1E293B; color:#E2E8F0; padding:8px;" id="btn-browse-alarm-audio">অডিও বাছুন</button>
+                    <span style="font-size:12px; color:var(--text-muted);" id="new-alarm-audio-name">ডিফল্ট ভয়েস</span>
+                </div>
+                <input type="file" id="new-alarm-audio-file" accept="audio/*" style="display:none;">
+                <div class="modal-btn-row">
+                    <button class="btn-modal" style="background:#263238; color:#FFF;" id="btn-close-alarm-modal">বাতিল</button>
+                    <button class="btn-modal" style="background:var(--accent-green); color:#000;" id="btn-save-alarm">সংরক্ষণ</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Passcode Unlock Modal -->
+        <div class="modal-overlay" id="unlock-modal-overlay">
+            <div class="modal-card">
+                <h3 style="font-family:'Kalpurush'; color:#2979FF; margin-bottom:10px; font-size:18px; display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2 2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    অ্যাডমিন কোড যাচাই
+                </h3>
+                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">টেলিগ্রাম থেকে প্রাপ্ত সিক্রেট কোড লিখুন:</p>
+                <input type="password" id="unlock-passcode-input" class="input-dark" placeholder="••••" maxlength="8" style="text-align:center; letter-spacing:4px; font-size:18px;">
+                <div class="modal-btn-row">
+                    <button class="btn-modal" style="background:#263238; color:#FFF;" id="btn-close-unlock-modal">বাতিল</button>
+                    <button class="btn-modal" style="background:#2979FF; color:#FFF;" id="btn-verify-unlock-code">আনলক করুন</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fullscreen Alarm Takeover -->
+        <div id="fullscreen-alarm-screen" class="fullscreen-takeover">
+            <div style="font-size: 52px; font-weight: 800; color: #00E676;" id="fs-alarm-time">00:00</div>
+            <div style="font-size: 22px; font-weight: 700; color: #FFFFFF; margin-top: 10px;" id="fs-alarm-title">নির্ধারিত সময় হয়েছে</div>
+            <button class="btn-primary-focus" id="btn-dismiss-fs-alarm" style="width:auto; padding:14px 40px; margin-top:24px; background:#00E676;">
+                সম্পন্ন / বন্ধ করুন
+            </button>
+        </div>
+
+        <!-- Fullscreen Blocked App Lockout Takeover -->
+        <div id="fullscreen-blocked-app-overlay" class="fullscreen-takeover">
+            <div style="background:#FF1744; color:#FFF; font-size:11px; font-weight:800; padding:6px 16px; border-radius:20px; letter-spacing:1px; margin-bottom:14px; display:inline-flex; align-items:center; gap:6px;">
+                <svg viewBox="0 0 24 24" style="width:13px; height:13px; fill:currentColor;"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                <span>অ্যাপ ব্লকড (STRICT MODE)</span>
+            </div>
+
+            <!-- Dynamic Bangla Heading -->
+            <div id="fs-blocked-heading" style="font-size: 20px; font-weight: 800; color: #FFFFFF; margin-bottom: 10px; max-width: 310px; text-align: center; line-height: 1.4;">
+                অ্যাপ দেখার জন্য অপেক্ষা করুন
+            </div>
+
+            <!-- Dynamic Subtitle -->
+            <div id="fs-blocked-subtext" style="font-size: 13px; color: #CBD5E1; margin-bottom: 24px; max-width: 290px; text-align: center; line-height: 1.5;">
+                নির্ধারিত ব্লক সময় শেষ না হওয়া পর্যন্ত এই অ্যাপটি খোলা সম্ভব হবে না।
+            </div>
+
+            <!-- Live Countdown Display -->
+            <div style="background: rgba(255, 23, 68, 0.12); border: 2px solid rgba(255, 23, 68, 0.4); border-radius: 16px; padding: 16px 28px; text-align: center; margin-bottom: 24px;">
+                <div style="font-size: 11px; color: #FF8A80; font-weight: 700; letter-spacing: 1px; margin-bottom: 4px; text-transform: uppercase;">
+                    অবশিষ্ট ব্লক সময়
+                </div>
+                <div style="font-size: 30px; font-weight: 800; color: #FF1744; font-family: system-ui, sans-serif; letter-spacing: 1px;" id="fs-blocked-timer">
+                    ০০ মিনিট ০০ সেকেন্ড
+                </div>
+            </div>
+
+            <button class="btn-primary-focus" id="btn-close-blocked-app-fs" style="background:#FF1744; color:#FFF; width:auto; padding:14px 40px; box-shadow:0 4px 14px rgba(255,23,68,0.4);">
+                হোম স্ক্রিনে ফিরে যান
+            </button>
+        </div>
+    `;
+}
+
+function bindGlobalEvents() {
+    document.querySelectorAll('.app-nav-item').forEach(el => {
+        el.onclick = () => switchTab(el.dataset.tab);
+    });
+
+    // Fullscreen Penalty Lock Overlay Tap & AutoPlay Event Listeners
+    let lastPenaltyTapTime = 0;
+    // Panic Modal
+    const btnClosePanic = document.getElementById('btn-close-panic');
+    if (btnClosePanic) {
+        btnClosePanic.onclick = () => {
+            document.getElementById('panic-modal').style.display = 'none';
+        };
+    }
+
+    // Relapse Modal
+    const btnCancelRelapse = document.getElementById('btn-modal-cancel-relapse');
+    if (btnCancelRelapse) {
+        btnCancelRelapse.onclick = () => {
+            document.getElementById('relapse-modal').style.display = 'none';
+        };
+    }
+
+    const btnConfirmRelapse = document.getElementById('btn-modal-confirm-relapse');
+    if (btnConfirmRelapse) {
+        btnConfirmRelapse.onclick = () => {
+            const reasonInput = document.getElementById('relapse-reason-input');
+            const reason = reasonInput ? reasonInput.value.trim() : '';
+            const totalDays = Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600));
+            const history = JSON.parse(localStorage.getItem('STREAK_HISTORY') || '[]');
+            history.push({
+                days: totalDays,
+                startDate: new Date(streakStartTime).toLocaleDateString(),
+                endDate: new Date().toLocaleDateString(),
+                comment: reason
+            });
+            localStorage.setItem('STREAK_HISTORY', JSON.stringify(history));
+
+            streakStartTime = Date.now();
+            localStorage.setItem('STREAK_START_TIME', streakStartTime.toString());
+            selectedTrackingRankIndex = -1;
+            if (reasonInput) reasonInput.value = '';
+            document.getElementById('relapse-modal').style.display = 'none';
+            updateStreakDisplays();
+            switchTab('streak');
+        };
+    }
+
+    // Audio Category Modal Close
+    const btnCloseAudio = document.getElementById('btn-close-audio-modal');
+    if (btnCloseAudio) {
+        btnCloseAudio.onclick = () => {
+            document.getElementById('audio-category-modal-overlay').style.display = 'none';
+        };
+    }
+
+    // Target Modal Handlers
+    let tempTargetAudio = null;
+    const targetAudioFileEl = document.getElementById('target-audio-file');
+    if (targetAudioFileEl) {
+        targetAudioFileEl.onchange = (e) => {
+            const f = e.target.files[0];
+            if (f) {
+                const r = new FileReader();
+                r.onload = (evt) => { tempTargetAudio = evt.target.result; };
+                r.readAsDataURL(f);
+            }
+        };
+    }
+
+    const btnCloseTargetModal = document.getElementById('btn-close-target-modal');
+    if (btnCloseTargetModal) {
+        btnCloseTargetModal.onclick = () => {
+            document.getElementById('target-custom-modal').style.display = 'none';
+        };
+    }
+
+    const btnSaveTargetCustom = document.getElementById('btn-save-target-custom');
+    if (btnSaveTargetCustom) {
+        btnSaveTargetCustom.onclick = () => {
+            const titleInp = document.getElementById('target-title-input');
+            const meanInp = document.getElementById('target-meaning-input');
+            const goalInp = document.getElementById('target-goal-input');
+
+            dailyTarget.title = (titleInp && titleInp.value.trim()) || 'ডেইলি টার্গেট';
+            dailyTarget.meaning = meanInp ? meanInp.value.trim() : '';
+            dailyTarget.goal = (goalInp && parseInt(goalInp.value, 10)) || 100;
+
+            if (tempTargetAudio) dailyTarget.audioData = tempTargetAudio;
+            localStorage.setItem('DAILY_TARGET_CONFIG', JSON.stringify(dailyTarget));
+
+            document.getElementById('target-custom-modal').style.display = 'none';
+            switchTab('routine');
+        };
+    }
+
+    // Alarm Modal Handlers
+    let alarmAudioData = null;
+    let alarmAudioName = '';
+    const btnBrowseAlarmAudio = document.getElementById('btn-browse-alarm-audio');
+    if (btnBrowseAlarmAudio) {
+        btnBrowseAlarmAudio.onclick = () => {
+            const fileInp = document.getElementById('new-alarm-audio-file');
+            if (fileInp) fileInp.click();
+        };
+    }
+
+    const alarmAudioFileEl = document.getElementById('new-alarm-audio-file');
+    if (alarmAudioFileEl) {
+        alarmAudioFileEl.onchange = (e) => {
+            const f = e.target.files[0];
+            if (f) {
+                alarmAudioName = f.name;
+                const nameEl = document.getElementById('new-alarm-audio-name');
+                if (nameEl) nameEl.innerText = f.name;
+                const r = new FileReader();
+                r.onload = (evt) => { alarmAudioData = evt.target.result; };
+                r.readAsDataURL(f);
+            }
+        };
+    }
+
+    const btnCloseAlarmModal = document.getElementById('btn-close-alarm-modal');
+    if (btnCloseAlarmModal) {
+        btnCloseAlarmModal.onclick = () => {
+            document.getElementById('alarm-modal').style.display = 'none';
+        };
+    }
+
+    const btnSaveAlarm = document.getElementById('btn-save-alarm');
+    if (btnSaveAlarm) {
+        btnSaveAlarm.onclick = () => {
+            const timeInp = document.getElementById('new-alarm-time');
+            const titleInp = document.getElementById('new-alarm-title');
+            const repeatModeEl = document.getElementById('new-alarm-repeat-mode');
+            const time = timeInp ? timeInp.value : '12:00';
+            const title = (titleInp && titleInp.value.trim()) || 'নির্ধারিত সময়';
+            const repeatMode = repeatModeEl ? repeatModeEl.value : 'everyday';
+
+            const selectedDays = [];
+            document.querySelectorAll('.chk-alarm-day:checked').forEach(chk => {
+                selectedDays.push(parseInt(chk.value, 10));
+            });
+
+            const alarmId = Math.abs(Date.now() % 2147483647);
+            const parts = time.split(':');
+            const h = parseInt(parts[0], 10) || 12;
+            const m = parseInt(parts[1], 10) || 0;
+
+            const alarmObj = {
+                id: alarmId,
+                time: time,
+                title: title,
+                enabled: true,
+                hour: h,
+                minute: m,
+                repeatMode: repeatMode,
+                repeatDays: selectedDays.length > 0 ? selectedDays : [1,2,3,4,5,6,7],
+                audioData: alarmAudioData,
+                audioName: alarmAudioName || 'ডিফল্ট ভয়েস'
+            };
+
+            alarms.push(alarmObj);
+            localStorage.setItem('CUSTOM_ALARMS', JSON.stringify(alarms));
+
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin) {
+                try {
+                    window.Capacitor.Plugins.UnlockPlugin.scheduleAlarm({
+                        id: alarmId,
+                        title: title,
+                        timeStr: time,
+                        hour: h,
+                        minute: m,
+                        enabled: true,
+                        audioType: 'alarm',
+                        repeatMode: repeatMode,
+                        repeatDays: selectedDays.length > 0 ? selectedDays : [1,2,3,4,5,6,7]
+                    });
+                } catch (e) {
+                    console.error('Error scheduling native alarm:', e);
+                }
+            }
+
+            document.getElementById('alarm-modal').style.display = 'none';
+            switchTab('routine');
+        };
+    }
+
+    // Fullscreen Alarm Dismiss
+    const btnDismissAlarm = document.getElementById('btn-dismiss-fs-alarm');
+    if (btnDismissAlarm) {
+        btnDismissAlarm.onclick = () => {
+            document.getElementById('fullscreen-alarm-screen').style.display = 'none';
+            if (alarmAudioPlayer) {
+                alarmAudioPlayer.pause();
+                alarmAudioPlayer.currentTime = 0;
+            }
+        };
+    }
+
+    // Penalty Manual Tap
+    const btnPenaltyTap = document.getElementById('btn-penalty-manual-tap');
+    if (btnPenaltyTap) {
+        btnPenaltyTap.onclick = () => {
+            dailyTarget.completedCount++;
+            const remaining = dailyTarget.goal - dailyTarget.completedCount;
+            const countEl = document.getElementById('penalty-remaining-count');
+            if (countEl) countEl.innerText = Math.max(0, remaining);
+            if (remaining <= 0) {
+                document.getElementById('fullscreen-penalty-lock').style.display = 'none';
+                dailyTarget.completedCount = 0;
+                dailyTarget.lastTrackedDate = new Date().toDateString();
+                localStorage.setItem('DAILY_TARGET_CONFIG', JSON.stringify(dailyTarget));
+                alert('পেনাল্টি সম্পন্ন হয়েছে! ফোন আনলক হলো।');
+            }
+        };
+    }
+
+    // Unlock Modal Verification
+    const btnCloseUnlock = document.getElementById('btn-close-unlock-modal');
+    if (btnCloseUnlock) {
+        btnCloseUnlock.onclick = () => {
+            document.getElementById('unlock-modal-overlay').style.display = 'none';
+        };
+    }
+
+    const btnVerifyUnlock = document.getElementById('btn-verify-unlock-code');
+    if (btnVerifyUnlock) {
+        btnVerifyUnlock.onclick = () => {
+            const passInp = document.getElementById('unlock-passcode-input');
+            const code = passInp ? passInp.value.trim() : '';
+            if (code === '7788' || code === '9900') {
+                alert('সফল! সিস্টেম লক সাময়িক শিথিল করা হলো।');
+                document.getElementById('unlock-modal-overlay').style.display = 'none';
+            } else {
+                alert('ভুল পাসকোড! টেলিগ্রাম অ্যাডমিনের সাথে যোগাযোগ করুন।');
+            }
+        };
+    }
+
+    // Dismiss Blocked App Takeover Overlay
+    const btnDismissBlockedApp = document.getElementById('btn-close-blocked-app-fs');
+    if (btnDismissBlockedApp) {
+        btnDismissBlockedApp.onclick = () => {
+            if (blockedAppCountdownInterval) {
+                clearInterval(blockedAppCountdownInterval);
+                blockedAppCountdownInterval = null;
+            }
+            document.getElementById('fullscreen-blocked-app-overlay').style.display = 'none';
+            switchTab('home');
+        };
+    }
+
+    // About Apps Modal Event Bindings
+    const btnCloseAboutAppsModal = document.getElementById('btn-close-about-apps-modal');
+    if (btnCloseAboutAppsModal) {
+        btnCloseAboutAppsModal.onclick = () => {
+            document.getElementById('about-apps-modal').style.display = 'none';
+        };
+    }
+
+    const btnUnderstandAboutApps = document.getElementById('btn-understand-about-apps');
+    if (btnUnderstandAboutApps) {
+        btnUnderstandAboutApps.onclick = () => {
+            document.getElementById('about-apps-modal').style.display = 'none';
+        };
+    }
+
+    // Unlock Guard Modal Handlers
+    const btnCloseGuardModal = document.getElementById('btn-close-unlock-guard-modal');
+    if (btnCloseGuardModal) {
+        btnCloseGuardModal.onclick = () => {
+            document.getElementById('unlock-alert-modal').style.display = 'none';
+        };
+    }
+
+    const btnPickGuardAudio = document.getElementById('modal-btn-pick-custom-audio');
+    if (btnPickGuardAudio) {
+        btnPickGuardAudio.onclick = () => {
+            const fileInp = document.getElementById('modal-guard-audio-file-input');
+            if (fileInp) fileInp.click();
+        };
+    }
+
+    const guardAudioFileInp = document.getElementById('modal-guard-audio-file-input');
+    if (guardAudioFileInp) {
+        guardAudioFileInp.onchange = (e) => {
+            const f = e.target.files[0];
+            if (f) {
+                const r = new FileReader();
+                r.onload = (evt) => {
+                    unlockGuard.customAudioName = f.name;
+                    unlockGuard.customAudioBase64 = evt.target.result;
+                    const label = document.getElementById('modal-guard-custom-audio-label');
+                    if (label) label.innerText = f.name;
+                    const customRadio = document.querySelector('input[name="modal-guard-sound-choice"][value="custom"]');
+                    if (customRadio) customRadio.checked = true;
+                };
+                r.readAsDataURL(f);
+            }
+        };
+    }
+
+    const btnSaveGuardModal = document.getElementById('btn-save-unlock-guard-modal');
+    if (btnSaveGuardModal) {
+        btnSaveGuardModal.onclick = () => {
+            const chk = document.getElementById('modal-guard-toggle-chk');
+            const txt = document.getElementById('modal-guard-caution-text');
+            const selectedRadio = document.querySelector('input[name="modal-guard-sound-choice"]:checked');
+
+            unlockGuard.enabled = chk ? chk.checked : false;
+            let enteredText = txt ? txt.value.trim() : '';
+            if (!enteredText) {
+                enteredText = 'صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ';
+            }
+            unlockGuard.text = enteredText;
+            unlockGuard.audioType = selectedRadio ? selectedRadio.value : 'durood_sharif';
+
+            if (unlockGuard.audioType === 'custom' && !unlockGuard.customAudioBase64) {
+                alert('অনুগ্রহ করে অডিও ফাইল নির্বাচন করুন!');
+                return;
+            }
+
+            localStorage.setItem('UNLOCK_GUARD', JSON.stringify(unlockGuard));
+
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin) {
+                try {
+                    window.Capacitor.Plugins.UnlockPlugin.setUnlockReminder({
+                        enabled: unlockGuard.enabled,
+                        text: unlockGuard.text,
+                        audioType: unlockGuard.audioType,
+                        customAudioBase64: unlockGuard.customAudioBase64 || '',
+                        customAudioName: unlockGuard.customAudioName || ''
+                    });
+                } catch (err) {
+                    console.error('Error syncing unlock guard to native:', err);
+                }
+            }
+
+            document.getElementById('unlock-alert-modal').style.display = 'none';
+            switchTab('home');
+            alert(`সংরক্ষিত হয়েছে!\nস্ট্যাটাস: ${unlockGuard.enabled ? 'চালু (ON)' : 'বন্ধ (OFF)'}`);
+        };
+    }
+}
+
+window.openUnlockGuardModal = function() {
+    const modal = document.getElementById('unlock-alert-modal');
+    if (!modal) return;
+
+    const chk = document.getElementById('modal-guard-toggle-chk');
+    if (chk) chk.checked = !!unlockGuard.enabled;
+
+    const txt = document.getElementById('modal-guard-caution-text');
+    if (txt) {
+        txt.value = (unlockGuard.text && unlockGuard.text.trim()) ? unlockGuard.text.trim() : 'صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّমَ';
+    }
+
+    const curType = unlockGuard.audioType || 'durood_sharif';
+    const radio = document.querySelector(`input[name="modal-guard-sound-choice"][value="${curType}"]`);
+    if (radio) radio.checked = true;
+
+    const label = document.getElementById('modal-guard-custom-audio-label');
+    if (label) {
+        label.innerText = unlockGuard.customAudioName ? unlockGuard.customAudioName : 'ফোন থেকে অডিও দিন';
+    }
+
+    modal.style.display = 'flex';
+};
+
+// Global Live Countdown Manager for Blocked Apps
+let blockedAppCountdownInterval = null;
+
+function formatBanglaRemainingTime(totalSeconds) {
+    if (totalSeconds <= 0) return "০০ সেকেন্ড";
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    const toBanglaDigits = (num) => {
+        const banglaDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+        return num.toString().padStart(2, '0').replace(/\d/g, (digit) => banglaDigits[parseInt(digit, 10)]);
+    };
+
+    if (minutes > 0 && seconds > 0) {
+        return `${toBanglaDigits(minutes)} মিনিট ${toBanglaDigits(seconds)} সেকেন্ড`;
+    } else if (minutes > 0) {
+        return `${toBanglaDigits(minutes)} মিনিট`;
+    } else {
+        return `${toBanglaDigits(seconds)} সেকেন্ড`;
+    }
+}
+
+window.showBlockedAppTakeoverOverlay = function(appName, remainingSeconds, packageName) {
+    const overlayEl = document.getElementById('fullscreen-blocked-app-overlay');
+    const headingEl = document.getElementById('fs-blocked-heading');
+    const subtextEl = document.getElementById('fs-blocked-subtext');
+    const timerEl = document.getElementById('fs-blocked-timer');
+
+    if (!overlayEl) return;
+
+    const safeAppName = appName && appName.trim() ? appName.trim() : "অ্যাপ";
+    let secsLeft = Math.max(0, parseInt(remainingSeconds, 10) || 0);
+
+    if (blockedAppCountdownInterval) {
+        clearInterval(blockedAppCountdownInterval);
+        blockedAppCountdownInterval = null;
+    }
+
+    const updateUI = () => {
+        const timeText = formatBanglaRemainingTime(secsLeft);
+        if (headingEl) {
+            headingEl.innerText = `${safeAppName} দেখার জন্য ${timeText} অপেক্ষা করুন`;
+        }
+        if (subtextEl) {
+            subtextEl.innerText = `নির্ধারিত ব্লক সময় শেষ না হওয়া পর্যন্ত ${safeAppName} খোলা সম্ভব হবে না।`;
+        }
+        if (timerEl) {
+            timerEl.innerText = timeText;
+        }
+    };
+
+    updateUI();
+    overlayEl.style.display = 'flex';
+
+    blockedAppCountdownInterval = setInterval(() => {
+        secsLeft--;
+        if (secsLeft <= 0) {
+            clearInterval(blockedAppCountdownInterval);
+            blockedAppCountdownInterval = null;
+            overlayEl.style.display = 'none';
+            alert(`সময় শেষ! আপনি এখন ${safeAppName} ব্যবহার করতে পারবেন।`);
+        } else {
+            updateUI();
+        }
+    }, 1000);
+};
+
+// ==========================================================================
+// ABOUT APPS (FEATURE GUIDE) MODAL FUNCTION
+// ==========================================================================
+
+window.openAboutAppsModal = function() {
+    const modal = document.getElementById('about-apps-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+};
+
+window.openUnlockGuardModal = function() {
+    const modal = document.getElementById('unlock-alert-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+};
+
+/* ==========================================================================
+   ONBOARDING PERMISSION WIZARD STATE MANAGER (ZERO EMOJI POLICY - SVG ONLY)
+   ========================================================================== */
+
+let onboardingPermissionStatus = {
+    vpnGranted: false,
+    adminActive: false,
+    restrictedSettingsDone: false,
+    accessibilityEnabled: false,
+    batteryBypassed: false,
+    sdkInt: 33
+};
+
+const onboardingStepsConfig = {
+    1: {
+        stepKey: 'vpnGranted',
+        title: 'ধাপ ১: ব্রাউজার সুরক্ষা ও ভিপিএন পারমিশন',
+        desc: 'ক্ষতিকর ওয়েবসাইট স্বয়ংক্রিয়ভাবে ব্লক রাখতে এবং নিরাপদ ডিএনএস ফিল্টারিং সচল করতে ভিপিএন অনুমতি দিন।',
+        btnText: 'অপশন চালু করুন',
+        iconSvg: '<svg class="svg-icon" viewBox="0 0 24 24" style="width:32px; height:32px; fill:#34d399; filter:drop-shadow(0 0 6px rgba(52,211,153,0.4));"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>'
+    },
+    2: {
+        stepKey: 'adminActive',
+        title: 'ধাপ ২: ডিভাইস অ্যাডমিন সক্রিয়করণ',
+        desc: 'অনাকাঙ্ক্ষিত আনইনস্টল রদ করতে এবং অ্যাপের নিরাপত্তা প্রাচীর সুদৃঢ় রাখতে ডিভাইস পলিসি সক্রিয় করুন।',
+        btnText: 'ডিভাইস অ্যাডমিন অন করুন',
+        iconSvg: '<svg class="svg-icon" viewBox="0 0 24 24" style="width:32px; height:32px; fill:#38bdf8; filter:drop-shadow(0 0 6px rgba(56,189,248,0.4));"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14l-4-4 1.41-1.41L11 13.17l7.59-7.59L20 7l-9 9z"/></svg>'
+    },
+    3: {
+        stepKey: 'restrictedSettingsDone',
+        title: 'ধাপ ৩: রেস্ট্রিক্টেড সেটিং রিমুভ',
+        desc: 'অ্যান্ড্রয়েড ১৩+ ডিভাইসে পারমিশন চালুর বাধা সরাতে অ্যাপ ইনফো পেজ থেকে \'Allow restricted settings\' অপশন অন করুন।',
+        btnText: 'সেটিংস পেজে যান',
+        iconSvg: '<svg class="svg-icon" viewBox="0 0 24 24" style="width:32px; height:32px; fill:#fb923c; filter:drop-shadow(0 0 6px rgba(251,146,60,0.4));"><path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.49.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.03.24.24.42.49.42h4c.25 0 .46-.18.49-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>'
+    },
+    4: {
+        stepKey: 'accessibilityEnabled',
+        title: 'ধাপ ৪: অ্যাক্সেসিবিলিটি সার্ভিস',
+        desc: 'ব্লকিং ফিল্টার ও সিকিউরিটি শিল্ড ব্যাকগ্রাউন্ডে কার্যকর রাখতে \'Helpniche\' অ্যাক্সেসিবিলিটি সার্ভিস চালু করুন।',
+        btnText: 'অ্যাক্সেসিবিলিটি চালু করুন',
+        iconSvg: '<svg class="svg-icon" viewBox="0 0 24 24" style="width:32px; height:32px; fill:#a855f7; filter:drop-shadow(0 0 6px rgba(168,85,247,0.4));"><path d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z"/></svg>'
+    },
+    5: {
+        stepKey: 'batteryBypassed',
+        title: 'ধাপ ৫: ব্যাকগ্রাউন্ড ব্যাটারি অপটিমাইজেশন',
+        desc: 'ব্যাকগ্রাউন্ডে সার্ভিস সচল রাখতে এবং অপটিমাইজেশন বাইপাস করতে ব্যাটারি সেটিংস আনরেস্ট্রিক্টেড করুন।',
+        btnText: 'ব্যাটারি অপটিমাইজেশন সরান',
+        iconSvg: '<svg class="svg-icon" viewBox="0 0 24 24" style="width:32px; height:32px; fill:#facc15; filter:drop-shadow(0 0 6px rgba(250,204,21,0.4));"><path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4zM11 20v-5.5H9L13 7v5.5h2L11 20z"/></svg>'
+    }
+};
+
+function toBengaliNum(num) {
+    const bengaliDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+    return String(num).replace(/\d/g, d => bengaliDigits[d]);
+}
+
+function computeOnboardingProgress() {
+    let completedCount = 0;
+    const totalSteps = 5;
+
+    if (onboardingPermissionStatus.vpnGranted) completedCount++;
+    if (onboardingPermissionStatus.adminActive) completedCount++;
+    if (onboardingPermissionStatus.restrictedSettingsDone) completedCount++;
+    if (onboardingPermissionStatus.accessibilityEnabled) completedCount++;
+    if (onboardingPermissionStatus.batteryBypassed) completedCount++;
+
+    let nextStep = 0;
+    if (!onboardingPermissionStatus.vpnGranted) {
+        nextStep = 1;
+    } else if (!onboardingPermissionStatus.adminActive) {
+        nextStep = 2;
+    } else if (!onboardingPermissionStatus.restrictedSettingsDone) {
+        nextStep = 3;
+    } else if (!onboardingPermissionStatus.accessibilityEnabled) {
+        nextStep = 4;
+    } else if (!onboardingPermissionStatus.batteryBypassed) {
+        nextStep = 5;
+    } else {
+        nextStep = 6;
+    }
+
+    return { completedCount, totalSteps, nextStep };
+}
+
+window.syncOnboardingPermissionStatus = function(status) {
+    if (status) {
+        onboardingPermissionStatus = { ...onboardingPermissionStatus, ...status };
+    }
+    renderOnboardingWizardCard();
+    if (typeof updateSettingsShieldUI === 'function') {
+        updateSettingsShieldUI(onboardingPermissionStatus);
+    }
+};
+
+function fetchOnboardingStatusFromNative() {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.getOnboardingStatus) {
+        window.Capacitor.Plugins.UnlockPlugin.getOnboardingStatus().then(res => {
+            if (res) {
+                window.syncOnboardingPermissionStatus(res);
+            }
+        }).catch(err => console.log('Error fetching onboarding status:', err));
+    }
+}
+
+function renderOnboardingWizardCard() {
+    const modal = document.getElementById('onboarding-wizard-modal');
+    if (!modal) return;
+
+    const { completedCount, totalSteps, nextStep } = computeOnboardingProgress();
+
+    if (completedCount === totalSteps) {
+        localStorage.setItem('HELPNICHE_ONBOARDING_DONE', 'true');
+    } else {
+        localStorage.removeItem('HELPNICHE_ONBOARDING_DONE');
+    }
+
+    if (localStorage.getItem('HELPNICHE_ONBOARDING_DONE') === 'true' && completedCount === totalSteps) {
+        modal.style.display = 'none';
+        return;
+    }
+
+    const progressText = document.getElementById('onboarding-progress-text');
+    const progressBar = document.getElementById('onboarding-progress-bar');
+    const stepIcon = document.getElementById('onboarding-step-icon');
+    const stepTitle = document.getElementById('onboarding-step-title');
+    const stepDesc = document.getElementById('onboarding-step-desc');
+    const btnText = document.getElementById('onboarding-btn-text');
+    const actionBtn = document.getElementById('btn-onboarding-action');
+
+    const percentage = Math.round((completedCount / totalSteps) * 100);
+
+    if (progressText) {
+        progressText.innerText = `প্রয়োজনীয় পারমিশন: ${toBengaliNum(completedCount)}/${toBengaliNum(totalSteps)} সম্পন্ন (${toBengaliNum(percentage)}%)`;
+    }
+
+    if (progressBar) {
+        progressBar.style.width = `${percentage}%`;
+    }
+
+    const onboardingToggle = document.getElementById('onboarding-unlock-alert-toggle');
+    if (onboardingToggle) {
+        onboardingToggle.checked = !!unlockGuard.enabled;
+        onboardingToggle.onchange = function() {
+            const isChecked = onboardingToggle.checked;
+            unlockGuard.enabled = isChecked;
+            if (isChecked) {
+                if (!unlockGuard.text || !unlockGuard.text.trim() || unlockGuard.text === 'صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ') {
+                    unlockGuard.text = 'সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম';
+                }
+                if (!unlockGuard.audioType) {
+                    unlockGuard.audioType = 'durood_sharif';
+                }
+            }
+            localStorage.setItem('UNLOCK_GUARD', JSON.stringify(unlockGuard));
+
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin) {
+                try {
+                    window.Capacitor.Plugins.UnlockPlugin.setUnlockReminder({
+                        enabled: unlockGuard.enabled,
+                        text: unlockGuard.text || 'সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম',
+                        audioType: unlockGuard.audioType || 'durood_sharif',
+                        customAudioBase64: unlockGuard.customAudioBase64 || '',
+                        customAudioName: unlockGuard.customAudioName || ''
+                    });
+                } catch (err) {
+                    console.error('Error syncing unlock alert from onboarding:', err);
+                }
+            }
+        };
+    }
+
+    if (nextStep >= 1 && nextStep <= 5) {
+        modal.style.display = 'flex';
+        const config = onboardingStepsConfig[nextStep];
+
+        if (stepIcon) stepIcon.innerHTML = config.iconSvg;
+        if (stepTitle) stepTitle.innerText = config.title;
+        if (stepDesc) stepDesc.innerText = config.desc;
+        if (btnText) btnText.innerText = config.btnText;
+
+        if (actionBtn) {
+            actionBtn.style.display = 'flex';
+            actionBtn.onclick = function() {
+                executePermissionRequestStep(nextStep);
+            };
+        }
+    } else if (nextStep === 6) {
+        localStorage.setItem('HELPNICHE_ONBOARDING_DONE', 'true');
+        modal.style.display = 'flex';
+        if (stepIcon) {
+            stepIcon.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" style="width:36px; height:36px; fill:#10b981; filter:drop-shadow(0 0 8px rgba(16,185,129,0.5));"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
+        }
+        if (stepTitle) stepTitle.innerText = 'সকল পারমিশন সফলভাবে সম্পন্ন!';
+        if (stepDesc) stepDesc.innerText = 'Helpniche সুরক্ষা এখন ১০০% সচল ও কার্যকর। আপনার নিরাপদ ডিজিটাল জীবনের জন্য প্রস্তুত।';
+        if (btnText) btnText.innerText = 'হোমপেজে প্রবেশ করুন';
+
+        if (actionBtn) {
+            actionBtn.onclick = function() {
+                modal.style.display = 'none';
+            };
+        }
+
+        setTimeout(() => {
+            if (modal && modal.style.display !== 'none') {
+                modal.style.display = 'none';
+            }
+        }, 1800);
+    } else {
+        localStorage.setItem('HELPNICHE_ONBOARDING_DONE', 'true');
+        modal.style.display = 'none';
+    }
+}
+
+function executePermissionRequestStep(step) {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep) {
+        window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: step }).catch(err => {
+            console.log('Error requesting permission step:', err);
+        });
+    }
+}
+
+window.addEventListener('focus', () => {
+    fetchOnboardingStatusFromNative();
+});
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+        fetchOnboardingStatusFromNative();
+    }
+});

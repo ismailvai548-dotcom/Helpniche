@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusDurood Admin OTP Generator</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f4f6f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .card {
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+        }
+        h2 {
+            margin-top: 0;
+            color: #1a237e;
+            font-size: 22px;
+        }
+        p {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            text-align: left;
+            margin-bottom: 16px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 13px;
+            cursor: pointer;
+            color: white;
+            transition: opacity 0.2s;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .btn-5m { background-color: #2e7d32; }
+        .btn-10m { background-color: #1565c0; }
+        .btn-unlimited { background-color: #6A1B9A; }
+        .otp-box {
+            background: #e8f5e9;
+            border: 2px dashed #2e7d32;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+        .otp-code {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2e7d32;
+            letter-spacing: 6px;
+            font-family: monospace;
+        }
+        .copy-btn {
+            margin-top: 10px;
+            background: #333;
+            padding: 8px 16px;
+            font-size: 12px;
+            width: auto;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🔑 Admin OTP Generator</h2>
+    <p>ইউজারের ডিভাইস আইডি বসিয়ে ৫মি, ১০মি বা আনলিমিটেড কোড জেনারেট করুন।</p>
+
+    <div class="input-group">
+        <label for="deviceId">Device ID (ইউজারের ডিভাইস আইডি)</label>
+        <input type="text" id="deviceId" placeholder="e.g. 8d3a1f9e2c4b" />
+    </div>
+
+    <div class="btn-group">
+        <div class="btn-row">
+            <button class="btn-5m" onclick="generateCode(5)">⏱️ 5 Mins Code</button>
+            <button class="btn-10m" onclick="generateCode(10)">⏱️ 10 Mins Code</button>
+        </div>
+        <button class="btn-unlimited" onclick="generateCode(999999)">♾️ Unlimited Unlock Code</button>
+    </div>
+
+    <div class="otp-box" id="otpBox">
+        <div style="font-size: 12px; color: #555; margin-bottom: 4px;">জেনারেট করা ওটিপি কোড:</div>
+        <div class="otp-code" id="otpCode">------</div>
+        <button class="copy-btn" onclick="copyOtp()">📋 Copy Code</button>
+    </div>
+</div>
+
+<script>
+    const SECRET_KEY = 'FocusDurood#Security#Key#2026';
+
+    function generateCode(durationMinutes) {
+        const deviceIdInput = document.getElementById('deviceId').value.trim().toLowerCase();
+        if (!deviceIdInput) {
+            alert('অনুগ্রহ করে ডিভাইস আইডি দিন!');
+            return;
+        }
+
+        const dayIndex = Math.floor(Date.now() / (24 * 60 * 60 * 1000));
+        const durLabel = durationMinutes === 999999 ? 'UNLIMITED' : `DUR${durationMinutes}`;
+        const str = `${deviceIdInput}_${durLabel}_DAY${dayIndex}_${SECRET_KEY}`;
+
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash |= 0;
+        }
+        const positiveHash = Math.abs(hash);
+        const otp = (positiveHash % 900000) + 100000;
+
+        document.getElementById('otpCode').innerText = otp;
+        document.getElementById('otpBox').style.display = 'block';
+    }
+
+    function copyOtp() {
+        const code = document.getElementById('otpCode').innerText;
+        navigator.clipboard.writeText(code);
+        alert('কোড কপি করা হয়েছে: ' + code);
+    }
+</script>
+
+</body>
+</html>

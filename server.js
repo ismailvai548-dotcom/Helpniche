@@ -27,34 +27,40 @@ bot.start(async (ctx) => {
         const userFullName = escapeHtml(`${ctx.from.first_name || ''} ${ctx.from.last_name || ''}`.trim());
         const username = ctx.from.username ? `@${escapeHtml(ctx.from.username)}` : 'N/A';
 
-        if (!payload) {
-            return ctx.reply("স্বাগতম! অ্যাপ থেকে আনলক রিকোয়েস্ট পাঠাতে অ্যাপের ভেতর থাকা সহায়তা বাটনে চাপ দিন।");
+        const lowerPayload = (payload || '').toLowerCase();
+        if (!payload || lowerPayload === 'security' || lowerPayload === 'chatid') {
+            return ctx.reply(
+                `<b>আপনার টেলিগ্রাম চ্যাট আইডি:</b>\n` +
+                `<code>${userId}</code>\n\n` +
+                `<i>(আইডিটি কপি করতে উপরের নম্বরে চাপ দিন। এরপর অ্যাপে ফিরে গিয়ে বক্সে পেস্ট করে 'অনুমতি দিন ও চালু করুন' বাটনে চাপ দিন।)</i>`,
+                { parse_mode: 'HTML' }
+            );
         }
 
         const deviceId = payload.trim().toLowerCase();
 
         // ইউজারকে দেওয়া নোটিশ
-        const userWaitMsg = `📩 <b>আপনার আনলক অনুরোধটি গ্রহণ করা হয়েছে!</b>\n\n` +
-            `অনুগ্রহ করে অ্যাডমিনের অ্যাপ্রুভালের জন্য অপেক্ষা করুন। অনুমোদন পাওয়া মাত্র ইউনিক কোডটি এই চ্যাটে চলে আসবে।`;
+        const userWaitMsg = `<b>আপনার মেসেজটি পৌঁছেছে!</b>\n\n` +
+            `আপনার আনলক অনুরোধটি গ্রহণ করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের অ্যাপ্রুভালের জন্য অপেক্ষা করুন। অনুমোদন পাওয়া মাত্র ইউনিক কোডটি এই চ্যাটে চলে আসবে।`;
         await ctx.reply(userWaitMsg, { parse_mode: 'HTML' });
 
         // অ্যাডমিনকে পাঠানোর ফরম্যাট
-        const adminMsg = `🚨 <b>New Unlock Request</b>\n\n` +
-            `📱 <b>Device ID:</b> <code>${deviceId}</code>\n` +
-            `👤 <b>User:</b> ${userFullName} (${username})\n` +
-            `🆔 <b>User ID:</b> <code>${userId}</code>\n` +
-            `📝 <b>Reason:</b> সাময়িক আনলক প্রয়োজন\n` +
-            `📌 <b>Status:</b> ⏳ Pending Approval\n\n` +
+        const adminMsg = `<b>নতুন আনলক অনুরোধ</b>\n\n` +
+            `<b>Device ID:</b> <code>${deviceId}</code>\n` +
+            `<b>User:</b> ${userFullName} (${username})\n` +
+            `<b>User ID:</b> <code>${userId}</code>\n` +
+            `<b>Reason:</b> সাময়িক আনলক প্রয়োজন\n` +
+            `<b>Status:</b> অপেক্ষারত (Pending Approval)\n\n` +
             `অনুমোদনের জন্য সময় নির্বাচন করুন:`;
 
         const inlineKeyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('⏱️ ৫ মিনিট', `unlock_5_${deviceId}_${userId}`),
-                Markup.button.callback('⏱️ ১০ মিনিট', `unlock_10_${deviceId}_${userId}`)
+                Markup.button.callback('৫ মিনিট', `unlock_5_${deviceId}_${userId}`),
+                Markup.button.callback('১০ মিনিট', `unlock_10_${deviceId}_${userId}`)
             ],
             [
-                Markup.button.callback('♾️ পার্মানেন্ট', `unlock_perm_${deviceId}_${userId}`),
-                Markup.button.callback('❌ বাতিল', `reject_${deviceId}_${userId}`)
+                Markup.button.callback('পার্মানেন্ট', `unlock_perm_${deviceId}_${userId}`),
+                Markup.button.callback('বাতিল', `reject_${deviceId}_${userId}`)
             ]
         ]);
 

@@ -7,6 +7,7 @@ const KEYS = {
   BLOCK_SHORTS: 'block_shorts',
   SHORTS_COOLDOWN_UNTIL: 'shorts_cooldown_until',
   ANTI_UNINSTALL: 'anti_uninstall',
+  LIFETIME_ZIKR_COUNT: 'lifetime_zikr_count',
 };
 
 // অ্যাডমিনের দেওয়া সিক্রেট মাস্টার কোড (যা আপনি টেলিগ্রামে দিবেন)
@@ -27,15 +28,13 @@ export const checkDailyStatus = () => {
   const currentCount = parseInt(localStorage.getItem(KEYS.DUROOD_COUNT) || '0', 10);
 
   if (savedDate && savedDate !== currentDate) {
-    if (currentCount < 100) {
-      localStorage.setItem(KEYS.PENALTY_ACTIVE, 'true');
-    }
     localStorage.setItem(KEYS.DUROOD_COUNT, '0');
     localStorage.setItem(KEYS.TODAY_DATE, currentDate);
+    localStorage.removeItem(KEYS.PENALTY_ACTIVE);
   } else if (!savedDate) {
     localStorage.setItem(KEYS.TODAY_DATE, currentDate);
     localStorage.setItem(KEYS.DUROOD_COUNT, '0');
-    localStorage.setItem(KEYS.PENALTY_ACTIVE, 'false');
+    localStorage.removeItem(KEYS.PENALTY_ACTIVE);
     localStorage.setItem(KEYS.BLOCK_SHORTS, 'true');
     localStorage.setItem(KEYS.ANTI_UNINSTALL, 'true');
     localStorage.setItem(KEYS.BLOCKED_SITES, JSON.stringify(['instagram.com', 'tiktok.com']));
@@ -46,11 +45,6 @@ export const incrementDuroodCount = () => {
   const current = parseInt(localStorage.getItem(KEYS.DUROOD_COUNT) || '0', 10);
   const newCount = current + 1;
   localStorage.setItem(KEYS.DUROOD_COUNT, newCount.toString());
-
-  const isPenalty = localStorage.getItem(KEYS.PENALTY_ACTIVE) === 'true';
-  if (isPenalty && newCount >= 100) {
-    localStorage.setItem(KEYS.PENALTY_ACTIVE, 'false');
-  }
   return newCount;
 };
 
@@ -132,4 +126,15 @@ export const checkIsUrlBlocked = (url) => {
   if (settings.customSites.some((site) => clean.includes(site))) return { blocked: true, reason: 'কাস্টম ব্লকলিস্ট' };
 
   return { blocked: false, reason: '' };
+};
+
+export const getLifetimeZikrCount = () => {
+  return parseInt(localStorage.getItem(KEYS.LIFETIME_ZIKR_COUNT) || '0', 10);
+};
+
+export const incrementLifetimeZikrCount = (by = 1) => {
+  const current = getLifetimeZikrCount();
+  const updated = current + by;
+  localStorage.setItem(KEYS.LIFETIME_ZIKR_COUNT, updated.toString());
+  return updated;
 };
