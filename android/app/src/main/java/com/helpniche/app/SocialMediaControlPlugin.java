@@ -338,10 +338,13 @@ public class SocialMediaControlPlugin extends Plugin {
         try {
             Context context = getContext();
             boolean enabled = BlockerAccessibilityService.isReelsBlockActive(context);
+            long remainingMs = BlockerAccessibilityService.getReelsBlockRemainingLockMs(context);
+            boolean isLocked = remainingMs > 0;
+
             JSObject ret = new JSObject();
             ret.put("enabled", enabled);
-            ret.put("remainingSeconds", 0);
-            ret.put("isLocked", false);
+            ret.put("remainingSeconds", remainingMs / 1000L);
+            ret.put("isLocked", isLocked);
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed to get reels block status: " + e.getMessage());
@@ -353,11 +356,12 @@ public class SocialMediaControlPlugin extends Plugin {
         try {
             Context context = getContext();
             BlockerAccessibilityService.enableReelsBlock(context);
+            long remainingMs = BlockerAccessibilityService.getReelsBlockRemainingLockMs(context);
 
             JSObject ret = new JSObject();
             ret.put("enabled", true);
-            ret.put("remainingSeconds", 0);
-            ret.put("isLocked", false);
+            ret.put("remainingSeconds", remainingMs / 1000L);
+            ret.put("isLocked", true);
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("Failed to enable reels block: " + e.getMessage());
@@ -368,7 +372,18 @@ public class SocialMediaControlPlugin extends Plugin {
     public void disableReelsBlock(PluginCall call) {
         try {
             Context context = getContext();
-            BlockerAccessibilityService.disableReelsBlock(context);
+            long remainingMs = BlockerAccessibilityService.getReelsBlockRemainingLockMs(context);
+            if (remainingMs > 0) {
+                String timeMsg = BlockerAccessibilityService.formatRemainingTimeBangla(remainingMs / 1000L);
+                call.reject("নির্ধারিত ৩০ মিনিট শেষ না হওয়া পর্যন্ত এটি বন্ধ করা যাবে না। অবশিষ্ট লক সময়: " + timeMsg);
+                return;
+            }
+
+            boolean success = BlockerAccessibilityService.disableReelsBlock(context);
+            if (!success) {
+                call.reject("লক চলমান থাকায় বন্ধ করা সম্ভব হয়নি");
+                return;
+            }
 
             JSObject ret = new JSObject();
             ret.put("enabled", false);

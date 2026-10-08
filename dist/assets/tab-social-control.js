@@ -10,7 +10,9 @@ let blockUnitMode = 'minutes'; // 'minutes' or 'hours'
 let blockTimerInterval = null;
 
 let reelsBlockState = {
-    enabled: false
+    enabled: false,
+    remainingSeconds: 0,
+    isLocked: false
 };
 
 function toBanglaDigits(num) {
@@ -31,12 +33,20 @@ function formatSecondsToBangla(totalSec) {
 
 function renderReelsBlockerCardContent() {
     const isEnabled = Boolean(reelsBlockState.enabled);
+    const isLocked = Boolean(reelsBlockState.isLocked && reelsBlockState.remainingSeconds > 0);
+    const accentColor = isEnabled ? (isLocked ? '#ef4444' : '#10b981') : '#64748b';
+    const bgGradient = isEnabled
+        ? (isLocked
+            ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(15, 23, 42, 0.95) 100%)'
+            : 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.95) 100%)')
+        : 'linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.95) 100%)';
+
     return `
-        <div class="dash-card reels-blocker-card" id="card-reels-blocker" style="background: linear-gradient(135deg, ${isEnabled ? 'rgba(239, 68, 68, 0.15)' : 'rgba(15, 23, 42, 0.85)'} 0%, rgba(15, 23, 42, 0.95) 100%); border: 1.5px solid ${isEnabled ? '#ef4444' : '#334155'}; border-radius: 18px; padding: 16px 18px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35); transition: all 0.3s;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 14px;">
-                <div style="display: flex; align-items: center; gap: 14px; flex: 1;">
-                    <div style="width: 44px; height: 44px; border-radius: 12px; background: ${isEnabled ? 'rgba(239, 68, 68, 0.25)' : 'rgba(148, 163, 184, 0.12)'}; border: 1.5px solid ${isEnabled ? '#ef4444' : '#475569'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                        <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: ${isEnabled ? '#ef4444' : '#94a3b8'};">
+        <div class="dash-card reels-blocker-card" id="card-reels-blocker" style="background: ${bgGradient}; border: 1.5px solid ${isEnabled ? accentColor : '#334155'}; border-radius: 18px; padding: 16px 18px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35); transition: all 0.3s;">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;">
+                <div style="display: flex; align-items: flex-start; gap: 14px; flex: 1;">
+                    <div style="width: 44px; height: 44px; border-radius: 12px; background: ${isEnabled ? (isLocked ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') : 'rgba(148, 163, 184, 0.12)'}; border: 1.5px solid ${isEnabled ? accentColor : '#475569'}; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;">
+                        <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: ${isEnabled ? accentColor : '#94a3b8'};">
                             <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4zM8 17H5v-2h3v2zm0-4H5v-2h3v2zm6 4h-3v-2h3v2zm0-4h-3v-2h3v2zm6 4h-3v-2h3v2zm0-4h-3v-2h3v2z"/>
                         </svg>
                     </div>
@@ -45,21 +55,42 @@ function renderReelsBlockerCardContent() {
                             <span style="font-size: 15px; font-weight: 800; color: #ffffff; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
                                 রিলস ও শর্ট ভিডিও ব্লক
                             </span>
-                            <span id="reels-status-badge" style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; background: ${isEnabled ? 'rgba(239, 68, 68, 0.25)' : 'rgba(148, 163, 184, 0.15)'}; color: ${isEnabled ? '#f87171' : '#94a3b8'}; border: 1px solid ${isEnabled ? '#ef4444' : '#64748b'}; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                                ${isEnabled ? 'সক্রিয় (অন)' : 'বন্ধ'}
+                            <span id="reels-status-badge" style="font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 8px; background: ${isEnabled ? (isLocked ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)') : 'rgba(148, 163, 184, 0.15)'}; color: ${isEnabled ? (isLocked ? '#f87171' : '#34d399') : '#94a3b8'}; border: 1px solid ${isEnabled ? accentColor : '#64748b'}; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                                ${isEnabled ? (isLocked ? 'লকড (সক্রিয়)' : 'সক্রিয় (অন)') : 'বন্ধ'}
                             </span>
                         </div>
-                        <p style="font-size: 11px; color: #94a3b8; margin: 4px 0 0 0; line-height: 1.4; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                            YouTube Shorts, Facebook Reels, FB Lite Reels ও TikTok বন্ধ রাখবে।
+                        <p style="font-size: 11.5px; color: #cbd5e1; margin: 4px 0 0 0; line-height: 1.45; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            সময়ের অপচয় ও অনর্থক বিনোদন থেকে বাঁচতে ইউটিউব শর্টস, ফেসবুক রিলস ও টিকটক বন্ধ রাখুন।
                         </p>
                     </div>
                 </div>
 
                 <!-- Toggle Switch -->
-                <div id="btn-toggle-reels-block" style="width: 52px; height: 28px; background: ${isEnabled ? '#ef4444' : '#334155'}; border-radius: 20px; position: relative; cursor: pointer; transition: background 0.3s ease; flex-shrink: 0;">
+                <div id="btn-toggle-reels-block" style="width: 52px; height: 28px; background: ${isEnabled ? (isLocked ? '#ef4444' : '#10b981') : '#334155'}; border-radius: 20px; position: relative; cursor: pointer; transition: background 0.3s ease; flex-shrink: 0; margin-top: 4px;">
                     <div id="reels-toggle-knob" style="width: 22px; height: 22px; background: #ffffff; border-radius: 50%; position: absolute; top: 3px; left: ${isEnabled ? '27px' : '3px'}; transition: left 0.3s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"></div>
                 </div>
             </div>
+
+            <!-- Lock Info / Countdown -->
+            ${isEnabled ? `
+                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid ${isLocked ? 'rgba(239, 68, 68, 0.25)' : 'rgba(16, 185, 129, 0.25)'}; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <svg viewBox="0 0 24 24" style="width: 13px; height: 13px; fill: ${isLocked ? '#f87171' : '#34d399'};"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                        <span id="reels-countdown-text" style="font-size: 11.5px; font-weight: 700; color: ${isLocked ? '#f87171' : '#34d399'}; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ${isLocked ? 'ন্যূনতম লক বাকি: ' + formatSecondsToBangla(reelsBlockState.remainingSeconds) : '৩০ মিনিট পার হয়েছে, চাইলে বন্ধ করতে পারেন'}
+                        </span>
+                    </div>
+                    <span style="font-size: 10px; color: ${isLocked ? '#fca5a5' : '#a7f3d0'}; font-weight: 700; background: ${isLocked ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}; border: 1px solid ${isLocked ? 'rgba(239, 68, 68, 0.4)' : 'rgba(16, 185, 129, 0.4)'}; padding: 2px 8px; border-radius: 6px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                        ${isLocked ? 'স্ট্রিক্ট ৩০ মি. লক' : 'আনলকড'}
+                    </span>
+                </div>
+            ` : `
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                    <span style="font-size: 11px; color: #64748b; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                        অন করলে ন্যূনতম ৩০ মিনিট কোনোভাবেই বন্ধ করা যাবে না।
+                    </span>
+                </div>
+            `}
         </div>
     `;
 }
@@ -72,19 +103,37 @@ function updateReelsBlockerCardUI() {
     }
 }
 
+function updateReelsCountdownText() {
+    const el = document.getElementById('reels-countdown-text');
+    if (el) {
+        el.textContent = 'ন্যূনতম লক বাকি: ' + formatSecondsToBangla(reelsBlockState.remainingSeconds);
+    }
+}
+
 function fetchReelsBlockStatus() {
     if (window.Capacitor?.Plugins?.SocialMediaControlPlugin?.getReelsBlockStatus) {
         window.Capacitor.Plugins.SocialMediaControlPlugin.getReelsBlockStatus()
             .then(res => {
                 reelsBlockState.enabled = Boolean(res?.enabled);
+                reelsBlockState.remainingSeconds = Number(res?.remainingSeconds || 0);
+                reelsBlockState.isLocked = Boolean(res?.isLocked);
                 updateReelsBlockerCardUI();
             })
             .catch(err => {
                 console.error("Failed to fetch reels block status", err);
             });
     } else {
-        const saved = localStorage.getItem('REELS_BLOCK_ENABLED');
-        reelsBlockState.enabled = saved === 'true';
+        const savedExpiry = Number(localStorage.getItem('REELS_BLOCK_EXPIRY') || '0');
+        const now = Date.now();
+        const isEnabled = localStorage.getItem('REELS_BLOCK_ENABLED') === 'true';
+        reelsBlockState.enabled = isEnabled;
+        if (isEnabled && savedExpiry > now) {
+            reelsBlockState.remainingSeconds = Math.floor((savedExpiry - now) / 1000);
+            reelsBlockState.isLocked = true;
+        } else {
+            reelsBlockState.remainingSeconds = 0;
+            reelsBlockState.isLocked = false;
+        }
         updateReelsBlockerCardUI();
     }
 }
@@ -94,23 +143,37 @@ function enableReelsBlockAction() {
         window.Capacitor.Plugins.SocialMediaControlPlugin.enableReelsBlock()
             .then(res => {
                 reelsBlockState.enabled = true;
+                reelsBlockState.remainingSeconds = Number(res?.remainingSeconds || 1800);
+                reelsBlockState.isLocked = true;
                 updateReelsBlockerCardUI();
             })
             .catch(err => {
-                alert("রিলস ব্লক চালু করতে সমস্যা হয়েছে: " + err);
+                alert("রিলস ব্লক চালু করতে সমস্যা হয়েছে: " + (err?.message || err));
             });
     } else {
+        const lockMs = 30 * 60 * 1000;
         localStorage.setItem('REELS_BLOCK_ENABLED', 'true');
+        localStorage.setItem('REELS_BLOCK_EXPIRY', String(Date.now() + lockMs));
         reelsBlockState.enabled = true;
+        reelsBlockState.remainingSeconds = 1800;
+        reelsBlockState.isLocked = true;
         updateReelsBlockerCardUI();
     }
 }
 
 function disableReelsBlockAction() {
+    if (reelsBlockState.isLocked && reelsBlockState.remainingSeconds > 0) {
+        const timeMsg = formatSecondsToBangla(reelsBlockState.remainingSeconds);
+        alert('নির্ধারিত ৩০ মিনিট শেষ না হওয়া পর্যন্ত এটি বন্ধ করা যাবে না।\n\nঅবশিষ্ট লক সময়: ' + timeMsg);
+        return;
+    }
+
     if (window.Capacitor?.Plugins?.SocialMediaControlPlugin?.disableReelsBlock) {
         window.Capacitor.Plugins.SocialMediaControlPlugin.disableReelsBlock()
             .then(res => {
                 reelsBlockState.enabled = false;
+                reelsBlockState.remainingSeconds = 0;
+                reelsBlockState.isLocked = false;
                 updateReelsBlockerCardUI();
             })
             .catch(err => {
@@ -118,7 +181,10 @@ function disableReelsBlockAction() {
             });
     } else {
         localStorage.setItem('REELS_BLOCK_ENABLED', 'false');
+        localStorage.removeItem('REELS_BLOCK_EXPIRY');
         reelsBlockState.enabled = false;
+        reelsBlockState.remainingSeconds = 0;
+        reelsBlockState.isLocked = false;
         updateReelsBlockerCardUI();
     }
 }
@@ -660,6 +726,17 @@ function startBlockTimerLoop() {
 
         if (hasActiveBlocks) {
             updateLiveCountdownBadges();
+        }
+
+        // Reels Blocker live countdown
+        if (reelsBlockState.enabled && reelsBlockState.remainingSeconds > 0) {
+            reelsBlockState.remainingSeconds--;
+            if (reelsBlockState.remainingSeconds <= 0) {
+                reelsBlockState.isLocked = false;
+                updateReelsBlockerCardUI();
+            } else {
+                updateReelsCountdownText();
+            }
         }
     }, 1000);
 }

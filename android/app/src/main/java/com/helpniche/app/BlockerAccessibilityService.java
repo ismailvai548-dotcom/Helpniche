@@ -245,11 +245,23 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return Math.min(remaining, maxDuration);
     }
 
+    public static final long REELS_MANDATORY_LOCK_MS = 30 * 60 * 1000L; // 30 minutes
+
     public static void enableReelsBlock(Context context) {
         if (context == null) return;
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putBoolean(KEY_REELS_BLOCK_ENABLED, true).apply();
-        Log.i(TAG, "Reels block enabled");
+        long nowWall = System.currentTimeMillis();
+        long nowElapsed = SystemClock.elapsedRealtime();
+        long expiryWall = nowWall + REELS_MANDATORY_LOCK_MS;
+        long expiryElapsed = nowElapsed + REELS_MANDATORY_LOCK_MS;
+
+        prefs.edit()
+                .putBoolean(KEY_REELS_BLOCK_ENABLED, true)
+                .putLong(KEY_REELS_BLOCK_EXPIRY_WALL, expiryWall)
+                .putLong(KEY_REELS_BLOCK_EXPIRY_ELAPSED, expiryElapsed)
+                .putLong(KEY_REELS_BLOCK_SET_ELAPSED, nowElapsed)
+                .apply();
+        Log.i(TAG, "Reels block enabled with mandatory 30-min lock");
     }
 
     public static boolean isReelsBlockActive(Context context) {
@@ -258,10 +270,44 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return prefs.getBoolean(KEY_REELS_BLOCK_ENABLED, false);
     }
 
+    public static long getReelsBlockRemainingLockMs(Context context) {
+        if (context == null) return 0;
+        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (!prefs.getBoolean(KEY_REELS_BLOCK_ENABLED, false)) return 0;
+
+        long expiryWall = prefs.getLong(KEY_REELS_BLOCK_EXPIRY_WALL, 0);
+        long expiryElapsed = prefs.getLong(KEY_REELS_BLOCK_EXPIRY_ELAPSED, 0);
+        long setElapsed = prefs.getLong(KEY_REELS_BLOCK_SET_ELAPSED, 0);
+
+        if (expiryWall == 0) return 0;
+
+        long nowWall = System.currentTimeMillis();
+        long nowElapsed = SystemClock.elapsedRealtime();
+
+        long diffWall = expiryWall - nowWall;
+        long diffElapsed = 0;
+        if (nowElapsed >= setElapsed && expiryElapsed > nowElapsed) {
+            diffElapsed = expiryElapsed - nowElapsed;
+        }
+
+        long remaining = Math.max(diffWall, diffElapsed);
+        return Math.max(0, remaining);
+    }
+
     public static boolean disableReelsBlock(Context context) {
         if (context == null) return false;
+        long remainingLock = getReelsBlockRemainingLockMs(context);
+        if (remainingLock > 0) {
+            return false;
+        }
+
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        prefs.edit().putBoolean(KEY_REELS_BLOCK_ENABLED, false).apply();
+        prefs.edit()
+                .putBoolean(KEY_REELS_BLOCK_ENABLED, false)
+                .remove(KEY_REELS_BLOCK_EXPIRY_WALL)
+                .remove(KEY_REELS_BLOCK_EXPIRY_ELAPSED)
+                .remove(KEY_REELS_BLOCK_SET_ELAPSED)
+                .apply();
         Log.i(TAG, "Reels block disabled");
         return true;
     }
