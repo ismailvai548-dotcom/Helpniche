@@ -700,69 +700,45 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean isFacebookReelsDetected(AccessibilityNodeInfo rootNode, AccessibilityEvent event, String packageName) {
-        String eventText = "";
-        String eventDesc = "";
         String className = "";
-        if (event != null) {
-            if (event.getText() != null) eventText = event.getText().toString().toLowerCase();
-            if (event.getContentDescription() != null) eventDesc = event.getContentDescription().toString().toLowerCase();
-            if (event.getClassName() != null) className = event.getClassName().toString().toLowerCase();
+        if (event != null && event.getClassName() != null) {
+            className = event.getClassName().toString().toLowerCase();
         }
 
-        // ১. ফেসবুক অফিশিয়াল (Katana) স্পেসিফিক ক্লাস নেম চেক
+        // ১. ফেসবুক অফিশিয়াল (Katana) রিলস অ্যাক্টিভিটি চেক (ফিডে থাকাকালীন এটি কখনো ট্রিগার হবে না)
         if (className.contains("reelsvieweractivity") ||
-                className.contains("fbshorts") ||
+                className.contains("fbshortsvieweractivity") ||
                 className.contains("reelsmediaviewer") ||
-                className.contains("reels_viewer")) {
+                className.contains("fbshortsplayerviewer")) {
             return true;
         }
 
-        // ২. হাই-কনফিডেন্স রিলস টার্মস (Katana এবং FB Lite উভয়ের জন্যই প্রযোজ্য)
-        if (rootNode != null && scanNodeTreeForText(rootNode,
-                "original audio", "মূল অডিও", "অরিজিনাল অডিও",
-                "remix this reel", "remix with reel", "রিল রিমিক্স", "রিমিক্স",
-                "watch more reels", "আরও রিল দেখুন", "আরও রিলস",
-                "create a reel", "create reel", "রিল তৈরি করুন",
-                "reels audio", "use audio", "অডিও ব্যবহার করুন",
-                "fb_shorts", "fbshorts",
-                "reel video", "রিল ভিডিও",
-                "send in messenger", "হোয়াটসঅ্যাপে পাঠান")) {
+        // ২. ফেসবুক অফিশিয়াল রিলস প্লেয়ার কন্টেইনার ভিউ আইডি (ফিডের ট্রের আইডি এখানে রাখা হয়নি)
+        if (rootNode != null && scanNodeTreeForIds(rootNode,
+                "reels_viewer_container", "fb_shorts_viewer_container", "fb_shorts_bottom_sheet")) {
             return true;
         }
 
-        // ৩. রিলস ট্যাব সিলেক্টেড আছে কিনা চেক
+        // ৩. শর্টস/রিলস ট্যাব সিলেক্টেড আছে কিনা চেক
         if (rootNode != null && isShortsTabSelected(rootNode)) {
             return true;
         }
 
-        // ৪. Katana ভিউ আইডি চেক
-        if (rootNode != null && scanNodeTreeForIds(rootNode,
-                "reels_viewer", "fb_shorts_container", "reel_video_player",
-                "fb_shorts_bottom_sheet", "reels_tray")) {
+        // ৪. শতভাগ নিশ্চিত রিলস-অনলি অ্যাকশন টার্মস (সাধারণ পোস্ট বা ফিডে এগুলো কখনোই থাকে না)
+        if (rootNode != null && scanNodeTreeForText(rootNode,
+                "original audio", "মূল অডিও", "অরিজিনাল অডিও",
+                "remix this reel", "remix with reel", "রিল রিমিক্স",
+                "watch more reels", "আরও রিল দেখুন", "আরও রিলস দেখুন",
+                "create a reel", "reels audio", "fb_shorts", "fbshorts")) {
             return true;
         }
 
-        // ৫. ফেসবুক লাইট ও কাটানা: রিলস পেজ/ভিউয়ার ডিটেকশন
-        boolean hasReelsKeyword = (rootNode != null && scanNodeTreeForText(rootNode, "reels", "রিলস", "reels tab")) ||
-                eventText.contains("reels") || eventText.contains("রিলস") ||
-                eventDesc.contains("reels") || eventDesc.contains("রিলস");
-
-        if (hasReelsKeyword && rootNode != null) {
-            // ফেসবুক লাইট নিউজফিড ইন্ডিকেটর
-            boolean hasNewsfeedNav = scanNodeTreeForText(rootNode,
-                    "notifications", "নোটিফিকেশন", "বিজ্ঞপ্তি",
-                    "marketplace", "মার্কেটপ্লেস",
-                    "what's on your mind", "whats on your mind", "আপনার মনে কী আছে",
-                    "create a post", "পোস্ট তৈরি করুন",
-                    "write something", "কিছু লিখুন");
-
-            // ফুলস্ক্রিন রিলস ভিউয়ারে নিউজফিডের মূল বার থাকে না
-            if (!hasNewsfeedNav) {
-                return true;
-            }
+        // ৫. ফেসবুক লাইট (FB Lite): শুধুমাত্র ফুলস্ক্রিন রিলস প্লেয়ার ডিটেকশন
+        if (isFbLiteReelsPlayer(rootNode)) {
+            return true;
         }
 
-        // ৬. ইভেন্ট সোর্স নোড চেক (যদি রুট নোড আলাদা উইন্ডো হয়)
+        // ৬. ইভেন্ট সোর্স নোড চেক (শুধুমাত্র সুনির্দিষ্ট রিলস টার্মের জন্য)
         if (event != null) {
             AccessibilityNodeInfo sourceNode = null;
             try {
@@ -772,11 +748,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 try {
                     if (scanNodeTreeForText(sourceNode,
                             "original audio", "মূল অডিও", "অরিজিনাল অডিও",
-                            "remix this reel", "রিল রিমিক্স", "রিমিক্স",
-                            "watch more reels", "আরও রিল দেখুন",
-                            "create a reel", "রিল তৈরি করুন",
-                            "reels audio", "use audio", "অডিও ব্যবহার করুন",
-                            "reels", "রিলস")) {
+                            "remix this reel", "remix with reel", "রিল রিমিক্স",
+                            "watch more reels", "আরও রিল দেখুন", "fb_shorts")) {
                         return true;
                     }
                 } finally {
@@ -785,6 +758,54 @@ public class BlockerAccessibilityService extends AccessibilityService {
             }
         }
 
+        return false;
+    }
+
+    private boolean isFbLiteReelsPlayer(AccessibilityNodeInfo rootNode) {
+        if (rootNode == null) return false;
+
+        // ফেসবুক লাইট রিলস স্ক্রিনের এক্সাক্ট টাইটেল "Reels" বা "রিলস" আছে কিনা
+        boolean hasExactTitle = hasNodeWithExactText(rootNode, "reels", "রিলস");
+        if (!hasExactTitle) return false;
+
+        // এক্সাক্ট টাইটেল পাওয়ার পর নিশ্চিত হওয়া যে এটি রিলস প্লেয়ার (অডিও বা রিমিক্স বা সাউন্ড এলিমেন্ট উপস্থিত)
+        boolean hasAudioOrReelsControl = scanNodeTreeForText(rootNode,
+                "original audio", "মূল অডিও", "অরিজিনাল অডিও",
+                "remix", "রিমিক্স", "audio", "অডিও", "sound", "শব্দ");
+
+        // সাধারণ ফিডের পোস্ট বক্স থাকলে কখনো ব্লক করা যাবে না
+        boolean hasFeedComposer = scanNodeTreeForText(rootNode,
+                "what's on your mind", "whats on your mind", "আপনার মনে কী আছে",
+                "create a post", "পোস্ট তৈরি করুন", "কিছু লিখুন");
+
+        return hasAudioOrReelsControl && !hasFeedComposer;
+    }
+
+    private boolean hasNodeWithExactText(AccessibilityNodeInfo node, String... targets) {
+        if (node == null) return false;
+        try {
+            CharSequence textSeq = node.getText();
+            CharSequence descSeq = node.getContentDescription();
+            String text = textSeq != null ? textSeq.toString().trim().toLowerCase() : "";
+            String desc = descSeq != null ? descSeq.toString().trim().toLowerCase() : "";
+
+            for (String target : targets) {
+                String tLower = target.trim().toLowerCase();
+                if (text.equals(tLower) || desc.equals(tLower)) {
+                    return true;
+                }
+            }
+
+            int childCount = node.getChildCount();
+            for (int i = 0; i < childCount; i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    if (hasNodeWithExactText(child, targets)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         return false;
     }
 
