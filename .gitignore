@@ -31,3 +31,8 @@ android/.idea/
 android/**/*.apk
 android/**/*.aab
 *.iml
+
+# Environment Variables
+.env
+.env.*
+!.env.example
