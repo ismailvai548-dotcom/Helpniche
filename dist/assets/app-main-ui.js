@@ -350,49 +350,114 @@ function renderModalsAndOverlays() {
             </div>
         </div>
 
-        <!-- Onboarding Permission Wizard Modal -->
-        <div class="modal-overlay" id="onboarding-wizard-modal" style="display: none; z-index: 100005;">
-            <div class="modal-card onboarding-wizard-card">
-                <!-- Header with Title & Dynamic Progress Tracker -->
-                <div class="onboarding-header">
-                    <div class="onboarding-title-row">
-                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; fill: #10b981; flex-shrink: 0;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
-                        <span class="onboarding-title">Helpniche সেটআপ উইজার্ড</span>
-                    </div>
-                    <div class="onboarding-counter" id="onboarding-progress-text">প্রয়োজনীয় পারমিশন: ০/৫ সম্পন্ন</div>
-                </div>
+        <!-- Feature & Permission Guide Modal -->
+        <div class="modal-overlay" id="permission-guide-modal" style="display: none; z-index: 100005;">
+            <div class="modal-card" style="text-align: left; border: 1.5px solid rgba(56, 189, 248, 0.4); max-width: 440px; width: 95%; max-height: 88vh; display: flex; flex-direction: column; padding: 18px 16px; box-sizing: border-box; background: #0b1326; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
 
-                <!-- Smooth Progress Indicator Bar -->
-                <div class="onboarding-progress-track">
-                    <div class="onboarding-progress-fill" id="onboarding-progress-bar" style="width: 0%;"></div>
-                </div>
-
-                <!-- Unlock Alert Card -->
-                <div class="onboarding-unlock-alert-card" style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 16px; padding: 12px 14px; text-align: left;">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                <!-- Modal Header -->
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 14px; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; color: #38bdf8; flex-shrink: 0;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
                         <div>
-                            <div style="font-size: 14px; font-weight: 800; color: #ffffff;">Unlock Alert</div>
-                            <div style="font-size: 12px; color: #34d399; margin-top: 2px;">সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম</div>
+                            <span style="font-weight: 800; font-size: 16px; color: #ffffff; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">ফিচারসমূহ ও প্রয়োজনীয় পারমিশন</span>
+                            <p style="font-size: 11px; color: #94a3b8; margin: 2px 0 0 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">আপনার প্রয়োজন অনুযায়ী সুরক্ষা ফিচারগুলো সক্রিয় করুন</p>
                         </div>
-                        <label class="alarm-switch">
-                            <input type="checkbox" id="onboarding-unlock-alert-toggle">
-                            <span class="switch-slider"></span>
-                        </label>
                     </div>
+                    <button id="btn-close-permission-guide-modal" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 6px 10px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                    </button>
                 </div>
 
-                <!-- Central Focus Card (Displays ONLY current active step) -->
-                <div class="onboarding-focus-step" id="onboarding-step-card">
-                    <div class="onboarding-step-icon" id="onboarding-step-icon"></div>
-                    <h3 class="onboarding-step-title" id="onboarding-step-title"></h3>
-                    <p class="onboarding-step-desc" id="onboarding-step-desc"></p>
+                <!-- Scrollable Content -->
+                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
+
+                    <!-- 1. Reels & Shorts Blocker (Accessibility) -->
+                    <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 14px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(168, 85, 247, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #c084fc;"><path fill="currentColor" d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z"/></svg>
+                                </div>
+                                <span style="font-weight: 700; font-size: 13.5px; color: #c084fc; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">১. রিলস ও শর্টস ব্লকার (অ্যাক্সেসিবিলিটি)</span>
+                            </div>
+                            <button id="btn-perm-accessibility" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ফেসবুক ও ইউটিউবের রিলস এবং শর্টস ভিডিও স্ক্রিন থেকে স্বয়ংক্রিয়ভাবে বন্ধ করার জন্য এই পারমিশন প্রয়োজন।
+                        </p>
+                    </div>
+
+                    <!-- 2. Anti-Uninstall Guard (Device Admin) -->
+                    <div style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 14px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(244, 63, 94, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #fb7185;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14l-4-4 1.41-1.41L11 13.17l7.59-7.59L20 7l-9 9z"/></svg>
+                                </div>
+                                <span style="font-weight: 700; font-size: 13.5px; color: #fb7185; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">২. অ্যান্টি-আনইনস্টল গার্ড (ডিভাইস অ্যাডমিন)</span>
+                            </div>
+                            <button id="btn-perm-admin" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            দুর্বল বা আবেগের মুহূর্তে ভুলবশত অ্যাপটি মুছে ফেলা বা বন্ধ করা ঠেকাতে ডিভাইস অ্যাডমিন চালু রাখা আবশ্যক।
+                        </p>
+                    </div>
+
+                    <!-- 3. Ad Controller & Content Filter (VPN) -->
+                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 14px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #34d399;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
+                                </div>
+                                <span style="font-weight: 700; font-size: 13.5px; color: #34d399; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">৩. ব্রাউজার শিল্ড ও অ্যাড কন্ট্রোলার (ভিপিএন)</span>
+                            </div>
+                            <button id="btn-perm-vpn" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ডিভাইসের সকল ব্রাউজারে খারাপ ওয়েবসাইট এবং ফোনে বিরক্তিকর বিজ্ঞাপন ব্লক রাখতে এই অপশনটি ব্যবহার করা হয়।
+                        </p>
+                    </div>
+
+                    <!-- 4. Battery Optimization Bypass -->
+                    <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 14px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(234, 179, 8, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #facc15;"><path fill="currentColor" d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4zM11 20v-5.5H9L13 7v5.5h2L11 20z"/></svg>
+                                </div>
+                                <span style="font-weight: 700; font-size: 13.5px; color: #facc15; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">৪. সার্বক্ষণিক সক্রিয়তা (ব্যাটারি পারমিশন)</span>
+                            </div>
+                            <button id="btn-perm-battery" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ব্যাকগ্রাউন্ডে ব্লকিং ও অ্যালার্ম সার্ভিস যেন ফোন নিজে থেকে বন্ধ না করে দেয়, সেজন্য ব্যাটারি আনরেস্ট্রিক্টেড রাখা প্রয়োজন।
+                        </p>
+                    </div>
+
+                    <!-- 5. Android 13+ Restricted Settings (if needed) -->
+                    <div id="row-perm-restricted" style="display: none; background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.25); border-radius: 14px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(251, 146, 60, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #fb923c;"><path fill="currentColor" d="M12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
+                                </div>
+                                <span style="font-weight: 700; font-size: 13.5px; color: #fb923c; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">৫. রেস্ট্রিক্টেড সেটিংস রিমুভ (অ্যান্ড্রয়েড ১৩+)</span>
+                            </div>
+                            <button id="btn-perm-restricted" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            অ্যান্ড্রয়েড ১৩+ ডিভাইসে অ্যাক্সেসিবিলিটি চালুর বাধা সরাতে অ্যাপ ইনফো থেকে রেস্ট্রিকশন তুলে দেওয়া প্রয়োজন।
+                        </p>
+                    </div>
+
                 </div>
 
-                <!-- Professional One-Click Action Button -->
-                <button class="onboarding-action-btn" id="btn-onboarding-action">
-                    <span id="onboarding-btn-text">অপশন চালু করুন</span>
-                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M5 13h11.86l-5.43 5.43 1.42 1.42L21.14 12l-8.29-8.29-1.42 1.42L16.86 11H5v2z"/></svg>
+                <!-- Footer Close Button -->
+                <button id="btn-close-permission-guide-bottom" style="margin-top: 14px; margin-bottom: 0; background: #38bdf8; color: #000; font-weight: 800; padding: 11px; border-radius: 12px; border: none; cursor: pointer; font-size: 13.5px; flex-shrink: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                    ঠিক আছে
                 </button>
+
             </div>
         </div>
 
@@ -1040,7 +1105,7 @@ window.syncOnboardingPermissionStatus = function(status) {
     if (status) {
         onboardingPermissionStatus = { ...onboardingPermissionStatus, ...status };
     }
-    renderOnboardingWizardCard();
+    updatePermissionGuideUI();
     if (typeof updateSettingsShieldUI === 'function') {
         updateSettingsShieldUI(onboardingPermissionStatus);
     }
@@ -1056,114 +1121,159 @@ function fetchOnboardingStatusFromNative() {
     }
 }
 
-function renderOnboardingWizardCard() {
-    const modal = document.getElementById('onboarding-wizard-modal');
-    if (!modal) return;
-
-    const { completedCount, totalSteps, nextStep } = computeOnboardingProgress();
-
-    if (completedCount === totalSteps) {
-        localStorage.setItem('HELPNICHE_ONBOARDING_DONE', 'true');
-    } else {
-        localStorage.removeItem('HELPNICHE_ONBOARDING_DONE');
+window.openPermissionGuideModal = function() {
+    const modal = document.getElementById('permission-guide-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+        updatePermissionGuideUI();
     }
+};
 
-    if (localStorage.getItem('HELPNICHE_ONBOARDING_DONE') === 'true' && completedCount === totalSteps) {
+window.closePermissionGuideModal = function() {
+    const modal = document.getElementById('permission-guide-modal');
+    if (modal) {
         modal.style.display = 'none';
-        return;
     }
+};
 
-    const progressText = document.getElementById('onboarding-progress-text');
-    const progressBar = document.getElementById('onboarding-progress-bar');
-    const stepIcon = document.getElementById('onboarding-step-icon');
-    const stepTitle = document.getElementById('onboarding-step-title');
-    const stepDesc = document.getElementById('onboarding-step-desc');
-    const btnText = document.getElementById('onboarding-btn-text');
-    const actionBtn = document.getElementById('btn-onboarding-action');
-
-    const percentage = Math.round((completedCount / totalSteps) * 100);
-
-    if (progressText) {
-        progressText.innerText = `প্রয়োজনীয় পারমিশন: ${toBengaliNum(completedCount)}/${toBengaliNum(totalSteps)} সম্পন্ন (${toBengaliNum(percentage)}%)`;
-    }
-
-    if (progressBar) {
-        progressBar.style.width = `${percentage}%`;
-    }
-
-    const onboardingToggle = document.getElementById('onboarding-unlock-alert-toggle');
-    if (onboardingToggle) {
-        onboardingToggle.checked = !!unlockGuard.enabled;
-        onboardingToggle.onchange = function() {
-            const isChecked = onboardingToggle.checked;
-            unlockGuard.enabled = isChecked;
-            if (isChecked) {
-                if (!unlockGuard.text || !unlockGuard.text.trim() || unlockGuard.text === 'صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ') {
-                    unlockGuard.text = 'সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম';
-                }
-                if (!unlockGuard.audioType) {
-                    unlockGuard.audioType = 'durood_sharif';
-                }
-            }
-            localStorage.setItem('UNLOCK_GUARD', JSON.stringify(unlockGuard));
-
-            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin) {
-                try {
-                    window.Capacitor.Plugins.UnlockPlugin.setUnlockReminder({
-                        enabled: unlockGuard.enabled,
-                        text: unlockGuard.text || 'সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম',
-                        audioType: unlockGuard.audioType || 'durood_sharif',
-                        customAudioBase64: unlockGuard.customAudioBase64 || '',
-                        customAudioName: unlockGuard.customAudioName || ''
-                    });
-                } catch (err) {
-                    console.error('Error syncing unlock alert from onboarding:', err);
-                }
-            }
-        };
-    }
-
-    if (nextStep >= 1 && nextStep <= 5) {
-        modal.style.display = 'flex';
-        const config = onboardingStepsConfig[nextStep];
-
-        if (stepIcon) stepIcon.innerHTML = config.iconSvg;
-        if (stepTitle) stepTitle.innerText = config.title;
-        if (stepDesc) stepDesc.innerText = config.desc;
-        if (btnText) btnText.innerText = config.btnText;
-
-        if (actionBtn) {
-            actionBtn.style.display = 'flex';
-            actionBtn.onclick = function() {
-                executePermissionRequestStep(nextStep);
-            };
-        }
-    } else if (nextStep === 6) {
-        localStorage.setItem('HELPNICHE_ONBOARDING_DONE', 'true');
-        modal.style.display = 'flex';
-        if (stepIcon) {
-            stepIcon.innerHTML = '<svg class="svg-icon" viewBox="0 0 24 24" style="width:36px; height:36px; fill:#10b981; filter:drop-shadow(0 0 8px rgba(16,185,129,0.5));"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
-        }
-        if (stepTitle) stepTitle.innerText = 'সকল পারমিশন সফলভাবে সম্পন্ন!';
-        if (stepDesc) stepDesc.innerText = 'Helpniche সুরক্ষা এখন ১০০% সচল ও কার্যকর। আপনার নিরাপদ ডিজিটাল জীবনের জন্য প্রস্তুত।';
-        if (btnText) btnText.innerText = 'হোমপেজে প্রবেশ করুন';
-
-        if (actionBtn) {
-            actionBtn.onclick = function() {
-                modal.style.display = 'none';
-            };
-        }
-
-        setTimeout(() => {
-            if (modal && modal.style.display !== 'none') {
-                modal.style.display = 'none';
-            }
-        }, 1800);
-    } else {
-        localStorage.setItem('HELPNICHE_ONBOARDING_DONE', 'true');
+function closePermissionGuideModal() {
+    const modal = document.getElementById('permission-guide-modal');
+    if (modal) {
         modal.style.display = 'none';
     }
 }
+
+function updatePermissionGuideUI() {
+    const { completedCount, totalSteps } = computeOnboardingProgress();
+
+    // 1. Accessibility Button
+    const btnAccessibility = document.getElementById('btn-perm-accessibility');
+    if (btnAccessibility) {
+        if (onboardingPermissionStatus.accessibilityEnabled) {
+            btnAccessibility.innerText = 'চালু আছে';
+            btnAccessibility.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnAccessibility.style.color = '#4ade80';
+            btnAccessibility.style.border = '1px solid #22c55e';
+            btnAccessibility.onclick = null;
+        } else {
+            btnAccessibility.innerText = 'অন করুন';
+            btnAccessibility.style.background = '#a855f7';
+            btnAccessibility.style.color = '#000000';
+            btnAccessibility.style.border = 'none';
+            btnAccessibility.onclick = () => executePermissionRequestStep(4);
+        }
+    }
+
+    // 2. Device Admin Button
+    const btnAdmin = document.getElementById('btn-perm-admin');
+    if (btnAdmin) {
+        if (onboardingPermissionStatus.adminActive) {
+            btnAdmin.innerText = 'চালু আছে';
+            btnAdmin.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnAdmin.style.color = '#4ade80';
+            btnAdmin.style.border = '1px solid #22c55e';
+            btnAdmin.onclick = null;
+        } else {
+            btnAdmin.innerText = 'অন করুন';
+            btnAdmin.style.background = '#fb7185';
+            btnAdmin.style.color = '#000000';
+            btnAdmin.style.border = 'none';
+            btnAdmin.onclick = () => executePermissionRequestStep(2);
+        }
+    }
+
+    // 3. VPN Button
+    const btnVpn = document.getElementById('btn-perm-vpn');
+    if (btnVpn) {
+        if (onboardingPermissionStatus.vpnGranted) {
+            btnVpn.innerText = 'চালু আছে';
+            btnVpn.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnVpn.style.color = '#4ade80';
+            btnVpn.style.border = '1px solid #22c55e';
+            btnVpn.onclick = null;
+        } else {
+            btnVpn.innerText = 'অন করুন';
+            btnVpn.style.background = '#34d399';
+            btnVpn.style.color = '#000000';
+            btnVpn.style.border = 'none';
+            btnVpn.onclick = () => executePermissionRequestStep(1);
+        }
+    }
+
+    // 4. Battery Button
+    const btnBattery = document.getElementById('btn-perm-battery');
+    if (btnBattery) {
+        if (onboardingPermissionStatus.batteryBypassed) {
+            btnBattery.innerText = 'চালু আছে';
+            btnBattery.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnBattery.style.color = '#4ade80';
+            btnBattery.style.border = '1px solid #22c55e';
+            btnBattery.onclick = null;
+        } else {
+            btnBattery.innerText = 'অন করুন';
+            btnBattery.style.background = '#facc15';
+            btnBattery.style.color = '#000000';
+            btnBattery.style.border = 'none';
+            btnBattery.onclick = () => executePermissionRequestStep(5);
+        }
+    }
+
+    // 5. Restricted Settings (Android 13+)
+    const rowRestricted = document.getElementById('row-perm-restricted');
+    const btnRestricted = document.getElementById('btn-perm-restricted');
+    if (rowRestricted && btnRestricted) {
+        const isAndroid13Plus = (onboardingPermissionStatus.sdkInt || 33) >= 33;
+        if (isAndroid13Plus && !onboardingPermissionStatus.restrictedSettingsDone) {
+            rowRestricted.style.display = 'block';
+            btnRestricted.innerText = 'অন করুন';
+            btnRestricted.style.background = '#fb923c';
+            btnRestricted.style.color = '#000000';
+            btnRestricted.style.border = 'none';
+            btnRestricted.onclick = () => executePermissionRequestStep(3);
+        } else if (isAndroid13Plus && onboardingPermissionStatus.restrictedSettingsDone) {
+            rowRestricted.style.display = 'block';
+            btnRestricted.innerText = 'চালু আছে';
+            btnRestricted.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnRestricted.style.color = '#4ade80';
+            btnRestricted.style.border = '1px solid #22c55e';
+            btnRestricted.onclick = null;
+        } else {
+            rowRestricted.style.display = 'none';
+        }
+    }
+
+    // Update Home Screen Card Badge if present
+    const homePermBadge = document.getElementById('home-perm-badge');
+    if (homePermBadge) {
+        if (completedCount >= 4) {
+            homePermBadge.innerText = 'সম্পূর্ণ সুরক্ষিত';
+            homePermBadge.style.background = 'rgba(34, 197, 94, 0.2)';
+            homePermBadge.style.color = '#4ade80';
+            homePermBadge.style.border = '1px solid #22c55e';
+        } else {
+            homePermBadge.innerText = `${toBengaliNum(completedCount)}/৪টি চালু`;
+            homePermBadge.style.background = 'rgba(56, 189, 248, 0.2)';
+            homePermBadge.style.color = '#38bdf8';
+            homePermBadge.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+        }
+    }
+}
+
+// Bind close buttons for permission guide modal
+document.addEventListener('DOMContentLoaded', () => {
+    const btnCloseTop = document.getElementById('btn-close-permission-guide-modal');
+    if (btnCloseTop) btnCloseTop.onclick = closePermissionGuideModal;
+
+    const btnCloseBtm = document.getElementById('btn-close-permission-guide-bottom');
+    if (btnCloseBtm) btnCloseBtm.onclick = closePermissionGuideModal;
+
+    const modal = document.getElementById('permission-guide-modal');
+    if (modal) {
+        modal.onclick = (e) => {
+            if (e.target === modal) closePermissionGuideModal();
+        };
+    }
+});
 
 function executePermissionRequestStep(step) {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep) {

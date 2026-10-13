@@ -173,8 +173,24 @@ function renderHomeDashboard() {
                 ${t('panicSos')}
             </button>
 
+            <!-- PERMISSIONS & FEATURE PROTECTION CARD -->
+            <div class="dash-card permission-guide-card" id="btn-open-permission-guide" style="background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%); border: 1.5px solid #38bdf8; border-radius: 14px; padding: 13px 16px; margin: 12px 0 14px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; box-shadow: 0 4px 16px rgba(56, 189, 248, 0.12);">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 36px; height: 36px; border-radius: 10px; background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 20px; height: 20px; color: #38bdf8;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
+                    </div>
+                    <div style="text-align: left;">
+                        <span style="font-size: 14px; font-weight: 800; color: #ffffff; display: block; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">ফিচারসমূহ জানুন ও প্রয়োজনীয় পারমিশন দিন</span>
+                        <p style="font-size: 11px; color: #94a3b8; margin: 2px 0 0 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">আপনার প্রয়োজন অনুযায়ী সুরক্ষা ফিচারগুলো সক্রিয় করুন</p>
+                    </div>
+                </div>
+                <div id="home-perm-badge" style="background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.4); color: #38bdf8; font-size: 11px; font-weight: 700; padding: 6px 12px; border-radius: 8px; flex-shrink: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                    দেখুন
+                </div>
+            </div>
+
             <!-- FEATURE GUIDE CARD -->
-            <div class="dash-card about-apps-card" id="btn-open-about-apps-card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 12px 16px; margin: 12px 0 16px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; box-shadow: 0 2px 10px rgba(16, 185, 129, 0.08);">
+            <div class="dash-card about-apps-card" id="btn-open-about-apps-card" style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.06) 100%); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 12px 16px; margin: 0 0 16px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; box-shadow: 0 2px 10px rgba(16, 185, 129, 0.08);">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                         <svg class="svg-icon" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #10b981;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
@@ -294,5 +310,18 @@ function bindHomeEvents() {
                 openAboutAppsModal();
             }
         };
+    }
+
+    const btnOpenPermGuide = document.getElementById('btn-open-permission-guide');
+    if (btnOpenPermGuide) {
+        btnOpenPermGuide.onclick = () => {
+            if (typeof window.openPermissionGuideModal === 'function') {
+                window.openPermissionGuideModal();
+            }
+        };
+    }
+
+    if (typeof updatePermissionGuideUI === 'function') {
+        updatePermissionGuideUI();
     }
 }
