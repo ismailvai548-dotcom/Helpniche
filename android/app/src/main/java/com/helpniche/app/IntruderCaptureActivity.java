@@ -260,40 +260,9 @@ public class IntruderCaptureActivity extends Activity {
             }
             Log.i(TAG, "Intruder photo saved locally: " + photoFile.getAbsolutePath());
 
-            // ফোনের সাধারণ গ্যালারি ও মেমোরি ফোল্ডারেও (Pictures/Helpniche) সংরক্ষণ করা
-            try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    ContentValues values = new ContentValues();
-                    values.put(MediaStore.Images.Media.DISPLAY_NAME, photoName);
-                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Helpniche");
-                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
-                    Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-                    if (uri != null) {
-                        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
-                            if (out != null) {
-                                out.write(data);
-                                out.flush();
-                            }
-                        }
-                        values.clear();
-                        values.put(MediaStore.Images.Media.IS_PENDING, 0);
-                        getContentResolver().update(uri, values, null, null);
-                        Log.i(TAG, "Photo successfully saved to phone storage via MediaStore");
-                    }
-                } else {
-                    File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-                    File helpnicheDir = new File(picturesDir, "Helpniche");
-                    if (!helpnicheDir.exists()) helpnicheDir.mkdirs();
-                    File pubFile = new File(helpnicheDir, photoName);
-                    try (FileOutputStream fos = new FileOutputStream(pubFile)) {
-                        fos.write(data);
-                        fos.flush();
-                    }
-                    Log.i(TAG, "Photo successfully saved to phone storage: " + pubFile.getAbsolutePath());
-                }
-            } catch (Exception pubEx) {
-                Log.w(TAG, "Could not save to public pictures folder: " + pubEx.getMessage());
+            File noMedia = new File(dir, ".nomedia");
+            if (!noMedia.exists()) {
+                try { noMedia.createNewFile(); } catch (Exception ignored) {}
             }
         } catch (Exception e) {
             Log.e(TAG, "Failed to save intruder photo", e);

@@ -407,12 +407,12 @@ function bindSettingsTabEvents() {
     if (btnToggleIntruder) {
         btnToggleIntruder.onclick = async () => {
             if (!isIntruderEnabled) {
-                // সরাসরি ক্যামেরা ও লোকেশন পারমিশন চাওয়া (টেলিগ্রাম চ্যাট আইডি বাধ্যতামূলক নয়)
+                // সরাসরি শুধুমাত্র ক্যামেরা পারমিশন চাওয়া (লোকেশন পারমিশন এখানে চাওয়া হবে না)
                 if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
                     try {
                         await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
                     } catch(e) {
-                        console.error("Failed to request camera/location permission:", e);
+                        console.error("Failed to request camera permission:", e);
                     }
                 }
 
@@ -431,22 +431,6 @@ function bindSettingsTabEvents() {
                         console.error("Failed to enable intruder settings:", e);
                     }
                 }
-
-                // সেফটি চেক: যদি অ্যান্ড্রয়েড ১১+ এর কারণে সিস্টেম ডায়ালগ শো না হয়ে সরাসরি পারমিশন আটকে থাকে
-                setTimeout(async () => {
-                    if (window.Capacitor?.Plugins?.UnlockPlugin?.getIntruderSettings) {
-                        try {
-                            const check = await window.Capacitor.Plugins.UnlockPlugin.getIntruderSettings();
-                            if (check && check.hasCameraPermission === false) {
-                                if (confirm("ক্যামেরা পারমিশন চালু হয়নি। ফোনের অ্যাপ সেটিংস থেকে ক্যামেরা পারমিশন এলাও করতে চান?")) {
-                                    if (window.Capacitor?.Plugins?.UnlockPlugin?.openAppSettings) {
-                                        await window.Capacitor.Plugins.UnlockPlugin.openAppSettings();
-                                    }
-                                }
-                            }
-                        } catch(e) {}
-                    }
-                }, 700);
             } else {
                 isIntruderEnabled = false;
                 localStorage.setItem('intruder_selfie_enabled', 'false');
@@ -506,6 +490,15 @@ function bindSettingsTabEvents() {
 
             if (modalChatIdError) modalChatIdError.style.display = 'none';
             if (intruderPermDialog) intruderPermDialog.style.display = 'none';
+
+            // ব্যাকআপ যুক্ত করার সময় লোকেশন পারমিশন চাওয়া
+            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestLocationPermission) {
+                try {
+                    await window.Capacitor.Plugins.UnlockPlugin.requestLocationPermission();
+                } catch(e) {
+                    console.error("Failed to request location permission on backup add:", e);
+                }
+            }
 
             localStorage.setItem('intruder_telegram_chat_id', enteredChatId);
             updateChatIdBadge(enteredChatId);

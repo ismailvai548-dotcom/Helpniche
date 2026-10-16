@@ -745,16 +745,40 @@ public class UnlockPlugin extends Plugin {
     public void requestCameraPermission(PluginCall call) {
         try {
             boolean hasCamera = true;
-            boolean hasLocation = true;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 Context context = getContext();
                 hasCamera = context.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+
+                if (!hasCamera && getActivity() != null) {
+                    final String[] perms = new String[]{ android.Manifest.permission.CAMERA };
+                    getActivity().runOnUiThread(() -> {
+                        try {
+                            androidx.core.app.ActivityCompat.requestPermissions(getActivity(), perms, 205);
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Error requesting camera runtime permissions", ex);
+                        }
+                    });
+                }
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("hasCameraPermission", hasCamera);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Error requesting camera permission", e);
+            call.reject("Failed to request camera permission: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void requestLocationPermission(PluginCall call) {
+        try {
+            boolean hasLocation = true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Context context = getContext();
                 hasLocation = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
 
                 java.util.List<String> needed = new java.util.ArrayList<>();
-                if (!hasCamera) {
-                    needed.add(android.Manifest.permission.CAMERA);
-                }
                 if (!hasLocation) {
                     needed.add(android.Manifest.permission.ACCESS_FINE_LOCATION);
                     needed.add(android.Manifest.permission.ACCESS_COARSE_LOCATION);
@@ -764,21 +788,20 @@ public class UnlockPlugin extends Plugin {
                     final String[] perms = needed.toArray(new String[0]);
                     getActivity().runOnUiThread(() -> {
                         try {
-                            androidx.core.app.ActivityCompat.requestPermissions(getActivity(), perms, 205);
+                            androidx.core.app.ActivityCompat.requestPermissions(getActivity(), perms, 206);
                         } catch (Exception ex) {
-                            Log.e(TAG, "Error requesting runtime permissions", ex);
+                            Log.e(TAG, "Error requesting location runtime permissions", ex);
                         }
                     });
                 }
             }
             JSObject ret = new JSObject();
             ret.put("success", true);
-            ret.put("hasCameraPermission", hasCamera);
             ret.put("hasLocationPermission", hasLocation);
             call.resolve(ret);
         } catch (Exception e) {
-            Log.e(TAG, "Error requesting permissions", e);
-            call.reject("Failed to request permissions: " + e.getMessage());
+            Log.e(TAG, "Error requesting location permission", e);
+            call.reject("Failed to request location permission: " + e.getMessage());
         }
     }
 
