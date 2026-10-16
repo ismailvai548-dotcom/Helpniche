@@ -202,17 +202,29 @@
                                 justify-content: space-between;
                                 padding: 14px 16px;
                                 background: rgba(226, 19, 110, 0.12);
-                                border: 1px solid #e2136e;
-                                border-radius: 12px;
+                                border: 1.5px solid #e2136e;
+                                border-radius: 14px;
                                 color: #fff;
                                 cursor: pointer;
                                 text-align: left;
+                                transition: transform 0.2s, background 0.2s;
                             ">
-                                <div>
-                                    <div style="font-size:15px; font-weight:800; color:#ff4081;">বিকাশ (bKash)</div>
-                                    <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Personal (Send Money)</div>
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div style="width:42px; height:42px; border-radius:12px; background:#e2136e; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 3px 8px rgba(226,19,110,0.35);">
+                                        <svg viewBox="0 0 100 100" style="width:26px; height:26px; fill:#fff;">
+                                            <polygon points="5,52 46,14 38,58" />
+                                            <polygon points="46,14 94,22 38,58" fill="#fbcfe8" />
+                                            <polygon points="38,58 66,92 94,22" />
+                                            <polygon points="46,14 74,4 94,22" fill="#fff" />
+                                            <polygon points="38,58 52,75 66,92" fill="#f472b6" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:15px; font-weight:800; color:#ff4081;">বিকাশ (bKash)</div>
+                                        <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Personal (Send Money)</div>
+                                    </div>
                                 </div>
-                                <span style="font-size:13px; font-weight:700; color:#ff4081;">সিলেক্ট করুন &rarr;</span>
+                                <span style="font-size:12px; font-weight:700; color:#ff4081; background:rgba(226,19,110,0.2); padding:6px 10px; border-radius:8px;">সিলেক্ট করুন &rarr;</span>
                             </button>
 
                             <button class="donation-method-btn" data-method="nagad" style="
@@ -221,17 +233,26 @@
                                 justify-content: space-between;
                                 padding: 14px 16px;
                                 background: rgba(247, 148, 29, 0.12);
-                                border: 1px solid #f7941d;
-                                border-radius: 12px;
+                                border: 1.5px solid #f7941d;
+                                border-radius: 14px;
                                 color: #fff;
                                 cursor: pointer;
                                 text-align: left;
+                                transition: transform 0.2s, background 0.2s;
                             ">
-                                <div>
-                                    <div style="font-size:15px; font-weight:800; color:#fb923c;">নগদ (Nagad)</div>
-                                    <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Personal (Send Money)</div>
+                                <div style="display:flex; align-items:center; gap:12px;">
+                                    <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg, #f7941d 0%, #ee3124 100%); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 3px 8px rgba(247,148,29,0.35);">
+                                        <svg viewBox="0 0 100 100" style="width:26px; height:26px;">
+                                            <path d="M50 8 C30 8 16 26 20 48 C22 58 30 68 40 76 C46 81 50 88 50 92 C50 86 56 80 62 74 C72 64 80 52 80 38 C80 20 66 8 50 8 Z" fill="#fff" />
+                                            <path d="M50 28 C42 28 36 36 38 46 C39 52 44 58 50 64 C56 58 61 52 62 46 C64 36 58 28 50 28 Z" fill="#f7941d" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <div style="font-size:15px; font-weight:800; color:#fb923c;">নগদ (Nagad)</div>
+                                        <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Personal (Send Money)</div>
+                                    </div>
                                 </div>
-                                <span style="font-size:13px; font-weight:700; color:#fb923c;">সিলেক্ট করুন &rarr;</span>
+                                <span style="font-size:12px; font-weight:700; color:#fb923c; background:rgba(247,148,29,0.2); padding:6px 10px; border-radius:8px;">সিলেক্ট করুন &rarr;</span>
                             </button>
                         </div>
                     </div>
@@ -242,26 +263,34 @@
                         <div id="donation-method-card" style="
                             background: #1e293b;
                             border: 1px solid #334155;
-                            border-radius: 14px;
-                            padding: 14px;
+                            border-radius: 16px;
+                            padding: 16px;
                             margin-bottom: 16px;
                             text-align: center;
                         ">
-                            <div id="donation-card-title" style="font-size:14px; font-weight:800; margin-bottom:6px;"></div>
-                            <div id="donation-card-number" style="font-size:20px; font-weight:900; letter-spacing:2px; color:#38bdf8; margin-bottom:10px; font-family:monospace;"></div>
+                            <div id="donation-card-logo-badge" style="display:inline-flex; align-items:center; justify-content:center; margin-bottom:8px;"></div>
+                            <div id="donation-card-title" style="font-size:15px; font-weight:800; margin-bottom:6px;"></div>
+                            <div id="donation-card-number" style="font-size:22px; font-weight:900; letter-spacing:2px; color:#38bdf8; margin-bottom:12px; font-family:monospace;"></div>
 
                             <button id="btn-donation-copy-num" style="
                                 width: 100%;
-                                padding: 9px;
+                                padding: 10px;
                                 background: #0284c7;
                                 color: #fff;
                                 border: none;
                                 border-radius: 8px;
-                                font-size: 12px;
+                                font-size: 13px;
                                 font-weight: 800;
                                 cursor: pointer;
                                 transition: background 0.2s;
-                            ">ট্যাপ করে নম্বর কপি করুন</button>
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 6px;
+                            ">
+                                <svg viewBox="0 0 24 24" style="width:16px; height:16px; fill:currentColor;"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                                <span>ট্যাপ করে নম্বর কপি করুন</span>
+                            </button>
                         </div>
 
                         <p style="font-size:12px; color:#94a3b8; line-height:1.4; margin:0 0 14px 0;">
@@ -498,9 +527,35 @@
         let name = "বিকাশ (Personal)";
         let num = activeConfig.bkash_number || "01773622548";
 
+        const logoBadge = document.getElementById('donation-card-logo-badge');
+
         if (method === 'nagad') {
             name = "নগদ (Personal)";
             num = activeConfig.nagad_number || "01773622548";
+            if (logoBadge) {
+                logoBadge.innerHTML = `
+                    <div style="width:46px; height:46px; border-radius:14px; background:linear-gradient(135deg, #f7941d 0%, #ee3124 100%); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(247,148,29,0.4);">
+                        <svg viewBox="0 0 100 100" style="width:30px; height:30px;">
+                            <path d="M50 8 C30 8 16 26 20 48 C22 58 30 68 40 76 C46 81 50 88 50 92 C50 86 56 80 62 74 C72 64 80 52 80 38 C80 20 66 8 50 8 Z" fill="#fff" />
+                            <path d="M50 28 C42 28 36 36 38 46 C39 52 44 58 50 64 C56 58 61 52 62 46 C64 36 58 28 50 28 Z" fill="#f7941d" />
+                        </svg>
+                    </div>
+                `;
+            }
+        } else {
+            if (logoBadge) {
+                logoBadge.innerHTML = `
+                    <div style="width:46px; height:46px; border-radius:14px; background:#e2136e; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(226,19,110,0.4);">
+                        <svg viewBox="0 0 100 100" style="width:30px; height:30px; fill:#fff;">
+                            <polygon points="5,52 46,14 38,58" />
+                            <polygon points="46,14 94,22 38,58" fill="#fbcfe8" />
+                            <polygon points="38,58 66,92 94,22" />
+                            <polygon points="46,14 74,4 94,22" fill="#fff" />
+                            <polygon points="38,58 52,75 66,92" fill="#f472b6" />
+                        </svg>
+                    </div>
+                `;
+            }
         }
 
         if (cardTitle) cardTitle.innerText = name + " - Send Money";
