@@ -66,6 +66,24 @@ function renderSettingsTab() {
                 </button>
             </div>
 
+            <!-- ৩. অ্যাপ পরিচালনায় হাদিয়া / সহযোগিতা -->
+            <div class="dash-card">
+                <div class="card-header-flex">
+                    <span class="shield-title">
+                        <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                        অ্যাপ পরিচালনায় হাদিয়া
+                    </span>
+                    <span id="settings-donation-badge" style="font-size:11px; padding:3px 8px; border-radius:6px; background:rgba(16,185,129,0.15); color:#34d399; font-weight:700;">স্বেচ্ছাসেবী</span>
+                </div>
+                <p id="settings-donation-desc" style="font-size:13px; color:var(--text-muted, #aaa); margin-bottom:12px; line-height:1.5;">
+                    অ্যাপটি বিজ্ঞাপনমুক্ত ও সম্পূর্ণ ফ্রি। ব্যাকএন্ড সার্ভার ও নিয়মিত উন্নয়ন কার্যক্রম অব্যাহত রাখতে হাদিয়া প্রদান করতে পারেন:
+                </p>
+
+                <button class="btn-primary-focus" id="btn-open-donation-modal" style="width:100%; padding:12px; background:linear-gradient(135deg, #10b981 0%, #059669 100%); color:#042f2e; border-radius:8px; border:none; font-weight:bold; cursor:pointer;">
+                    হাদিয়া প্রদান করুন
+                </button>
+            </div>
+
             <!-- ৪. আপডেট ও যোগাযোগ -->
             <div class="dash-card">
                 <div class="card-header-flex">
@@ -127,6 +145,30 @@ function bindSettingsTabEvents() {
     const inputField = document.getElementById('unlock-passcode-input');
     const statusMsg = document.getElementById('unlock-status-msg');
 
+    const btnOpenDonation = document.getElementById('btn-open-donation-modal');
+    if (btnOpenDonation) {
+        btnOpenDonation.onclick = () => {
+            if (window.openDonationModal) {
+                window.openDonationModal();
+            }
+        };
+    }
+
+    window.updateSettingsDonationCard = function() {
+        const descEl = document.getElementById('settings-donation-desc');
+        const badgeEl = document.getElementById('settings-donation-badge');
+        const btnEl = document.getElementById('btn-open-donation-modal');
+        const total = parseFloat(localStorage.getItem('donation_total_amount') || '0');
+        if (total > 0) {
+            if (descEl) descEl.innerText = `আলহামদুলিল্লাহ, অ্যাপস পরিচালনায় আপনার মোট অবদান: ৳${total}। জাযাকাল্লাহু খাইরান। আরও সহযোগিতা করতে চাইলে নিচের বাটনে চাপ দিন:`;
+            if (badgeEl) {
+                badgeEl.innerText = `মোট: ৳${total}`;
+                badgeEl.style.color = '#34d399';
+            }
+            if (btnEl) btnEl.innerText = 'পুনরায় হাদিয়া প্রদান করুন';
+        }
+    };
+    window.updateSettingsDonationCard();
 
     if (btnOpenUnlock) {
         btnOpenUnlock.onclick = () => {
