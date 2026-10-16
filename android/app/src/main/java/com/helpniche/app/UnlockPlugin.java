@@ -806,6 +806,22 @@ public class UnlockPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void triggerTestCapture(PluginCall call) {
+        try {
+            Context context = getContext();
+            Intent intent = new Intent(context, IntruderCaptureActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            context.startActivity(intent);
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Error triggering test capture", e);
+            call.reject("Failed to trigger test capture: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void openAppSettings(PluginCall call) {
         try {
             Context ctx = getContext();

@@ -108,6 +108,10 @@ function renderSettingsTab() {
                             <svg class="svg-icon" viewBox="0 0 24 24" style="width:15px; height:15px;"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
                             <span>সংরক্ষিত ছবি</span>
                         </button>
+                        <button id="btn-test-intruder-capture" style="grid-column: 1 / -1; padding:9px 8px; background:rgba(56, 189, 248, 0.1); border:1px solid rgba(56, 189, 248, 0.3); color:#38bdf8; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font-family:'Kalpurush', 'SolaimanLipi', sans-serif; margin-top:2px;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width:15px; height:15px;"><path fill="currentColor" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm7-13h-3.17L14 2H10L8.17 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/></svg>
+                            <span id="txt-test-intruder-capture">ক্যামেরা টেস্ট করুন (ছবি তুলুন)</span>
+                        </button>
                     </div>
 
                     <div style="font-size:11px; color:#94a3b8; font-family:'Kalpurush', 'SolaimanLipi', sans-serif; display:flex; align-items:center; justify-content:space-between; padding:2px 2px;">
@@ -416,6 +420,18 @@ function bindSettingsTabEvents() {
                     }
                 }
 
+                // লক স্ক্রিনের ভুল পাসওয়ার্ড শনাক্ত করতে ডিভাইস অ্যাডমিন প্রয়োজন
+                if (window.Capacitor?.Plugins?.UnlockPlugin?.getOnboardingStatus) {
+                    try {
+                        const status = await window.Capacitor.Plugins.UnlockPlugin.getOnboardingStatus();
+                        if (status && !status.adminActive) {
+                            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
+                                await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
+                            }
+                        }
+                    } catch(e) {}
+                }
+
                 isIntruderEnabled = true;
                 localStorage.setItem('intruder_selfie_enabled', 'true');
                 updateIntruderToggleUI(true);
@@ -603,6 +619,37 @@ function bindSettingsTabEvents() {
                     telegramChatIdStatus.style.color = '#f87171';
                     telegramChatIdStatus.style.display = 'block';
                 }
+            }
+        };
+    }
+
+    // ক্যামেরা টেস্ট বাটন (সরাসরি ছবি তোলার পরীক্ষা)
+    const btnTestIntruderCapture = document.getElementById('btn-test-intruder-capture');
+    const txtTestIntruderCapture = document.getElementById('txt-test-intruder-capture');
+    if (btnTestIntruderCapture) {
+        btnTestIntruderCapture.onclick = async () => {
+            if (txtTestIntruderCapture) txtTestIntruderCapture.innerText = 'ক্যামেরা চালু হচ্ছে...';
+
+            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
+                try {
+                    await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
+                } catch(e) {}
+            }
+
+            try {
+                if (window.Capacitor?.Plugins?.UnlockPlugin?.triggerTestCapture) {
+                    await window.Capacitor.Plugins.UnlockPlugin.triggerTestCapture();
+                    setTimeout(async () => {
+                        if (txtTestIntruderCapture) txtTestIntruderCapture.innerText = 'ক্যামেরা টেস্ট করুন (ছবি তুলুন)';
+                        if (typeof loadIntruderLogs === 'function') {
+                            await loadIntruderLogs();
+                        }
+                        alert('টেস্ট ছবি সফলভাবে তোলা হয়েছে এবং সংরক্ষিত ছবি তালিকায় যুক্ত হয়েছে।');
+                    }, 2500);
+                }
+            } catch(e) {
+                if (txtTestIntruderCapture) txtTestIntruderCapture.innerText = 'ক্যামেরা টেস্ট করুন (ছবি তুলুন)';
+                alert('ক্যামেরা চালু করতে সমস্যা হয়েছে: ' + (e?.message || e));
             }
         };
     }
