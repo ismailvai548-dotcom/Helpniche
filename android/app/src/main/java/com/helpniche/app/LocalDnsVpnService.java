@@ -3,6 +3,7 @@ package com.helpniche.app;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -43,6 +44,7 @@ public class LocalDnsVpnService extends VpnService {
     private static final String TAG = "LocalDnsVpnService";
     private static final String CHANNEL_ID = "FocusShieldVpnChannel";
     private static final int NOTIFICATION_ID = 1001;
+    private static final int PROTECTION_ALERT_NOTIFICATION_ID = 1002;
 
     private static volatile LocalDnsVpnService instance = null;
 
@@ -360,6 +362,70 @@ public class LocalDnsVpnService extends VpnService {
         } catch (Exception e) {
             Log.e(TAG, "Failed to start VPN service", e);
             isStarting = false;
+            // H13: On Android 12+, startForegroundService() from a background context
+            // (boot, screen-unlock, accessibility callbacks) throws
+            // ForegroundServiceStartNotAllowedException. Don't swallow it silently —
+            // show the user an alert so they can reopen the app and resume protection.
+            if (isBackgroundForegroundStartRejected(e)) {
+                showProtectionPausedNotification(context);
+            }
+        }
+    }
+
+    /**
+     * True when the given exception is the Android 12+ rejection of a background
+     * startForegroundService() call. Compares the class name instead of using a
+     * direct reference so this is safe on API < 31 where the class does not exist.
+     */
+    private static boolean isBackgroundForegroundStartRejected(Throwable e) {
+        return e != null
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && "android.app.ForegroundServiceStartNotAllowedException".equals(e.getClass().getName());
+    }
+
+    /**
+     * Shows a user-visible "Protection paused" alert that deep-links into
+     * MainActivity so the user can reopen the app and resume protection.
+     * Note: posting requires POST_NOTIFICATIONS on Android 13+; if the permission
+     * is missing the failure is caught and logged harmlessly.
+     */
+    private static void showProtectionPausedNotification(Context context) {
+        try {
+            if (context == null) return;
+            Context app = context.getApplicationContext();
+            NotificationManager manager = (NotificationManager) app.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (manager == null) return;
+
+            String channelId = "HelpnicheProtectionAlertChannel";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                        channelId,
+                        "Protection Alerts",
+                        NotificationManager.IMPORTANCE_DEFAULT);
+                channel.setDescription("Alerts when Helpniche protection cannot restart in the background");
+                manager.createNotificationChannel(channel);
+            }
+
+            Intent openApp = new Intent(app, MainActivity.class);
+            openApp.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                piFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pendingIntent = PendingIntent.getActivity(app, 0, openApp, piFlags);
+
+            Notification notification = new NotificationCompat.Builder(app, channelId)
+                    .setContentTitle("Protection paused")
+                    .setContentText("সুরক্ষা ব্যাকগ্রাউন্ডে চালু করা যায়নি। চালিয়ে যেতে Helpniche খুলুন।")
+                    .setSmallIcon(R.mipmap.ic_launcher)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                    .build();
+
+            manager.notify(PROTECTION_ALERT_NOTIFICATION_ID, notification);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to post protection-paused notification", e);
         }
     }
 
@@ -437,7 +503,9 @@ public class LocalDnsVpnService extends VpnService {
         registerUnlockReceiver();
         startPacketLoopThread();
         isStarting = false;
-        return START_NOT_STICKY;
+        // H13: keep the service sticky once it is running from a foreground start so
+        // the system restarts it (and protection resumes) if it is killed.
+        return START_STICKY;
     }
 
     private void registerUnlockReceiver() {

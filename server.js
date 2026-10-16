@@ -98,19 +98,23 @@ bot.start(async (ctx) => {
 // ২. ইনলাইন বাটন ক্লিকের অ্যাকশন হ্যান্ডলার (ইউনিক ৬ ডিজিটের কোড তৈরি)
 bot.action(/^(cd|unlock|rj|reject)[:_](.+)$/, async (ctx) => {
     try {
-        const fullMatch = ctx.match[0];
+        // H9: delimiter-safe parsing — the regex anchors on the known command prefix,
+        // so use its capture groups instead of splitting on '_' (device ids may
+        // contain underscores, which broke target extraction and could mis-target
+        // remote commands at the wrong device).
+        const cmd = ctx.match[1];             // cd | unlock | rj | reject
+        const remainder = ctx.match[2] || ""; // everything after the command prefix
         if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
             return ctx.answerCbQuery("❌ শুধুমাত্র অ্যাডমিন অনুমোদন দিতে পারবেন!");
         }
 
-        let isReject = fullMatch.startsWith('rj:') || fullMatch.startsWith('reject');
+        let isReject = cmd === 'rj' || cmd === 'reject';
         let durationMinutes = 5;
         let durationText = "৫ মিনিট";
         let targetId = "";
 
         if (isReject) {
-            const parts = fullMatch.split(/[:_]/);
-            targetId = parts[1] || "";
+            targetId = remainder;
             let targetUserId = null;
             if (targetId && !targetId.startsWith('dev_')) {
                 try {
@@ -128,10 +132,12 @@ bot.action(/^(cd|unlock|rj|reject)[:_](.+)$/, async (ctx) => {
             return ctx.answerCbQuery("বাতিল করা হয়েছে");
         }
 
-        // আনলক অনুমোদন
-        const parts = fullMatch.split(/[:_]/);
-        const durStr = parts[1] || "5";
-        targetId = parts[2] || "";
+        // আনলক অনুমোদন — format: <duration>:<requestId|dev_deviceId>.
+        // Split on the FIRST separator only; the trailing id may contain '_' itself.
+        let sepIdx = remainder.indexOf(':');
+        if (sepIdx < 0) sepIdx = remainder.indexOf('_');
+        const durStr = (sepIdx >= 0 ? remainder.slice(0, sepIdx) : remainder) || "5";
+        targetId = sepIdx >= 0 ? remainder.slice(sepIdx + 1) : "";
 
         if (durStr === "10") {
             durationMinutes = 10;

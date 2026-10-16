@@ -86,6 +86,20 @@
         } catch (e) {}
     }
 
+    // H1 (donor PII): SHA-256 hex helper — the raw donor phone number is never
+    // stored or transmitted; only its one-way hash goes to the donations table.
+    async function sha256Hex(text) {
+        try {
+            if (window.crypto && window.crypto.subtle) {
+                const buf = await window.crypto.subtle.digest(
+                    'SHA-256', new TextEncoder().encode(String(text || '').trim()));
+                return Array.from(new Uint8Array(buf))
+                    .map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+        } catch (e) {}
+        return '';
+    }
+
     // অ্যাপ ওপেন বা আনলক ট্র্যাক করা
     function trackAppOpen() {
         const totalDonated = parseFloat(localStorage.getItem('donation_total_amount') || '0');
@@ -657,10 +671,12 @@
 
         notifyTelegramAdmin(telegramMessage);
 
-        // ক্লাউড ডেটাবেজে ব্যাকআপ
+        // ক্লাউড ডেটাবেজে ব্যাকআপ — H1: প্রেরকের নম্বর raw আকারে কখনোই পাঠানো হয় না,
+        // শুধুমাত্র SHA-256 হ্যাশ সংরক্ষণ করা হয় (donations টেবিলে PII লিক রোধে)।
+        const senderHash = await sha256Hex(sender);
         recordDonationToSupabase({
             method: methodName,
-            sender: sender,
+            sender: senderHash,
             amount: amountVal,
             trx_id: trxId || '',
             created_at: new Date().toISOString(),

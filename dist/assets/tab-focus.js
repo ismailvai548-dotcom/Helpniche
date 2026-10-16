@@ -467,7 +467,13 @@ function startFocusSession(mins) {
 
     focusSessionEndTime = Date.now() + (mins * 60 * 1000);
     localStorage.setItem('FOCUS_SESSION_END_TIME', focusSessionEndTime.toString());
-    addTodayFocusMinutes(mins);
+    // H17 FIX: do NOT credit the full session here. Persist session start +
+    // planned minutes so elapsed minutes are credited incrementally by the
+    // timer tick (and settled on boot if the app was killed mid-session).
+    focusSessionStartTime = Date.now();
+    localStorage.setItem('FOCUS_SESSION_START_TIME', focusSessionStartTime.toString());
+    localStorage.setItem('FOCUS_SESSION_PLANNED_MINS', mins.toString());
+    localStorage.setItem('FOCUS_SESSION_CREDITED_MINS', '0');
     isFocusSessionActive = true;
     setNativeFocusLock(true);
 
@@ -481,6 +487,8 @@ function startFocusTimerLoop() {
     focusTimerInterval = setInterval(() => {
         const now = Date.now();
         if (focusSessionEndTime > now) {
+            // H17: credit only elapsed whole minutes as the session runs.
+            creditElapsedFocusMinutes();
             const diffSecs = Math.floor((focusSessionEndTime - now) / 1000);
             const m = Math.floor(diffSecs / 60);
             const s = diffSecs % 60;
@@ -492,7 +500,11 @@ function startFocusTimerLoop() {
             clearInterval(focusTimerInterval);
             if (spiralAnimInterval) clearInterval(spiralAnimInterval);
             isFocusSessionActive = false;
+            // H17: final credit (covers the last partial minute up to the
+            // planned total), then clear all session state.
+            creditElapsedFocusMinutes();
             localStorage.removeItem('FOCUS_SESSION_END_TIME');
+            clearFocusSessionCreditState();
             setNativeFocusLock(false);
             audioEngine.stop(true);
             switchTab('focus');
