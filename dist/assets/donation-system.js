@@ -190,70 +190,80 @@
                     </div>
 
                     <!-- ভিউ ২: মেথড নির্বাচন (বিকাশ / নগদ) -->
-                    <div id="donation-view-methods" style="display:none;">
-                        <p style="font-size:13px; color:#cbd5e1; margin:0 0 16px 0; line-height:1.5;">
-                            যে মাধ্যমে আপনি হাদিয়া বা অনুদান পাঠাতে চান তা নির্বাচন করুন:
+                    <div id="donation-view-methods" style="display:none; text-align:center;">
+                        <p style="font-size:13px; color:#cbd5e1; margin:0 0 20px 0; line-height:1.5;">
+                            যে মাধ্যমে আপনি হাদিয়া বা অনুদান পাঠাতে চান তা নির্বাচন করুন:
                         </p>
 
-                        <div style="display:flex; flex-direction:column; gap:12px; margin-bottom:16px;">
-                            <button class="donation-method-btn" data-method="bkash" style="
-                                display: flex;
-                                align-items: center;
-                                justify-content: space-between;
-                                padding: 14px 16px;
-                                background: rgba(226, 19, 110, 0.12);
-                                border: 1.5px solid #e2136e;
-                                border-radius: 14px;
-                                color: #fff;
+                        <!-- দুই পাশে দুইটা সার্কেল বাটন (হোম পেজের দুই কলাম স্টাইলে) -->
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+                            <!-- বিকাশ সার্কেল কার্ড -->
+                            <div class="donation-method-btn" data-method="bkash" style="
+                                background: linear-gradient(145deg, #1e293b, #0f172a);
+                                border: 1.5px solid rgba(226, 19, 110, 0.4);
+                                border-radius: 18px;
+                                padding: 20px 10px;
                                 cursor: pointer;
-                                text-align: left;
-                                transition: transform 0.2s, background 0.2s;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 12px;
+                                transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+                                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
                             ">
-                                <div style="display:flex; align-items:center; gap:12px;">
-                                    <div style="width:42px; height:42px; border-radius:12px; background:#e2136e; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 3px 8px rgba(226,19,110,0.35);">
-                                        <svg viewBox="0 0 100 100" style="width:26px; height:26px; fill:#fff;">
-                                            <polygon points="5,52 46,14 38,58" />
-                                            <polygon points="46,14 94,22 38,58" fill="#fbcfe8" />
-                                            <polygon points="38,58 66,92 94,22" />
-                                            <polygon points="46,14 74,4 94,22" fill="#fff" />
-                                            <polygon points="38,58 52,75 66,92" fill="#f472b6" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <div style="font-size:15px; font-weight:800; color:#ff4081;">বিকাশ (bKash)</div>
-                                        <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Personal (Send Money)</div>
-                                    </div>
+                                <div style="
+                                    width: 72px;
+                                    height: 72px;
+                                    border-radius: 50%;
+                                    overflow: hidden;
+                                    background: #e2136e;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    box-shadow: 0 4px 14px rgba(226, 19, 110, 0.45);
+                                    border: 2px solid rgba(255, 255, 255, 0.2);
+                                ">
+                                    <img src="assets/bkash-logo.png" alt="bKash" style="width:100%; height:100%; object-fit:cover;" />
                                 </div>
-                                <span style="font-size:12px; font-weight:700; color:#ff4081; background:rgba(226,19,110,0.2); padding:6px 10px; border-radius:8px;">সিলেক্ট করুন &rarr;</span>
-                            </button>
+                                <span style="font-size:16px; font-weight:800; color:#ffffff; font-family:'Kalpurush', 'SolaimanLipi', sans-serif; letter-spacing:0.3px;">
+                                    বিকাশ
+                                </span>
+                            </div>
 
-                            <button class="donation-method-btn" data-method="nagad" style="
-                                display: flex;
-                                align-items: center;
-                                justify-content: space-between;
-                                padding: 14px 16px;
-                                background: rgba(247, 148, 29, 0.12);
-                                border: 1.5px solid #f7941d;
-                                border-radius: 14px;
-                                color: #fff;
+                            <!-- নগদ সার্কেল কার্ড -->
+                            <div class="donation-method-btn" data-method="nagad" style="
+                                background: linear-gradient(145deg, #1e293b, #0f172a);
+                                border: 1.5px solid rgba(247, 148, 29, 0.4);
+                                border-radius: 18px;
+                                padding: 20px 10px;
                                 cursor: pointer;
-                                text-align: left;
-                                transition: transform 0.2s, background 0.2s;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                gap: 12px;
+                                transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+                                box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
                             ">
-                                <div style="display:flex; align-items:center; gap:12px;">
-                                    <div style="width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg, #f7941d 0%, #ee3124 100%); display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 3px 8px rgba(247,148,29,0.35);">
-                                        <svg viewBox="0 0 100 100" style="width:26px; height:26px;">
-                                            <path d="M50 8 C30 8 16 26 20 48 C22 58 30 68 40 76 C46 81 50 88 50 92 C50 86 56 80 62 74 C72 64 80 52 80 38 C80 20 66 8 50 8 Z" fill="#fff" />
-                                            <path d="M50 28 C42 28 36 36 38 46 C39 52 44 58 50 64 C56 58 61 52 62 46 C64 36 58 28 50 28 Z" fill="#f7941d" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <div style="font-size:15px; font-weight:800; color:#fb923c;">নগদ (Nagad)</div>
-                                        <div style="font-size:11px; color:#cbd5e1; margin-top:2px;">Personal (Send Money)</div>
-                                    </div>
+                                <div style="
+                                    width: 72px;
+                                    height: 72px;
+                                    border-radius: 50%;
+                                    overflow: hidden;
+                                    background: #ffffff;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    box-shadow: 0 4px 14px rgba(247, 148, 29, 0.45);
+                                    border: 2px solid rgba(255, 255, 255, 0.2);
+                                ">
+                                    <img src="assets/nagad-logo.png" alt="Nagad" style="width:100%; height:100%; object-fit:cover;" />
                                 </div>
-                                <span style="font-size:12px; font-weight:700; color:#fb923c; background:rgba(247,148,29,0.2); padding:6px 10px; border-radius:8px;">সিলেক্ট করুন &rarr;</span>
-                            </button>
+                                <span style="font-size:16px; font-weight:800; color:#ffffff; font-family:'Kalpurush', 'SolaimanLipi', sans-serif; letter-spacing:0.3px;">
+                                    নগদ
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -534,25 +544,16 @@
             num = activeConfig.nagad_number || "01773622548";
             if (logoBadge) {
                 logoBadge.innerHTML = `
-                    <div style="width:46px; height:46px; border-radius:14px; background:linear-gradient(135deg, #f7941d 0%, #ee3124 100%); display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(247,148,29,0.4);">
-                        <svg viewBox="0 0 100 100" style="width:30px; height:30px;">
-                            <path d="M50 8 C30 8 16 26 20 48 C22 58 30 68 40 76 C46 81 50 88 50 92 C50 86 56 80 62 74 C72 64 80 52 80 38 C80 20 66 8 50 8 Z" fill="#fff" />
-                            <path d="M50 28 C42 28 36 36 38 46 C39 52 44 58 50 64 C56 58 61 52 62 46 C64 36 58 28 50 28 Z" fill="#f7941d" />
-                        </svg>
+                    <div style="width:60px; height:60px; border-radius:50%; overflow:hidden; background:#ffffff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(247,148,29,0.45); border:2px solid rgba(255,255,255,0.25);">
+                        <img src="assets/nagad-logo.png" alt="Nagad" style="width:100%; height:100%; object-fit:cover;" />
                     </div>
                 `;
             }
         } else {
             if (logoBadge) {
                 logoBadge.innerHTML = `
-                    <div style="width:46px; height:46px; border-radius:14px; background:#e2136e; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(226,19,110,0.4);">
-                        <svg viewBox="0 0 100 100" style="width:30px; height:30px; fill:#fff;">
-                            <polygon points="5,52 46,14 38,58" />
-                            <polygon points="46,14 94,22 38,58" fill="#fbcfe8" />
-                            <polygon points="38,58 66,92 94,22" />
-                            <polygon points="46,14 74,4 94,22" fill="#fff" />
-                            <polygon points="38,58 52,75 66,92" fill="#f472b6" />
-                        </svg>
+                    <div style="width:60px; height:60px; border-radius:50%; overflow:hidden; background:#e2136e; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(226,19,110,0.45); border:2px solid rgba(255,255,255,0.25);">
+                        <img src="assets/bkash-logo.png" alt="bKash" style="width:100%; height:100%; object-fit:cover;" />
                     </div>
                 `;
             }
