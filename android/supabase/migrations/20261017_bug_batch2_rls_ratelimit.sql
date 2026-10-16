@@ -3,12 +3,25 @@
 --   H1: restrictive RLS on public.donations (anon INSERT-only; SELECT restricted)
 --   H5: public.unlock_attempts table for per-device OTP rate limiting
 -- ==============================================================================
--- NOTE: the donations table is created/managed by the app flow already; this
--- migration only tightens its Row Level Security. The verify-unlock-code edge
--- function degrades gracefully (rate limiting disabled) until unlock_attempts
--- exists, so applying this migration is what ACTIVATES the H5 lockout.
+-- NOTE: this migration creates the donations table if missing and then tightens
+-- its Row Level Security. The verify-unlock-code edge function degrades
+-- gracefully (rate limiting disabled) until unlock_attempts exists, so applying
+-- this migration is what ACTIVATES the H5 lockout.
 
--- --- H1: donations RLS -------------------------------------------------------
+-- --- H1: donations table + RLS ------------------------------------------------
+-- The app POSTs { method, sender (SHA-256 hash), amount, trx_id, created_at,
+-- total_user_donated } to /rest/v1/donations. Create the table if the live DB
+-- never had it (the earlier note assuming it existed was wrong).
+CREATE TABLE IF NOT EXISTS public.donations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    method TEXT,
+    sender TEXT,
+    amount NUMERIC,
+    trx_id TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    total_user_donated NUMERIC
+);
+
 ALTER TABLE public.donations ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "service_role_all_donations" ON public.donations;
