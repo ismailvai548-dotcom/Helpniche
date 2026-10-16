@@ -352,111 +352,91 @@ function renderModalsAndOverlays() {
 
         <!-- Feature & Permission Guide Modal -->
         <div class="modal-overlay" id="permission-guide-modal" style="display: none; z-index: 100005;">
-            <div class="modal-card" style="text-align: left; border: 1.5px solid rgba(56, 189, 248, 0.4); max-width: 440px; width: 95%; max-height: 88vh; display: flex; flex-direction: column; padding: 18px 16px; box-sizing: border-box; background: #0b1326; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.8);">
+            <div class="modal-card" style="text-align: left; border: 1px solid rgba(255, 255, 255, 0.1); max-width: 440px; width: 95%; max-height: 88vh; display: flex; flex-direction: column; padding: 18px 16px; box-sizing: border-box; background: #0d1527; border-radius: 18px; box-shadow: 0 16px 40px rgba(0,0,0,0.8);">
 
                 <!-- Modal Header -->
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 14px; flex-shrink: 0;">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; color: #38bdf8; flex-shrink: 0;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; margin-bottom: 14px; flex-shrink: 0;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <svg class="svg-icon" viewBox="0 0 24 24" style="width: 18px; height: 18px; color: #38bdf8;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
+                        </div>
                         <div>
-                            <span style="font-weight: 800; font-size: 16px; color: #ffffff; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">ফিচারসমূহ ও প্রয়োজনীয় পারমিশন</span>
-                            <p style="font-size: 11px; color: #94a3b8; margin: 2px 0 0 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">আপনার প্রয়োজন অনুযায়ী সুরক্ষা ফিচারগুলো সক্রিয় করুন</p>
+                            <span style="font-weight: 700; font-size: 15px; color: #ffffff; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">সুরক্ষা সেটিংস</span>
+                            <p style="font-size: 11px; color: #94a3b8; margin: 2px 0 0 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">আপনার সুবিধামতো নিয়ন্ত্রণগুলো সক্রিয় রাখুন</p>
                         </div>
                     </div>
-                    <button id="btn-close-permission-guide-modal" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; padding: 6px 10px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <button id="btn-close-permission-guide-modal" style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 5px 8px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                         <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px;"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                     </button>
                 </div>
 
                 <!-- Scrollable Content -->
-                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px;">
+                <div style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 2px;">
 
-                    <!-- 1. Reels & Shorts Blocker (Accessibility) -->
-                    <div style="background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.25); border-radius: 14px; padding: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(168, 85, 247, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #c084fc;"><path fill="currentColor" d="M12 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm9 7h-6v13h-2v-6h-2v6H9V9H3V7h18v2z"/></svg>
-                                </div>
-                                <span style="font-weight: 700; font-size: 13.5px; color: #c084fc; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">১. রিলস ও শর্টস ব্লকার (অ্যাক্সেসিবিলিটি)</span>
-                            </div>
-                            <button id="btn-perm-accessibility" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                    <!-- Reels & Shorts Blocker -->
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">শর্টস ও রিলস প্রতিরোধ</span>
+                            <button id="btn-perm-accessibility" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
                         </div>
-                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                            ফেসবুক ও ইউটিউবের রিলস এবং শর্টস ভিডিও স্ক্রিন থেকে স্বয়ংক্রিয়ভাবে বন্ধ করার জন্য এই পারমিশন প্রয়োজন।
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ফেসবুক ও ইউটিউবের রিলস স্বয়ংক্রিয়ভাবে বন্ধ রেখে মনোযোগ ধরে রাখে।
                         </p>
                     </div>
 
-                    <!-- 2. Anti-Uninstall Guard (Device Admin) -->
-                    <div style="background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); border-radius: 14px; padding: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(244, 63, 94, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #fb7185;"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14l-4-4 1.41-1.41L11 13.17l7.59-7.59L20 7l-9 9z"/></svg>
-                                </div>
-                                <span style="font-weight: 700; font-size: 13.5px; color: #fb7185; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">২. অ্যান্টি-আনইনস্টল গার্ড (ডিভাইস অ্যাডমিন)</span>
-                            </div>
-                            <button id="btn-perm-admin" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                    <!-- Anti-Uninstall Guard -->
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">অ্যাপ মুছে ফেলা প্রতিরোধ</span>
+                            <button id="btn-perm-admin" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
                         </div>
-                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                            দুর্বল বা আবেগের মুহূর্তে ভুলবশত অ্যাপটি মুছে ফেলা বা বন্ধ করা ঠেকাতে ডিভাইস অ্যাডমিন চালু রাখা আবশ্যক।
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            হুট করে বা সাময়িক দুর্বল মুহূর্তে অ্যাপ ডিলিট করা রোধ করে সুরক্ষা দেয়।
                         </p>
                     </div>
 
-                    <!-- 3. Ad Controller & Content Filter (VPN) -->
-                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 14px; padding: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(16, 185, 129, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #34d399;"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
-                                </div>
-                                <span style="font-weight: 700; font-size: 13.5px; color: #34d399; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">৩. ব্রাউজার শিল্ড ও অ্যাড কন্ট্রোলার (ভিপিএন)</span>
-                            </div>
-                            <button id="btn-perm-vpn" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                    <!-- Ad Controller & Content Filter -->
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">অনাকাঙ্ক্ষিত ওয়েবসাইট ও বিজ্ঞাপন ফিল্টার</span>
+                            <button id="btn-perm-vpn" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
                         </div>
-                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                            ডিভাইসের সকল ব্রাউজারে খারাপ ওয়েবসাইট এবং ফোনে বিরক্তিকর বিজ্ঞাপন ব্লক রাখতে এই অপশনটি ব্যবহার করা হয়।
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ব্রাউজারে ক্ষতিকর ওয়েবসাইট এবং বিভ্রান্তিকর বিজ্ঞাপন আটকে দেয়।
                         </p>
                     </div>
 
-                    <!-- 4. Battery Optimization Bypass -->
-                    <div style="background: rgba(234, 179, 8, 0.08); border: 1px solid rgba(234, 179, 8, 0.25); border-radius: 14px; padding: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(234, 179, 8, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #facc15;"><path fill="currentColor" d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4zM11 20v-5.5H9L13 7v5.5h2L11 20z"/></svg>
-                                </div>
-                                <span style="font-weight: 700; font-size: 13.5px; color: #facc15; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">৪. সার্বক্ষণিক সক্রিয়তা (ব্যাটারি পারমিশন)</span>
-                            </div>
-                            <button id="btn-perm-battery" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                    <!-- Battery Optimization Bypass -->
+                    <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">ব্যাকগ্রাউন্ডে সচল রাখা</span>
+                            <button id="btn-perm-battery" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
                         </div>
-                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                            ব্যাকগ্রাউন্ডে ব্লকিং ও অ্যালার্ম সার্ভিস যেন ফোন নিজে থেকে বন্ধ না করে দেয়, সেজন্য ব্যাটারি আনরেস্ট্রিক্টেড রাখা প্রয়োজন।
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ফোন স্লিপ মোডে থাকলেও সব অ্যালার্ম ও সুরক্ষা নিরবচ্ছিন্ন রাখে।
                         </p>
                     </div>
 
-                    <!-- 5. Android 13+ Restricted Settings (if needed) -->
-                    <div id="row-perm-restricted" style="display: none; background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.25); border-radius: 14px; padding: 12px;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px;">
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(251, 146, 60, 0.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                    <svg class="svg-icon" viewBox="0 0 24 24" style="width: 16px; height: 16px; color: #fb923c;"><path fill="currentColor" d="M12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/></svg>
-                                </div>
-                                <span style="font-weight: 700; font-size: 13.5px; color: #fb923c; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">৫. রেস্ট্রিক্টেড সেটিংস রিমুভ (অ্যান্ড্রয়েড ১৩+)</span>
-                            </div>
-                            <button id="btn-perm-restricted" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 800; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                    <!-- Android 13+ Restricted Settings (if needed) -->
+                    <div id="row-perm-restricted" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">অতিরিক্ত নিয়ন্ত্রণ ছাড়পত্র (অ্যান্ড্রয়েড ১৩+)</span>
+                            <button id="btn-perm-restricted" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
                         </div>
-                        <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.5; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                            অ্যান্ড্রয়েড ১৩+ ডিভাইসে অ্যাক্সেসিবিলিটি চালুর বাধা সরাতে অ্যাপ ইনফো থেকে রেস্ট্রিকশন তুলে দেওয়া প্রয়োজন।
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            নতুন অ্যান্ড্রয়েড সিস্টেমে ব্লকার সার্ভিস সক্রিয় রাখতে এই অনুমতি প্রয়োজন।
                         </p>
                     </div>
 
                 </div>
 
-                <!-- Footer Close Button -->
-                <button id="btn-close-permission-guide-bottom" style="margin-top: 14px; margin-bottom: 0; background: #38bdf8; color: #000; font-weight: 800; padding: 11px; border-radius: 12px; border: none; cursor: pointer; font-size: 13.5px; flex-shrink: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
-                    ঠিক আছে
-                </button>
+                <!-- Footer & Trust Line -->
+                <div style="margin-top: 12px; flex-shrink: 0; text-align: center;">
+                    <p style="font-size: 11px; color: #64748b; margin: 0 0 10px 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">আপনার তথ্য শুধুমাত্র আপনার ডিভাইসেই সুরক্ষিত থাকে</p>
+                    <button id="btn-close-permission-guide-bottom" style="width: 100%; background: #1e293b; color: #f1f5f9; font-weight: 700; padding: 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08); cursor: pointer; font-size: 13px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                        ঠিক আছে
+                    </button>
+                </div>
 
             </div>
         </div>
@@ -1151,14 +1131,14 @@ function updatePermissionGuideUI() {
     if (btnAccessibility) {
         if (onboardingPermissionStatus.accessibilityEnabled) {
             btnAccessibility.innerText = 'চালু আছে';
-            btnAccessibility.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnAccessibility.style.background = 'rgba(34, 197, 94, 0.12)';
             btnAccessibility.style.color = '#4ade80';
-            btnAccessibility.style.border = '1px solid #22c55e';
+            btnAccessibility.style.border = '1px solid rgba(34, 197, 94, 0.3)';
             btnAccessibility.onclick = null;
         } else {
-            btnAccessibility.innerText = 'অন করুন';
-            btnAccessibility.style.background = '#a855f7';
-            btnAccessibility.style.color = '#000000';
+            btnAccessibility.innerText = 'চালু করুন';
+            btnAccessibility.style.background = '#0284c7';
+            btnAccessibility.style.color = '#ffffff';
             btnAccessibility.style.border = 'none';
             btnAccessibility.onclick = () => executePermissionRequestStep(4);
         }
@@ -1169,14 +1149,14 @@ function updatePermissionGuideUI() {
     if (btnAdmin) {
         if (onboardingPermissionStatus.adminActive) {
             btnAdmin.innerText = 'চালু আছে';
-            btnAdmin.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnAdmin.style.background = 'rgba(34, 197, 94, 0.12)';
             btnAdmin.style.color = '#4ade80';
-            btnAdmin.style.border = '1px solid #22c55e';
+            btnAdmin.style.border = '1px solid rgba(34, 197, 94, 0.3)';
             btnAdmin.onclick = null;
         } else {
-            btnAdmin.innerText = 'অন করুন';
-            btnAdmin.style.background = '#fb7185';
-            btnAdmin.style.color = '#000000';
+            btnAdmin.innerText = 'চালু করুন';
+            btnAdmin.style.background = '#0284c7';
+            btnAdmin.style.color = '#ffffff';
             btnAdmin.style.border = 'none';
             btnAdmin.onclick = () => executePermissionRequestStep(2);
         }
@@ -1187,14 +1167,14 @@ function updatePermissionGuideUI() {
     if (btnVpn) {
         if (onboardingPermissionStatus.vpnGranted) {
             btnVpn.innerText = 'চালু আছে';
-            btnVpn.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnVpn.style.background = 'rgba(34, 197, 94, 0.12)';
             btnVpn.style.color = '#4ade80';
-            btnVpn.style.border = '1px solid #22c55e';
+            btnVpn.style.border = '1px solid rgba(34, 197, 94, 0.3)';
             btnVpn.onclick = null;
         } else {
-            btnVpn.innerText = 'অন করুন';
-            btnVpn.style.background = '#34d399';
-            btnVpn.style.color = '#000000';
+            btnVpn.innerText = 'চালু করুন';
+            btnVpn.style.background = '#0284c7';
+            btnVpn.style.color = '#ffffff';
             btnVpn.style.border = 'none';
             btnVpn.onclick = () => executePermissionRequestStep(1);
         }
@@ -1205,14 +1185,14 @@ function updatePermissionGuideUI() {
     if (btnBattery) {
         if (onboardingPermissionStatus.batteryBypassed) {
             btnBattery.innerText = 'চালু আছে';
-            btnBattery.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnBattery.style.background = 'rgba(34, 197, 94, 0.12)';
             btnBattery.style.color = '#4ade80';
-            btnBattery.style.border = '1px solid #22c55e';
+            btnBattery.style.border = '1px solid rgba(34, 197, 94, 0.3)';
             btnBattery.onclick = null;
         } else {
-            btnBattery.innerText = 'অন করুন';
-            btnBattery.style.background = '#facc15';
-            btnBattery.style.color = '#000000';
+            btnBattery.innerText = 'চালু করুন';
+            btnBattery.style.background = '#0284c7';
+            btnBattery.style.color = '#ffffff';
             btnBattery.style.border = 'none';
             btnBattery.onclick = () => executePermissionRequestStep(5);
         }
@@ -1225,17 +1205,17 @@ function updatePermissionGuideUI() {
         const isAndroid13Plus = (onboardingPermissionStatus.sdkInt || 33) >= 33;
         if (isAndroid13Plus && !onboardingPermissionStatus.restrictedSettingsDone) {
             rowRestricted.style.display = 'block';
-            btnRestricted.innerText = 'অন করুন';
-            btnRestricted.style.background = '#fb923c';
-            btnRestricted.style.color = '#000000';
+            btnRestricted.innerText = 'চালু করুন';
+            btnRestricted.style.background = '#0284c7';
+            btnRestricted.style.color = '#ffffff';
             btnRestricted.style.border = 'none';
             btnRestricted.onclick = () => executePermissionRequestStep(3);
         } else if (isAndroid13Plus && onboardingPermissionStatus.restrictedSettingsDone) {
             rowRestricted.style.display = 'block';
             btnRestricted.innerText = 'চালু আছে';
-            btnRestricted.style.background = 'rgba(34, 197, 94, 0.2)';
+            btnRestricted.style.background = 'rgba(34, 197, 94, 0.12)';
             btnRestricted.style.color = '#4ade80';
-            btnRestricted.style.border = '1px solid #22c55e';
+            btnRestricted.style.border = '1px solid rgba(34, 197, 94, 0.3)';
             btnRestricted.onclick = null;
         } else {
             rowRestricted.style.display = 'none';
@@ -1246,15 +1226,15 @@ function updatePermissionGuideUI() {
     const homePermBadge = document.getElementById('home-perm-badge');
     if (homePermBadge) {
         if (completedCount >= 4) {
-            homePermBadge.innerText = 'সম্পূর্ণ সুরক্ষিত';
-            homePermBadge.style.background = 'rgba(34, 197, 94, 0.2)';
+            homePermBadge.innerText = 'সম্পূর্ণ সক্রিয়';
+            homePermBadge.style.background = 'rgba(34, 197, 94, 0.15)';
             homePermBadge.style.color = '#4ade80';
-            homePermBadge.style.border = '1px solid #22c55e';
+            homePermBadge.style.border = '1px solid rgba(34, 197, 94, 0.3)';
         } else {
-            homePermBadge.innerText = `${toBengaliNum(completedCount)}/৪টি চালু`;
-            homePermBadge.style.background = 'rgba(56, 189, 248, 0.2)';
+            homePermBadge.innerText = `${toBengaliNum(completedCount)}/৪ সক্রিয়`;
+            homePermBadge.style.background = 'rgba(56, 189, 248, 0.12)';
             homePermBadge.style.color = '#38bdf8';
-            homePermBadge.style.border = '1px solid rgba(56, 189, 248, 0.4)';
+            homePermBadge.style.border = '1px solid rgba(56, 189, 248, 0.3)';
         }
     }
 }
