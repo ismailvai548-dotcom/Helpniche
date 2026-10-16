@@ -1,6 +1,7 @@
-// File: bot.js (ES Module Version)
+// File: server.js (ES Module Version)
 
 import http from 'http';
+import crypto from 'crypto';
 import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@supabase/supabase-js';
 
@@ -36,40 +37,51 @@ bot.start(async (ctx) => {
         const userFullName = escapeHtml(`${ctx.from.first_name || ''} ${ctx.from.last_name || ''}`.trim());
         const username = ctx.from.username ? `@${escapeHtml(ctx.from.username)}` : 'N/A';
 
-        const lowerPayload = (payload || '').toLowerCase();
-        if (!payload || lowerPayload === 'security' || lowerPayload === 'chatid') {
-            return ctx.reply(
-                `<b>আপনার টেলিগ্রাম চ্যাট আইডি:</b>\n` +
-                `<code>${userId}</code>\n\n` +
-                `<i>(আইডিটি কপি করতে উপরের নম্বরে চাপ দিন। এরপর অ্যাপে ফিরে গিয়ে বক্সে পেস্ট করে 'অনুমতি দিন ও চালু করুন' বাটনে চাপ দিন।)</i>`,
-                { parse_mode: 'HTML' }
-            );
+        if (!payload) {
+            return ctx.reply("স্বাগতম! অ্যাপ থেকে আনলক রিকোয়েস্ট পাঠাতে অ্যাপের ভেতর থাকা সহায়তা বাটনে চাপ দিন।");
         }
 
         const deviceId = payload.trim().toLowerCase();
 
         // ইউজারকে দেওয়া নোটিশ
-        const userWaitMsg = `<b>আপনার মেসেজটি পৌঁছেছে!</b>\n\n` +
-            `আপনার আনলক অনুরোধটি গ্রহণ করা হয়েছে। অনুগ্রহ করে অ্যাডমিনের অ্যাপ্রুভালের জন্য অপেক্ষা করুন। অনুমোদন পাওয়া মাত্র ইউনিক কোডটি এই চ্যাটে চলে আসবে।`;
+        const userWaitMsg = `📩 <b>আপনার আনলক অনুরোধটি গ্রহণ করা হয়েছে!</b>\n\n` +
+            `অনুগ্রহ করে অ্যাডমিনের অ্যাপ্রুভালের জন্য অপেক্ষা করুন। অনুমোদন পাওয়া মাত্র ইউনিক কোডটি এই চ্যাটে চলে আসবে।`;
         await ctx.reply(userWaitMsg, { parse_mode: 'HTML' });
 
+        // ডাটাবেসে রিকোয়েস্ট তৈরি করা
+        let requestId = null;
+        try {
+            const { data: reqRec } = await supabase.from('unlock_requests').insert({
+                device_id: deviceId,
+                telegram_chat_id: userId,
+                user_id: String(userId),
+                device_name: `${userFullName}'s Phone`,
+                reason: 'সাময়িক আনলক প্রয়োজন',
+                status: 'pending'
+            }).select().single();
+            if (reqRec) requestId = reqRec.id;
+        } catch (e) {
+            console.error("Request save error:", e);
+        }
+
         // অ্যাডমিনকে পাঠানোর ফরম্যাট
-        const adminMsg = `<b>নতুন আনলক অনুরোধ</b>\n\n` +
-            `<b>Device ID:</b> <code>${deviceId}</code>\n` +
-            `<b>User:</b> ${userFullName} (${username})\n` +
-            `<b>User ID:</b> <code>${userId}</code>\n` +
-            `<b>Reason:</b> সাময়িক আনলক প্রয়োজন\n` +
-            `<b>Status:</b> অপেক্ষারত (Pending Approval)\n\n` +
+        const adminMsg = `🚨 <b>New Unlock Request</b>\n\n` +
+            `📱 <b>Device ID:</b> <code>${deviceId}</code>\n` +
+            `👤 <b>User:</b> ${userFullName} (${username})\n` +
+            `🆔 <b>User ID:</b> <code>${userId}</code>\n` +
+            `📝 <b>Reason:</b> সাময়িক আনলক প্রয়োজন\n` +
+            `📌 <b>Status:</b> ⏳ Pending Approval\n\n` +
             `অনুমোদনের জন্য সময় নির্বাচন করুন:`;
 
+        const targetId = requestId || `dev_${deviceId.slice(0, 16)}`;
         const inlineKeyboard = Markup.inlineKeyboard([
             [
-                Markup.button.callback('৫ মিনিট', `unlock_5_${deviceId}_${userId}`),
-                Markup.button.callback('১০ মিনিট', `unlock_10_${deviceId}_${userId}`)
+                Markup.button.callback('⏱️ ৫ মিনিট', `cd:5:${targetId}`),
+                Markup.button.callback('⏱️ ১০ মিনিট', `cd:10:${targetId}`)
             ],
             [
-                Markup.button.callback('পার্মানেন্ট', `unlock_perm_${deviceId}_${userId}`),
-                Markup.button.callback('বাতিল', `reject_${deviceId}_${userId}`)
+                Markup.button.callback('♾️ পার্মানেন্ট', `cd:perm:${targetId}`),
+                Markup.button.callback('❌ বাতিল', `rj:${targetId}`)
             ]
         ]);
 
@@ -84,54 +96,116 @@ bot.start(async (ctx) => {
 });
 
 // ২. ইনলাইন বাটন ক্লিকের অ্যাকশন হ্যান্ডলার (ইউনিক ৬ ডিজিটের কোড তৈরি)
-bot.action(/^(unlock_5|unlock_10|unlock_perm|reject)_([^_]+)_([^_]+)$/, async (ctx) => {
+bot.action(/^(cd|unlock|rj|reject)[:_](.+)$/, async (ctx) => {
     try {
-        const action = ctx.match[1];
-        const deviceId = ctx.match[2];
-        const targetUserId = ctx.match[3];
-
+        const fullMatch = ctx.match[0];
         if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
             return ctx.answerCbQuery("❌ শুধুমাত্র অ্যাডমিন অনুমোদন দিতে পারবেন!");
         }
 
-        if (action === 'reject') {
-            await ctx.editMessageText(
-                `❌ <b>Unlock Request Rejected</b>\n\n` +
-                `📱 <b>Device ID:</b> <code>${deviceId}</code>\n` +
-                `📌 <b>Status:</b> ❌ Rejected by Admin`,
-                { parse_mode: 'HTML' }
-            );
-            try {
-                await bot.telegram.sendMessage(targetUserId, "❌ দুঃখিত, আপনার আনলক অনুরোধটি অ্যাডমিন কর্তৃক বাতিল করা হয়েছে।");
-            } catch (e) {}
+        let isReject = fullMatch.startsWith('rj:') || fullMatch.startsWith('reject');
+        let durationMinutes = 5;
+        let durationText = "৫ মিনিট";
+        let targetId = "";
+
+        if (isReject) {
+            const parts = fullMatch.split(/[:_]/);
+            targetId = parts[1] || "";
+            let targetUserId = null;
+            if (targetId && !targetId.startsWith('dev_')) {
+                try {
+                    const { data: rData } = await supabase.from('unlock_requests').select('telegram_chat_id').eq('id', targetId).maybeSingle();
+                    if (rData && rData.telegram_chat_id) targetUserId = rData.telegram_chat_id;
+                    await supabase.from('unlock_requests').update({ status: 'rejected' }).eq('id', targetId);
+                } catch (e) {}
+            }
+            await ctx.editMessageText(`❌ <b>Unlock Request Rejected</b>\n\n📌 <b>Status:</b> ❌ Rejected by Admin`, { parse_mode: 'HTML' });
+            if (targetUserId) {
+                try {
+                    await bot.telegram.sendMessage(targetUserId, "❌ দুঃখিত, আপনার আনলক অনুরোধটি অ্যাডমিন কর্তৃক বাতিল করা হয়েছে।");
+                } catch (e) {}
+            }
             return ctx.answerCbQuery("বাতিল করা হয়েছে");
         }
 
-        let minutes = 5;
-        let durationText = "৫ মিনিট";
+        // আনলক অনুমোদন
+        const parts = fullMatch.split(/[:_]/);
+        const durStr = parts[1] || "5";
+        targetId = parts[2] || "";
 
-        if (action === 'unlock_10') {
-            minutes = 10;
+        if (durStr === "10") {
+            durationMinutes = 10;
             durationText = "১০ মিনিট";
-        } else if (action === 'unlock_perm') {
-            minutes = 52560000;
+        } else if (durStr === "perm") {
+            durationMinutes = 52560000;
             durationText = "পার্মানেন্ট (স্থায়ী)";
         }
 
-        // ইউনিক ৬ ডিজিটের ওয়ান-টাইম পাসকোড
-        const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+        let deviceId = "";
+        let targetUserId = null;
+        let requestId = null;
 
-        // Supabase-এ সেভ
+        if (targetId.startsWith('dev_')) {
+            deviceId = targetId.replace('dev_', '');
+        } else {
+            requestId = targetId;
+            try {
+                const { data: rData } = await supabase.from('unlock_requests').select('*').eq('id', requestId).maybeSingle();
+                if (rData) {
+                    deviceId = rData.device_id;
+                    targetUserId = rData.telegram_chat_id;
+                }
+            } catch (e) {}
+        }
+
+        if (!deviceId) {
+            return ctx.answerCbQuery("ডিভাইস আইডি পাওয়া যায়নি!");
+        }
+
+        // ইউনিক ৬ ডিজিটের ওয়ান-টাইম পাসকোড ও হ্যাশ
+        const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const codeHash = crypto.createHash('sha256').update(randomCode).digest('hex');
+        const expiresAt = new Date(Date.now() + Math.max(durationMinutes * 60 * 1000, 30 * 60 * 1000)).toISOString();
+
+        // পূর্ববর্তী অব্যবহৃত কোড মেয়াদোত্তীর্ণ করা
+        try {
+            await supabase.from('unlock_codes').update({ status: 'expired' }).eq('device_id', deviceId.toLowerCase()).eq('status', 'unused');
+        } catch (e) {}
+
+        // Supabase-এ ক্যানোনিকাল স্কিমা অনুযায়ী সেভ করা
         const { error } = await supabase.from('unlock_codes').insert({
-            device_id: deviceId,
-            code: randomCode,
-            duration_minutes: minutes,
-            is_used: false
+            request_id: requestId || null,
+            device_id: deviceId.toLowerCase(),
+            code_hash: codeHash,
+            status: 'unused',
+            duration_minutes: durationMinutes,
+            expires_at: expiresAt,
+            created_by: 'admin'
         });
 
         if (error) {
             console.error("Supabase Save Error:", error);
             return ctx.answerCbQuery("ডাটাবেসে সেভ হতে সমস্যা হয়েছে!");
+        }
+
+        if (requestId) {
+            try {
+                await supabase.from('unlock_requests').update({ status: 'sent', approved_at: new Date().toISOString() }).eq('id', requestId);
+            } catch (e) {}
+        }
+
+        // ইউজারের কাছে ডেলিভারি
+        if (targetUserId) {
+            const userCodeDeliveryMsg = `🔐 <b>Unlock Code</b>\n\n` +
+                `আপনার Unlock Code:\n\n` +
+                `<code>${randomCode}</code>\n\n` +
+                `⏱️ এই কোডটি <b>${durationText}ের জন্য</b> ব্যবহারযোগ্য।\n` +
+                `🔄 কোডটি শুধুমাত্র একবার ব্যবহার করা যাবে।\n` +
+                `📱 এই কোডটি শুধুমাত্র আপনার নির্দিষ্ট ডিভাইসের জন্য কাজ করবে।\n\n` +
+                `অ্যাপে ফিরে গিয়ে কোডটি ব্যবহার করুন।`;
+            try {
+                await bot.telegram.sendMessage(targetUserId, userCodeDeliveryMsg, { parse_mode: 'HTML' });
+            } catch (e) {}
         }
 
         // অ্যাডমিন স্ক্রিন কনফার্মেশন
@@ -143,19 +217,7 @@ bot.action(/^(unlock_5|unlock_10|unlock_perm|reject)_([^_]+)_([^_]+)$/, async (c
             `✅ কোডটি সফলভাবে ইউজারের কাছে পাঠানো হয়েছে।`;
 
         await ctx.editMessageText(adminDeliveredMsg, { parse_mode: 'HTML' });
-
-        // ইউজারের কাছে ডেলিভারি
-        const userCodeDeliveryMsg = `🔐 <b>Unlock Code</b>\n\n` +
-            `আপনার Unlock Code:\n\n` +
-            `<code>${randomCode}</code>\n\n` +
-            `⏱️ এই কোডটি <b>${durationText}ের জন্য</b> ব্যবহারযোগ্য।\n` +
-            `🔄 কোডটি শুধুমাত্র একবার ব্যবহার করা যাবে।\n` +
-            `📱 এই কোডটি শুধুমাত্র আপনার নির্দিষ্ট ডিভাইসের জন্য কাজ করবে।\n\n` +
-            `অ্যাপে ফিরে গিয়ে কোডটি ব্যবহার করুন।`;
-
-        await bot.telegram.sendMessage(targetUserId, userCodeDeliveryMsg, { parse_mode: 'HTML' });
-        await ctx.answerCbQuery("কোড তৈরি ও পাঠানো সম্পন্ন!");
-
+        ctx.answerCbQuery("কোড তৈরি সফল হয়েছে");
     } catch (actionErr) {
         console.error("Action error:", actionErr);
     }

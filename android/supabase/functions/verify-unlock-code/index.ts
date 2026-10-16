@@ -66,7 +66,7 @@ serve(async (req) => {
       .from("unlock_codes")
       .select("*")
       .eq("device_id", cleanDeviceId)
-      .or(`code_hash.eq.${codeHash},plaintext_code.eq.${cleanCode}`)
+      .eq("code_hash", codeHash)
       .order("created_at", { ascending: false });
 
     if (fetchErr || !codeRecs || codeRecs.length === 0) {

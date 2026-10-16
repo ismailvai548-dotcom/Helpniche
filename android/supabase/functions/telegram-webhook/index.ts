@@ -3,8 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 const ADMIN_CHAT_ID = Deno.env.get("TELEGRAM_ADMIN_CHAT_ID") || "";
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://whdpoxpgjguqlxkepcop.supabase.co";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SB_SERVICE_ROLE_KEY") || "";
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("Critical: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is not defined!");
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -80,8 +84,8 @@ serve(async (req) => {
 
       const dataStr = query.data as string;
 
-      // Handle [ Need Code ] Callbacks
-      if (dataStr.startsWith("need_code:")) {
+      // Handle [ Need Code ] Callbacks (supports both cd: and need_code:)
+      if (dataStr.startsWith("cd:") || dataStr.startsWith("need_code:")) {
         const parts = dataStr.split(":");
         const durType = parts[1] || "10";
         const requestId = parts[2] || "";
@@ -168,46 +172,42 @@ serve(async (req) => {
         const validityWindowMs = Math.max(durationMinutes * 60 * 1000, 30 * 60 * 1000);
         const expiresAt = new Date(Date.now() + validityWindowMs).toISOString();
 
-        let codeRec: any = null;
         try {
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from("unlock_codes")
             .insert({
               request_id: requestId || null,
               user_id: reqData ? reqData.user_id : "anonymous_user",
               device_id: cleanDeviceId,
               code_hash: codeHash,
-              plaintext_code: plaintextCode,
               status: "unused",
               duration_minutes: durationMinutes,
               expires_at: expiresAt,
               created_by: "admin"
-            })
-            .select()
-            .single();
-          codeRec = data;
+            });
           if (error) console.error("Code Save DB Error:", error);
         } catch (e) {
           console.error("DB Insert Code Exception:", e);
         }
 
-        if (requestId) {
+        let userDelivered = false;
+        if (userChatId && userChatId !== "undefined" && userChatId !== "null") {
+          const userMsg = `🔐 <b>Unlock Code</b>\n\nআপনার Unlock Code:\n\n<code>${plaintextCode}</code>\n\n⏱️ এই কোডটি <b>${durBangla} আনলকের জন্য</b> ব্যবহারযোগ্য।\n⏳ কোডটি আগামী ৩০ মিনিটের মধ্যে অ্যাপে ব্যবহার করুন।\n🔄 কোডটি শুধুমাত্র একবার ব্যবহার করা যাবে।\n📱 ডিভাইস: <code>${cleanDeviceId}</code>`;
+          userDelivered = await sendTelegramMessage(userChatId, userMsg);
+          if (userDelivered && requestId) {
+            try {
+              await supabase.from("unlock_requests").update({ status: "sent", telegram_chat_id: userChatId }).eq("id", requestId);
+            } catch (e) {}
+          }
+        } else if (requestId) {
           try {
             await supabase.from("unlock_requests").update({ status: "code_generated" }).eq("id", requestId);
           } catch (e) {}
         }
 
-        const codeId = codeRec ? codeRec.id : "temp";
         const deviceNameDisplay = reqData ? reqData.device_name : "Android Device";
-        const genMsg = `🔑 <b>Unlock Code Generated</b>\n\n📱 <b>Device:</b> ${deviceNameDisplay}\n🆔 <b>Device ID:</b> <code>${cleanDeviceId}</code>\n\n🔑 <b>Unique Code:</b> <code>${plaintextCode}</code>\n\n⏱️ <b>Duration:</b> ${durationLabel} (${durBangla})\n⏳ <b>OTP Valid Window:</b> 30 Mins\n📌 <b>Status:</b> Unused`;
-
-        const sendUserCallbackData = `send_user:${codeId}:${userChatId}:${cleanDeviceId}:${durationMinutes}`;
-
-        const sendUserKeyboard = {
-          inline_keyboard: [
-            [{ text: "📤 Send User via Telegram", callback_data: sendUserCallbackData }]
-          ]
-        };
+        const deliveryText = userDelivered ? "✅ ইউজারের টেলিগ্রামে কোড পাঠানো হয়েছে" : "⚠️ ইউজারের টেলিগ্রাম চ্যাট পাওয়া যায়নি (কোডটি সরাসরি কপি করুন)";
+        const genMsg = `🔑 <b>Unlock Code Generated</b>\n\n📱 <b>Device:</b> ${deviceNameDisplay}\n🆔 <b>Device ID:</b> <code>${cleanDeviceId}</code>\n\n🔑 <b>Unique Code:</b> <code>${plaintextCode}</code>\n\n⏱️ <b>Duration:</b> ${durationLabel} (${durBangla})\n⏳ <b>OTP Valid Window:</b> 30 Mins\n📌 <b>Status:</b> ${deliveryText}`;
 
         if (query.message && query.message.message_id) {
           await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
@@ -218,109 +218,28 @@ serve(async (req) => {
               message_id: query.message.message_id,
               text: genMsg,
               parse_mode: "HTML",
-              reply_markup: sendUserKeyboard
+              reply_markup: { inline_keyboard: [] }
             })
           }).catch(() => {});
         } else {
-          await sendTelegramMessage(ADMIN_CHAT_ID, genMsg, sendUserKeyboard);
+          await sendTelegramMessage(ADMIN_CHAT_ID, genMsg);
         }
 
         await answerCallbackQuery(query.id, `ইউনিক কোড তৈরি করা হয়েছে: ${plaintextCode}`, false);
       }
 
-      // Handle [ Send User via Telegram ]
-      else if (dataStr.startsWith("send_user:")) {
-        const parts = dataStr.split(":");
-        const codeId = parts[1] || "";
-        let userChatId = parts[2] || "";
-        let deviceId = parts[3] || "";
-        const durMins = parseInt(parts[4], 10) || 10;
-
-        let codeRec: any = null;
-        if (codeId && codeId !== "temp") {
-          try {
-            const { data } = await supabase
-              .from("unlock_codes")
-              .select("*, unlock_requests(*)")
-              .eq("id", codeId)
-              .maybeSingle();
-            codeRec = data;
-          } catch (e) {}
-        }
-
-        if (!deviceId && codeRec) deviceId = codeRec.device_id;
-        const cleanDeviceId = deviceId ? deviceId.trim().toLowerCase() : "";
-
-        if (!userChatId || userChatId === "undefined" || userChatId === "null") {
-          if (codeRec && codeRec.unlock_requests && codeRec.unlock_requests.telegram_chat_id) {
-            userChatId = codeRec.unlock_requests.telegram_chat_id.toString();
-          }
-        }
-
-        if (!userChatId || userChatId === "undefined" || userChatId === "null") {
-          try {
-            const { data: tgUser } = await supabase
-              .from("telegram_users")
-              .select("telegram_chat_id")
-              .eq("last_device_id", cleanDeviceId)
-              .limit(1)
-              .maybeSingle();
-            if (tgUser && tgUser.telegram_chat_id) {
-              userChatId = tgUser.telegram_chat_id.toString();
-            }
-          } catch (e) {}
-        }
-
-        const plaintextCode = codeRec ? codeRec.plaintext_code : "";
-        const durText = durMins === 999999 ? "স্থায়ী" : (durMins === 5 ? "৫ মিনিটের" : (durMins === 10 ? "১০ মিনিটের" : `${durMins} মিনিটের`));
-
-        if (userChatId && userChatId !== "undefined" && userChatId !== "null") {
-          const userMsg = `🔐 <b>Unlock Code</b>\n\nআপনার Unlock Code:\n\n<code>${plaintextCode}</code>\n\n⏱️ এই কোডটি ${durText} আনলকের জন্য ব্যবহারযোগ্য।\n⏳ কোডটি আগামী ৩০ মিনিটের মধ্যে অ্যাপে সাবমিট করুন।\n🔄 কোডটি শুধুমাত্র একবার ব্যবহার করা যাবে।\n📱 এই কোডটি শুধুমাত্র আপনার নির্দিষ্ট ডিভাইসের জন্য কাজ করবে।\n\nFocusDurood অ্যাপে ফিরে গিয়ে কোডটি ব্যবহার করুন।`;
-
-          const delivered = await sendTelegramMessage(userChatId, userMsg);
-
-          if (delivered) {
-            if (codeRec && codeRec.request_id) {
-              try {
-                await supabase
-                  .from("unlock_requests")
-                  .update({ status: "sent", telegram_chat_id: userChatId })
-                  .eq("id", codeRec.request_id);
-              } catch (e) {}
-            }
-
-            await answerCallbackQuery(query.id, "✅ ইউজারের টেলিগ্রামে কোড পাঠানো হয়েছে!", true);
-
-            if (query.message && query.message.message_id) {
-              const updatedAdminText = `${query.message.text}\n\n✅ <b>DELIVERED TO USER (${durText})</b>\n👤 <b>Sent To ChatID:</b> <code>${userChatId}</code>`;
-              await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chat_id: query.message.chat.id,
-                  message_id: query.message.message_id,
-                  text: updatedAdminText,
-                  parse_mode: "HTML",
-                  reply_markup: { inline_keyboard: [] }
-                })
-              }).catch(() => {});
-            }
-          } else {
-            await answerCallbackQuery(query.id, "❌ ইউজারের কাছে মেসেজ পাঠানো ব্যর্থ হয়েছে!", true);
-          }
-        } else {
-          await answerCallbackQuery(query.id, "⚠️ ইউজারের টেলিগ্রাম চ্যাট আইডি পাওয়া যায়নি!", true);
-        }
-      }
-
-      // Handle Reject Request
-      else if (dataStr.startsWith("reject_req:")) {
+      // Handle Reject Request (supports both rj: and reject_req:)
+      else if (dataStr.startsWith("rj:") || dataStr.startsWith("reject_req:")) {
         const parts = dataStr.split(":");
         const requestId = parts[1] || "";
-        const userChatId = parts[2] || "";
+        let userChatId = parts[2] || "";
 
         if (requestId) {
           try {
+            const { data: rData } = await supabase.from("unlock_requests").select("telegram_chat_id").eq("id", requestId).maybeSingle();
+            if (rData && rData.telegram_chat_id) {
+              userChatId = rData.telegram_chat_id.toString();
+            }
             await supabase.from("unlock_requests").update({ status: "rejected" }).eq("id", requestId);
           } catch (e) {}
         }

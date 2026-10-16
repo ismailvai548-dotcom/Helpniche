@@ -88,15 +88,15 @@ serve(async (req) => {
     const inlineKeyboard = {
       inline_keyboard: [
         [
-          { text: "⏱️ ৫ মিনিট", callback_data: `need_code:5:${requestRec.id}:${userChatIdStr}:${cleanDeviceId}` },
-          { text: "⏱️ ১০ মিনিট", callback_data: `need_code:10:${requestRec.id}:${userChatIdStr}:${cleanDeviceId}` }
+          { text: "⏱️ ৫ মিনিট", callback_data: `cd:5:${requestRec.id}` },
+          { text: "⏱️ ১০ মিনিট", callback_data: `cd:10:${requestRec.id}` }
         ],
         [
-          { text: "⏱️ ৩০ মিনিট", callback_data: `need_code:30:${requestRec.id}:${userChatIdStr}:${cleanDeviceId}` },
-          { text: "♾️ পার্মানেন্ট", callback_data: `need_code:perm:${requestRec.id}:${userChatIdStr}:${cleanDeviceId}` }
+          { text: "⏱️ ৩০ মিনিট", callback_data: `cd:30:${requestRec.id}` },
+          { text: "♾️ পার্মানেন্ট", callback_data: `cd:perm:${requestRec.id}` }
         ],
         [
-          { text: "❌ বাতিল", callback_data: `reject_req:${requestRec.id}:${userChatIdStr}` }
+          { text: "❌ বাতিল", callback_data: `rj:${requestRec.id}` }
         ]
       ]
     };

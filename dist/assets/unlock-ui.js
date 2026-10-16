@@ -4,8 +4,8 @@
 
 (function () {
     const TELEGRAM_BOT_USERNAME = "helpniche_bot";
-    const SUPABASE_PROJECT_URL = "https://dlxmzzvcpoysoouakadt.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
+    const SUPABASE_PROJECT_URL = window.SUPABASE_PROJECT_URL;
+    const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
 
     let currentDeviceId = '';
     let isSessionCurrentlyActive = false;

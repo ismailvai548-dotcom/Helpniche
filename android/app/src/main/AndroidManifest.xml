@@ -62,7 +62,7 @@
         <!-- ২. ফুল-স্ক্রিন ফোন অ্যালার্ম অ্যাক্টিভিটি -->
         <activity
             android:name=".AlarmAlertActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleInstance"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
@@ -72,7 +72,7 @@
 
         <activity
             android:name=".AlarmActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleInstance"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
@@ -161,7 +161,7 @@
         <!-- ৯. অ্যালার্ম ব্রডকাস্ট রিসিভার -->
         <receiver
             android:name=".AlarmReceiver"
-            android:exported="true" />
+            android:exported="false" />
 
         <!-- ১০. ফোন আনলক রিসিভার -->
         <receiver
@@ -175,7 +175,7 @@
         <!-- অটো ভাইব্রেট মোড ট্রানজিশন রিসিভার -->
         <receiver
             android:name=".AutoVibrateReceiver"
-            android:exported="true" />
+            android:exported="false" />
 
         <!-- ১১. স্বাধীন আনলক অ্যালার্ট ব্যাকগ্রাউন্ড সার্ভিস -->
         <service

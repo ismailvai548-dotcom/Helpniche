@@ -1,6 +1,7 @@
 // File: server.js & bot.js (ES Module Version for Render)
 
 import http from 'http';
+import crypto from 'crypto';
 import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@supabase/supabase-js';
 
@@ -226,8 +227,8 @@ bot.action('admin_view_active_codes', async (ctx) => {
     try {
         const { data, error } = await supabase
             .from('unlock_codes')
-            .select('device_id, code, duration_minutes, created_at')
-            .eq('is_used', false)
+            .select('device_id, duration_minutes, created_at')
+            .eq('status', 'unused')
             .order('created_at', { ascending: false })
             .limit(5);
 
@@ -236,7 +237,7 @@ bot.action('admin_view_active_codes', async (ctx) => {
             msg += `বর্তমানে কোনো সক্রিয় বা অব্যবহৃত কোড নেই।`;
         } else {
             data.forEach((c, idx) => {
-                msg += `${idx + 1}. ডিভাইস: <code>${escapeHtml(c.device_id)}</code>\n   কোড: <code>${c.code}</code> (${c.duration_minutes} মিনিট)\n\n`;
+                msg += `${idx + 1}. ডিভাইস: <code>${escapeHtml(c.device_id)}</code> (${c.duration_minutes} মিনিট)\n`;
             });
         }
         const keyboard = Markup.inlineKeyboard([
@@ -254,8 +255,8 @@ bot.action('admin_view_used_codes', async (ctx) => {
     try {
         const { data, error } = await supabase
             .from('unlock_codes')
-            .select('device_id, code, duration_minutes, created_at')
-            .eq('is_used', true)
+            .select('device_id, duration_minutes, created_at')
+            .eq('status', 'used')
             .order('created_at', { ascending: false })
             .limit(5);
 
@@ -264,7 +265,7 @@ bot.action('admin_view_used_codes', async (ctx) => {
             msg += `কোনো ব্যবহৃত কোড রেকর্ড পাওয়া যায়নি।`;
         } else {
             data.forEach((c, idx) => {
-                msg += `${idx + 1}. ডিভাইস: <code>${escapeHtml(c.device_id)}</code>\n   কোড: <code>${c.code}</code> (ব্যবহৃত)\n\n`;
+                msg += `${idx + 1}. ডিভাইস: <code>${escapeHtml(c.device_id)}</code> (ব্যবহৃত)\n`;
             });
         }
         const keyboard = Markup.inlineKeyboard([
@@ -455,13 +456,21 @@ bot.action(/^(unlock_5|unlock_10|unlock_perm|reject)_([^_]+)_([^_]+)$/, async (c
 
         // ইউনিক ৬ ডিজিটের ওয়ান-টাইম পাসকোড জেনারেটর
         const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const codeHash = crypto.createHash('sha256').update(randomCode).digest('hex');
+        const expiresAt = new Date(Date.now() + Math.max(minutes * 60 * 1000, 30 * 60 * 1000)).toISOString();
+
+        try {
+            await supabase.from('unlock_codes').update({ status: 'expired' }).eq('device_id', deviceId.toLowerCase()).eq('status', 'unused');
+        } catch (e) {}
 
         // Supabase-এ সেভ করা
         const { error } = await supabase.from('unlock_codes').insert({
-            device_id: deviceId,
-            code: randomCode,
+            device_id: deviceId.toLowerCase(),
+            code_hash: codeHash,
+            status: 'unused',
             duration_minutes: minutes,
-            is_used: false
+            expires_at: expiresAt,
+            created_by: 'admin'
         });
 
         if (error) {

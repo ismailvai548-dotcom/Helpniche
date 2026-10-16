@@ -1,6 +1,9 @@
 /* ==========================================================================
    CONFIG & GLOBAL APP STATE
    ========================================================================== */
+window.SUPABASE_PROJECT_URL = "https://dlxmzzvcpoysoouakadt.supabase.co";
+window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
+
 var currentTab = 'home';
 var currentStreakView = 'home';
 var currentRoutineTab = 'menu';
