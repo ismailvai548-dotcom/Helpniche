@@ -742,14 +742,19 @@ function bindRoutineTabEvents() {
     if (btnHeader) {
         btnHeader.onclick = () => {
             if (currentRoutineTab === 'target') {
-                document.getElementById('target-title-input').value = dailyTarget.title;
-                document.getElementById('target-meaning-input').value = dailyTarget.meaning;
-                document.getElementById('target-goal-input').value = dailyTarget.goal;
+                const titleEl = document.getElementById('target-title-input');
+                const meaningEl = document.getElementById('target-meaning-input');
+                const goalEl = document.getElementById('target-goal-input');
                 const penaltyChk = document.getElementById('target-penalty-toggle-chk');
+                const customModal = document.getElementById('target-custom-modal');
+                if (titleEl) titleEl.value = dailyTarget.title || '';
+                if (meaningEl) meaningEl.value = dailyTarget.meaning || '';
+                if (goalEl) goalEl.value = dailyTarget.goal || 100;
                 if (penaltyChk) penaltyChk.checked = dailyTarget.penaltyLockEnabled || false;
-                document.getElementById('target-custom-modal').style.display = 'flex';
+                if (customModal) customModal.style.display = 'flex';
             } else if (currentRoutineTab === 'alarms') {
-                document.getElementById('alarm-modal').style.display = 'flex';
+                const alarmModal = document.getElementById('alarm-modal');
+                if (alarmModal) alarmModal.style.display = 'flex';
             }
         };
     }
@@ -879,7 +884,7 @@ function bindRoutineTabEvents() {
                     unlockGuard.customAudioName = file.name;
                     unlockGuard.customAudioBase64 = evt.target.result;
                     if (customAudioLabel) {
-                        customAudioLabel.innerText = f.name;
+                        customAudioLabel.innerText = file.name;
                     }
                     const customRadio = document.querySelector('input[name="guard-sound-choice"][value="custom"]');
                     if (customRadio) customRadio.checked = true;
@@ -1195,9 +1200,12 @@ function startAlarmCheckerLoop() {
 }
 
 function triggerAlarm(timeStr, title, audioData) {
-    document.getElementById('fs-alarm-time').innerText = timeStr;
-    document.getElementById('fs-alarm-title').innerText = title;
-    document.getElementById('fullscreen-alarm-screen').style.display = 'flex';
+    const timeEl = document.getElementById('fs-alarm-time');
+    const titleEl = document.getElementById('fs-alarm-title');
+    const fsEl = document.getElementById('fullscreen-alarm-screen');
+    if (timeEl) timeEl.innerText = timeStr;
+    if (titleEl) titleEl.innerText = title;
+    if (fsEl) fsEl.style.display = 'flex';
 
     if (audioData) {
         alarmAudioPlayer.src = audioData;

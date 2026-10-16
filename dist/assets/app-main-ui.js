@@ -480,21 +480,6 @@ function renderModalsAndOverlays() {
             </div>
         </div>
 
-        <!-- Admin Passcode Unlock Modal -->
-        <div class="modal-overlay" id="unlock-modal-overlay">
-            <div class="modal-card">
-                <h3 style="font-family:'Kalpurush'; color:#2979FF; margin-bottom:10px; font-size:18px; display:flex; align-items:center; justify-content:center; gap:6px;">
-                    <svg class="svg-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2 2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                    অ্যাডমিন কোড যাচাই
-                </h3>
-                <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 14px;">টেলিগ্রাম থেকে প্রাপ্ত সিক্রেট কোড লিখুন:</p>
-                <input type="password" id="unlock-passcode-input" class="input-dark" placeholder="••••" maxlength="8" style="text-align:center; letter-spacing:4px; font-size:18px;">
-                <div class="modal-btn-row">
-                    <button class="btn-modal" style="background:#263238; color:#FFF;" id="btn-close-unlock-modal">বাতিল</button>
-                    <button class="btn-modal" style="background:#2979FF; color:#FFF;" id="btn-verify-unlock-code">আনলক করুন</button>
-                </div>
-            </div>
-        </div>
 
         <!-- Fullscreen Alarm Takeover -->
         <div id="fullscreen-alarm-screen" class="fullscreen-takeover">
@@ -757,27 +742,6 @@ function bindGlobalEvents() {
         };
     }
 
-    // Unlock Modal Verification
-    const btnCloseUnlock = document.getElementById('btn-close-unlock-modal');
-    if (btnCloseUnlock) {
-        btnCloseUnlock.onclick = () => {
-            document.getElementById('unlock-modal-overlay').style.display = 'none';
-        };
-    }
-
-    const btnVerifyUnlock = document.getElementById('btn-verify-unlock-code');
-    if (btnVerifyUnlock) {
-        btnVerifyUnlock.onclick = () => {
-            const passInp = document.getElementById('unlock-passcode-input');
-            const code = passInp ? passInp.value.trim() : '';
-            if (code === '7788' || code === '9900') {
-                alert('সফল! সিস্টেম লক সাময়িক শিথিল করা হলো।');
-                document.getElementById('unlock-modal-overlay').style.display = 'none';
-            } else {
-                alert('ভুল পাসকোড! টেলিগ্রাম অ্যাডমিনের সাথে যোগাযোগ করুন।');
-            }
-        };
-    }
 
     // Dismiss Blocked App Takeover Overlay
     const btnDismissBlockedApp = document.getElementById('btn-close-blocked-app-fs');

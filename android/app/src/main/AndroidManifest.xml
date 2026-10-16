@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.helpniche.app">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- ইন্টারনেট, ওয়েক-লক ও ফুল-স্ক্রিন অ্যালার্ম পারমিশন -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -181,6 +180,7 @@
         <!-- ১১. স্বাধীন আনলক অ্যালার্ট ব্যাকগ্রাউন্ড সার্ভিস -->
         <service
             android:name=".UnlockAlertService"
+            android:foregroundServiceType="mediaPlayback"
             android:enabled="true"
             android:exported="false" />
 

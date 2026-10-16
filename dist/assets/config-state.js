@@ -185,22 +185,36 @@ var BENGALI_MOTIVATIONS = [
     { quote: "যে ব্যক্তি নিজের চোখকে সংযত রাখে, তার অন্তরে অনাবিল প্রশান্তি থাকে।", author: "ইসলামিক হিতোপদেশ" }
 ];
 
+// Safe LocalStorage JSON parser to prevent blank-screen startup crashes
+function safeJsonParse(key, fallback) {
+    try {
+        const item = localStorage.getItem(key);
+        if (!item) return fallback;
+        const parsed = JSON.parse(item);
+        return parsed !== null && parsed !== undefined ? parsed : fallback;
+    } catch (e) {
+        console.warn('Failed to parse localStorage key:', key, e);
+        return fallback;
+    }
+}
+window.safeJsonParse = safeJsonParse;
+
 // Daily Target & Alarm States
-var dailyTarget = JSON.parse(localStorage.getItem('DAILY_TARGET_CONFIG') || JSON.stringify({
+var dailyTarget = safeJsonParse('DAILY_TARGET_CONFIG', {
     title: 'দরূদ শরীফ',
     meaning: 'اللَّهُمَّ صَلِّ عَلَى مُحَمَّدٍ (আল্লাহুম্মা সাল্লি আলা মুহাম্মাদ)',
     goal: 100,
     completedCount: 0,
     lastTrackedDate: new Date().toDateString(),
     audioData: null
-}));
+});
 
-var alarms = JSON.parse(localStorage.getItem('CUSTOM_ALARMS') || '[]');
-var unlockGuard = JSON.parse(localStorage.getItem('UNLOCK_GUARD') || JSON.stringify({
+var alarms = safeJsonParse('CUSTOM_ALARMS', []);
+var unlockGuard = safeJsonParse('UNLOCK_GUARD', {
     enabled: false,
     text: 'সাল্লাল্লাহু আলাইহি ওয়াসাল্লাম',
     audioType: 'durood_sharif'
-}));
+});
 
 // Smart Tasbih & Lifetime Zikr State
 var tasbihMode = localStorage.getItem('TASBIH_MODE') || 'general'; // 'general' or 'fatimi'
