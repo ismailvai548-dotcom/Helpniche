@@ -12,7 +12,7 @@ function renderSettingsTab() {
     return `
         <div class="screen-wrapper" style="padding:16px; max-width:480px; margin:0 auto; box-sizing:border-box;">
             <!-- Header Row -->
-            <div class="header-row" style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:20px;">
+            <div class="header-row" style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:16px;">
                 <div>
                     <h1 class="app-title" style="margin:0; font-size:22px; font-weight:800; color:#ffffff;">নিরাপত্তা ও সেটিংস</h1>
                     <p class="app-subtitle" style="margin:4px 0 0 0; font-size:12px; color:#94a3b8;">স্মার্ট কন্ট্রোল ও সিস্টেম পরিচালনা</p>
@@ -23,11 +23,39 @@ function renderSettingsTab() {
                 </div>
             </div>
 
-            <!-- 2-Column Modular Portal Grid (Like Home Page) -->
-            <div class="settings-grid-container" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; width:100%;">
+            <!-- ১. সিস্টেম শিল্ড ও প্রোটেকশন (উপরে স্থায়ী লাইভ কার্ড) -->
+            <div class="dash-card shield-card" style="margin-bottom:16px;">
+                <div class="card-header-flex">
+                    <span class="shield-title">
+                        <svg class="svg-icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                        সিস্টেম শিল্ড ও প্রোটেকশন
+                    </span>
+                </div>
+                <div class="shield-list">
+                    <div class="shield-item">
+                        <span class="shield-label">পর্নোগ্রাফিক ও এডাল্ট কনটেন্ট ফিল্টার (VPN)</span>
+                        <span class="shield-val" id="vpn-status-val" style="color:var(--accent-green, #4CAF50);">Active</span>
+                    </div>
+                    <div class="shield-item">
+                        <span class="shield-label">Accessibility Guard</span>
+                        <span class="shield-val" id="guard-status-val" style="color:var(--accent-green, #4CAF50);">Guarding</span>
+                    </div>
+                    <div class="shield-item">
+                        <span class="shield-label">Device Admin Security</span>
+                        <span class="shield-val" id="admin-status-val" style="color:var(--accent-green, #4CAF50);">Active</span>
+                    </div>
+                    <div class="shield-item">
+                        <span class="shield-label">Battery Optimization Bypass</span>
+                        <span class="shield-val" id="battery-status-val" style="color:var(--accent-green, #4CAF50);">Unrestricted</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ২. নিচে দুইটি পোর্টাল কার্ড (আনলক ও হাদিয়া) -->
+            <div class="settings-grid-container" style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; width:100%;">
                 
-                <!-- 1. আনলক সেন্টার কার্ড -->
-                <button class="btn-circular-control" id="btn-card-unlock" style="min-height:152px; border-radius:22px; background:linear-gradient(145deg, #0c2a42 0%, #061624 100%); border:2px solid #38bdf8; box-shadow:0 6px 20px rgba(56, 189, 248, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
+                <!-- আনলক সেন্টার কার্ড -->
+                <button class="btn-circular-control" id="btn-card-unlock" style="min-height:148px; border-radius:22px; background:linear-gradient(145deg, #0c2a42 0%, #061624 100%); border:2px solid #38bdf8; box-shadow:0 6px 20px rgba(56, 189, 248, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
                     <div style="width:48px; height:48px; border-radius:50%; background:rgba(56, 189, 248, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(56, 189, 248, 0.35);">
                         <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#38bdf8;">
                             <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
@@ -37,8 +65,8 @@ function renderSettingsTab() {
                     <span style="font-size:10px; color:#38bdf8; font-weight:700; margin-top:6px; background:rgba(56, 189, 248, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(56, 189, 248, 0.3);">এডমিন ওটিপি</span>
                 </button>
 
-                <!-- 2. হাদিয়া ও অনুদান কার্ড -->
-                <button class="btn-circular-control" id="btn-card-donation" style="min-height:152px; border-radius:22px; background:linear-gradient(145deg, #0d3b2e 0%, #041f17 100%); border:2px solid #10b981; box-shadow:0 6px 20px rgba(16, 185, 129, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
+                <!-- হাদিয়া ও অনুদান কার্ড -->
+                <button class="btn-circular-control" id="btn-card-donation" style="min-height:148px; border-radius:22px; background:linear-gradient(145deg, #0d3b2e 0%, #041f17 100%); border:2px solid #10b981; box-shadow:0 6px 20px rgba(16, 185, 129, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
                     <div style="width:48px; height:48px; border-radius:50%; background:rgba(16, 185, 129, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(16, 185, 129, 0.35);">
                         <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#10b981;">
                             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
@@ -47,36 +75,30 @@ function renderSettingsTab() {
                     <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">হাদিয়া ও অনুদান</span>
                     <span id="settings-donation-badge" style="font-size:10px; color:#34d399; font-weight:700; margin-top:6px; background:rgba(16, 185, 129, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(16, 185, 129, 0.3);">বিকাশ ও নগদ</span>
                 </button>
+            </div>
 
-                <!-- 3. আপডেট ও সাপোর্ট কার্ড -->
-                <button class="btn-circular-control" id="btn-card-updates" style="min-height:152px; border-radius:22px; background:linear-gradient(145deg, #1e1b4b 0%, #0f1026 100%); border:2px solid #818cf8; box-shadow:0 6px 20px rgba(129, 140, 248, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
-                    <div style="width:48px; height:48px; border-radius:50%; background:rgba(129, 140, 248, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(129, 140, 248, 0.35);">
+            <!-- ৩. আপডেট ও সাপোর্ট কার্ড (পুরো প্রস্থ জুড়ে বড় কার্ড) -->
+            <button class="btn-circular-control" id="btn-card-updates" style="width:100%; min-height:82px; border-radius:20px; background:linear-gradient(145deg, #1e1b4b 0%, #0f1026 100%); border:2px solid #818cf8; box-shadow:0 6px 20px rgba(129, 140, 248, 0.2); display:flex; flex-direction:row; align-items:center; justify-content:space-between; cursor:pointer; padding:16px 20px; outline:none; transition:transform 0.15s; box-sizing:border-box;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    <div style="width:46px; height:46px; border-radius:50%; background:rgba(129, 140, 248, 0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(129, 140, 248, 0.35); flex-shrink:0;">
                         <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#818cf8;">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.01-.38-1.58-.75-.89-.58-1.39-.94-2.25-1.51-1-.66-.35-1.02.22-1.6.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.75-.55 2.94-1.28 4.9-2.12 5.88-2.53 2.8-.1.17 3.38.1.17z"/>
                         </svg>
                     </div>
-                    <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">আপডেট ও সাপোর্ট</span>
-                    <span style="font-size:10px; color:#818cf8; font-weight:700; margin-top:6px; background:rgba(129, 140, 248, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(129, 140, 248, 0.3);">টেলিগ্রাম ও ইনবক্স</span>
-                </button>
-
-                <!-- 4. সিস্টেম সুরক্ষা কার্ড -->
-                <button class="btn-circular-control" id="btn-card-shield" style="min-height:152px; border-radius:22px; background:linear-gradient(145deg, #2b1122 0%, #170712 100%); border:2px solid #f43f5e; box-shadow:0 6px 20px rgba(244, 63, 94, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
-                    <div style="width:48px; height:48px; border-radius:50%; background:rgba(244, 63, 94, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(244, 63, 94, 0.35);">
-                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#f43f5e;">
-                            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/>
-                        </svg>
+                    <div style="text-align:left;">
+                        <div style="font-size:15px; font-weight:800; color:#ffffff; line-height:1.3;">আপডেট ও সরাসরি সাপোর্ট</div>
+                        <div style="font-size:12px; color:#94a3b8; margin-top:3px;">টেলিগ্রাম চ্যানেল ও ডেভেলপার ইনবক্স</div>
                     </div>
-                    <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">সিস্টেম সুরক্ষা</span>
-                    <span style="font-size:10px; color:#f43f5e; font-weight:700; margin-top:6px; background:rgba(244, 63, 94, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(244, 63, 94, 0.3);">লাইভ শিল্ড</span>
-                </button>
-            </div>
+                </div>
+                <span style="font-size:10px; color:#818cf8; font-weight:700; background:rgba(129, 140, 248, 0.15); padding:4px 10px; border-radius:12px; border:1px solid rgba(129, 140, 248, 0.3); flex-shrink:0;">যোগাযোগ</span>
+            </button>
 
-            <!-- Hidden Element for Donation Text State Consistency -->
+            <!-- Hidden Elements for State Consistency -->
             <div id="settings-donation-desc" style="display:none;"></div>
             <button id="btn-open-donation-modal" style="display:none;"></button>
             <button id="btn-open-unlock-overlay" style="display:none;"></button>
 
-            <!-- ১. আনলক সেন্টার ডেডিকেটেড মডাল -->
+            <!-- আনলক সেন্টার ডেডিকেটেড মডাল -->
             <div id="unlock-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; backdrop-filter:blur(6px); padding:16px; box-sizing:border-box;">
                 <div style="background:#1e293b; padding:22px 20px; border-radius:18px; width:100%; max-width:340px; text-align:center; box-shadow:0 12px 30px rgba(0,0,0,0.6); color:#fff; border:1px solid #334155;">
                     <div style="width:44px; height:44px; border-radius:50%; background:rgba(56, 189, 248, 0.15); border:1px solid rgba(56, 189, 248, 0.35); display:flex; align-items:center; justify-content:center; margin:0 auto 12px auto;">
@@ -100,7 +122,7 @@ function renderSettingsTab() {
                 </div>
             </div>
 
-            <!-- ২. আপডেট ও যোগাযোগ ডেডিকেটেড মডাল -->
+            <!-- আপডেট ও যোগাযোগ ডেডিকেটেড মডাল -->
             <div id="updates-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; backdrop-filter:blur(6px); padding:16px; box-sizing:border-box;">
                 <div style="background:#1e293b; padding:22px 20px; border-radius:18px; width:100%; max-width:340px; text-align:center; box-shadow:0 12px 30px rgba(0,0,0,0.6); color:#fff; border:1px solid #334155;">
                     <div style="width:44px; height:44px; border-radius:50%; background:rgba(129, 140, 248, 0.15); border:1px solid rgba(129, 140, 248, 0.35); display:flex; align-items:center; justify-content:center; margin:0 auto 12px auto;">
@@ -132,38 +154,6 @@ function renderSettingsTab() {
                     </div>
 
                     <button id="btn-close-updates-modal" style="width:100%; padding:10px; border:none; background:#334155; color:#cbd5e1; border-radius:8px; cursor:pointer; font-weight:600; font-size:13px;">ফিরে যান</button>
-                </div>
-            </div>
-
-            <!-- ৩. সিস্টেম সুরক্ষা ডেডিকেটেড মডাল -->
-            <div id="shield-modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; backdrop-filter:blur(6px); padding:16px; box-sizing:border-box;">
-                <div style="background:#1e293b; padding:22px 20px; border-radius:18px; width:100%; max-width:340px; text-align:center; box-shadow:0 12px 30px rgba(0,0,0,0.6); color:#fff; border:1px solid #334155;">
-                    <div style="width:44px; height:44px; border-radius:50%; background:rgba(244, 63, 94, 0.15); border:1px solid rgba(244, 63, 94, 0.35); display:flex; align-items:center; justify-content:center; margin:0 auto 12px auto;">
-                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:22px; height:22px; fill:#f43f5e;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8s0 0 0 0z"/></svg>
-                    </div>
-                    <h3 style="margin:0 0 6px 0; font-size:18px; font-weight:800; color:#fff;">সিস্টেম শিল্ড ও সুরক্ষা</h3>
-                    <p style="font-size:12px; color:#94a3b8; margin:0 0 16px 0; line-height:1.4;">অ্যাপের সার্বক্ষণিক প্রটেকশন সার্ভিসসমূহের লাইভ স্ট্যাটাস:</p>
-
-                    <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px; text-align:left;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#0f172a; border-radius:10px; border:1px solid #334155;">
-                            <span style="font-size:12px; color:#cbd5e1;">এডাল্ট কনটেন্ট ফিল্টার (VPN)</span>
-                            <span id="vpn-status-val" style="font-size:11px; font-weight:700; color:#34d399;">Active</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#0f172a; border-radius:10px; border:1px solid #334155;">
-                            <span style="font-size:12px; color:#cbd5e1;">Accessibility Guard</span>
-                            <span id="guard-status-val" style="font-size:11px; font-weight:700; color:#34d399;">Guarding</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#0f172a; border-radius:10px; border:1px solid #334155;">
-                            <span style="font-size:12px; color:#cbd5e1;">Device Admin Security</span>
-                            <span id="admin-status-val" style="font-size:11px; font-weight:700; color:#34d399;">Active</span>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:#0f172a; border-radius:10px; border:1px solid #334155;">
-                            <span style="font-size:12px; color:#cbd5e1;">Battery Optimization Bypass</span>
-                            <span id="battery-status-val" style="font-size:11px; font-weight:700; color:#34d399;">Unrestricted</span>
-                        </div>
-                    </div>
-
-                    <button id="btn-close-shield-modal" style="width:100%; padding:10px; border:none; background:#334155; color:#cbd5e1; border-radius:8px; cursor:pointer; font-weight:600; font-size:13px;">ফিরে যান</button>
                 </div>
             </div>
 
@@ -234,23 +224,6 @@ function bindSettingsTabEvents() {
     if (btnCloseUpdates) {
         btnCloseUpdates.onclick = () => {
             if (modalUpdates) modalUpdates.style.display = 'none';
-        };
-    }
-
-    // ৪. সিস্টেম সুরক্ষা কার্ড ক্লিক ইভেন্ট
-    const btnCardShield = document.getElementById('btn-card-shield');
-    const modalShield = document.getElementById('shield-modal-overlay');
-    const btnCloseShield = document.getElementById('btn-close-shield-modal');
-
-    if (btnCardShield) {
-        btnCardShield.onclick = () => {
-            if (modalShield) modalShield.style.display = 'flex';
-        };
-    }
-
-    if (btnCloseShield) {
-        btnCloseShield.onclick = () => {
-            if (modalShield) modalShield.style.display = 'none';
         };
     }
 

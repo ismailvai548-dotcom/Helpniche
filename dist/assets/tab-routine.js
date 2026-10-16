@@ -59,37 +59,106 @@ function createTasbihRipple(e, container) {
     }, 500);
 }
 
-function renderRoutineTab() {
+function renderRoutineMenu() {
     return `
-        <div class="screen-wrapper">
-            <div class="header-row">
-                <h1 class="app-title">Routine & Tasks</h1>
-                <button class="btn-primary-focus" id="btn-routine-header-action" style="width:auto; padding:6px 14px; font-size:12px; margin-bottom:0; display:${(currentRoutineTab === 'guard' || currentRoutineTab === 'tasbih' || currentRoutineTab === 'vibrate') ? 'none' : 'flex'};">
-                    ${currentRoutineTab === 'target' ? 'কাস্টমাইজ' : 'যোগ করুন'}
+        <div class="screen-wrapper" style="padding:16px; max-width:480px; margin:0 auto; box-sizing:border-box;">
+            <!-- Header Row -->
+            <div class="header-row" style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-bottom:18px;">
+                <div>
+                    <h1 class="app-title" style="margin:0; font-size:22px; font-weight:800; color:#ffffff;">রুটিন ও আমল</h1>
+                    <p class="app-subtitle" style="margin:4px 0 0 0; font-size:12px; color:#94a3b8;">দৈনন্দিন আমল ও স্মার্ট রিমাইন্ডার</p>
+                </div>
+                <div class="badge-protected" style="display:flex; align-items:center; gap:6px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.3); padding:4px 10px; border-radius:20px;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:12px; height:12px; fill:#10b981;"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/></svg>
+                    <span style="font-size:11px; font-weight:700; color:#10b981;">সক্রিয়</span>
+                </div>
+            </div>
+
+            <!-- ২ কলামের ৪টি পোর্টাল কার্ড -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; width:100%;">
+                
+                <!-- ১. ডেইলি টার্গেট কার্ড -->
+                <button class="btn-circular-control" id="btn-card-routine-target" style="min-height:148px; border-radius:22px; background:linear-gradient(145deg, #0d3b2e 0%, #041f17 100%); border:2px solid #10b981; box-shadow:0 6px 20px rgba(16, 185, 129, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
+                    <div style="width:48px; height:48px; border-radius:50%; background:rgba(16, 185, 129, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(16, 185, 129, 0.35);">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#10b981;">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                        </svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">ডেইলি টার্গেট</span>
+                    <span style="font-size:10px; color:#34d399; font-weight:700; margin-top:6px; background:rgba(16, 185, 129, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(16, 185, 129, 0.3);">লক্ষ্য ও প্রগ্রেস</span>
+                </button>
+
+                <!-- ২. তসবিহ কার্ড -->
+                <button class="btn-circular-control" id="btn-card-routine-tasbih" style="min-height:148px; border-radius:22px; background:linear-gradient(145deg, #0d3838 0%, #041c1c 100%); border:2px solid #14b8a6; box-shadow:0 6px 20px rgba(20, 184, 166, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
+                    <div style="width:48px; height:48px; border-radius:50%; background:rgba(20, 184, 166, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(20, 184, 166, 0.35);">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#14b8a6;">
+                            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+                        </svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">তসবিহ</span>
+                    <span style="font-size:10px; color:#2dd4bf; font-weight:700; margin-top:6px; background:rgba(20, 184, 166, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(20, 184, 166, 0.3);">স্মার্ট জিকির</span>
+                </button>
+
+                <!-- ৩. নামাজের অ্যালার্ম কার্ড -->
+                <button class="btn-circular-control" id="btn-card-routine-alarms" style="min-height:148px; border-radius:22px; background:linear-gradient(145deg, #3d2c0b 0%, #1f1403 100%); border:2px solid #f59e0b; box-shadow:0 6px 20px rgba(245, 158, 11, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
+                    <div style="width:48px; height:48px; border-radius:50%; background:rgba(245, 158, 11, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(245, 158, 11, 0.35);">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#f59e0b;">
+                            <path d="M22 5.72l-4.6-3.86-1.29 1.53 4.6 3.86L22 5.72zM7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37V8zM12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/>
+                        </svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">নামাজের অ্যালার্ম</span>
+                    <span style="font-size:10px; color:#fbbf24; font-weight:700; margin-top:6px; background:rgba(245, 158, 11, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(245, 158, 11, 0.3);">ওয়াক্ত ও রিমাইন্ডার</span>
+                </button>
+
+                <!-- ৪. অটো ভাইব্রেট কার্ড -->
+                <button class="btn-circular-control" id="btn-card-routine-vibrate" style="min-height:148px; border-radius:22px; background:linear-gradient(145deg, #0c2a42 0%, #061624 100%); border:2px solid #38bdf8; box-shadow:0 6px 20px rgba(56, 189, 248, 0.2); display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; padding:16px 8px; text-align:center; outline:none; transition:transform 0.15s;">
+                    <div style="width:48px; height:48px; border-radius:50%; background:rgba(56, 189, 248, 0.15); display:flex; align-items:center; justify-content:center; margin-bottom:10px; border:1px solid rgba(56, 189, 248, 0.35);">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#38bdf8;">
+                            <path d="M0 15h2V9H0v6zm3 2h2V7H3v10zm19-8v6h2V9h-2zm-3 8h2V7h-2v10zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/>
+                        </svg>
+                    </div>
+                    <span style="font-size:14px; font-weight:800; color:#ffffff; line-height:1.3;">অটো ভাইব্রেট</span>
+                    <span style="font-size:10px; color:#38bdf8; font-weight:700; margin-top:6px; background:rgba(56, 189, 248, 0.15); padding:2px 8px; border-radius:10px; border:1px solid rgba(56, 189, 248, 0.3);">স্মার্ট ভাইব্রেশন</span>
                 </button>
             </div>
 
-            <div class="tab-bar-sub">
-                <div class="tab-sub-item ${currentRoutineTab === 'target' ? 'active' : ''}" data-sub="target">
-                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                    ডেইলি টার্গেট
+            <!-- ৫. আনলক গার্ড (পুরো প্রস্থ জুড়ে বড় কার্ড) -->
+            <button class="btn-circular-control" id="btn-card-routine-guard" style="width:100%; min-height:82px; border-radius:20px; background:linear-gradient(145deg, #1e1b4b 0%, #0f1026 100%); border:2px solid #818cf8; box-shadow:0 6px 20px rgba(129, 140, 248, 0.2); display:flex; flex-direction:row; align-items:center; justify-content:space-between; cursor:pointer; padding:16px 20px; outline:none; transition:transform 0.15s; box-sizing:border-box;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    <div style="width:46px; height:46px; border-radius:50%; background:rgba(129, 140, 248, 0.15); display:flex; align-items:center; justify-content:center; border:1px solid rgba(129, 140, 248, 0.35); flex-shrink:0;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width:24px; height:24px; fill:#818cf8;">
+                            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                        </svg>
+                    </div>
+                    <div style="text-align:left;">
+                        <div style="font-size:15px; font-weight:800; color:#ffffff; line-height:1.3;">আনলক গার্ড</div>
+                        <div style="font-size:12px; color:#94a3b8; margin-top:3px;">স্ক্রিন আনলকে দরূদ অটো-প্লে ও নিরাপত্তা</div>
+                    </div>
                 </div>
-                <div class="tab-sub-item ${currentRoutineTab === 'tasbih' ? 'active' : ''}" data-sub="tasbih">
-                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px;"><path fill="currentColor" d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/></svg>
-                    তাসবিহ
-                </div>
-                <div class="tab-sub-item ${currentRoutineTab === 'alarms' ? 'active' : ''}" data-sub="alarms">
-                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px;"><path d="M22 5.72l-4.6-3.86-1.29 1.53 4.6 3.86L22 5.72zM7.88 3.39L6.6 1.86 2 5.71l1.29 1.53 4.59-3.85zM12.5 8H11v6l4.75 2.85.75-1.23-4-2.37V8zM12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9c4.97 0 9-4.03 9-9s-4.03-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"/></svg>
-                    অ্যালার্ম
-                </div>
-                <div class="tab-sub-item ${currentRoutineTab === 'vibrate' ? 'active' : ''}" data-sub="vibrate">
-                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px;"><path fill="currentColor" d="M0 15h2V9H0v6zm3 2h2V7H3v10zm19-8v6h2V9h-2zm-3 8h2V7h-2v10zM16.5 3h-9C6.67 3 6 3.67 6 4.5v15c0 .83.67 1.5 1.5 1.5h9c.83 0 1.5-.67 1.5-1.5v-15c0-.83-.67-1.5-1.5-1.5zM16 19H8V5h8v14z"/></svg>
-                    অটো ভাইব্রেট
-                </div>
-                <div class="tab-sub-item ${currentRoutineTab === 'guard' ? 'active' : ''}" data-sub="guard">
-                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px;"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                    আনলক গার্ড
-                </div>
+                <span style="font-size:10px; color:#818cf8; font-weight:700; background:rgba(129, 140, 248, 0.15); padding:4px 10px; border-radius:12px; border:1px solid rgba(129, 140, 248, 0.3); flex-shrink:0;">সুরক্ষা</span>
+            </button>
+        </div>
+    `;
+}
+
+function renderRoutineTab() {
+    if (typeof currentRoutineTab === 'undefined' || currentRoutineTab === 'menu') {
+        return renderRoutineMenu();
+    }
+
+    return `
+        <div class="screen-wrapper" style="padding:16px; max-width:480px; margin:0 auto; box-sizing:border-box;">
+            <!-- Top Navigation & Action Bar -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; width:100%;">
+                <button id="btn-routine-back-to-menu" style="background:#1e293b; border:1px solid #334155; border-radius:12px; padding:8px 14px; display:flex; align-items:center; gap:8px; cursor:pointer; color:#cbd5e1; font-weight:600; font-size:13px; outline:none;">
+                    <svg class="svg-icon" viewBox="0 0 24 24" style="width:16px; height:16px; fill:currentColor;"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    <span>রুটিন মেনুতে ফিরে যান</span>
+                </button>
+
+                ${(currentRoutineTab === 'target' || currentRoutineTab === 'alarms') ? `
+                <button class="btn-primary-focus" id="btn-routine-header-action" style="width:auto; padding:8px 16px; font-size:12px; margin-bottom:0; display:flex;">
+                    ${currentRoutineTab === 'target' ? 'কাস্টমাইজ' : 'যোগ করুন'}
+                </button>` : ''}
             </div>
 
             <div id="routine-subview-container">
@@ -611,6 +680,57 @@ window.deleteAlarmItem = function(idx) {
 };
 
 function bindRoutineTabEvents() {
+    // রুটিন ব্যাক বাটন
+    const btnBack = document.getElementById('btn-routine-back-to-menu');
+    if (btnBack) {
+        btnBack.onclick = () => {
+            currentRoutineTab = 'menu';
+            switchTab('routine');
+        };
+    }
+
+    // পোর্টাল কার্ড ইভেন্টসমূহ
+    const btnCardTarget = document.getElementById('btn-card-routine-target');
+    if (btnCardTarget) {
+        btnCardTarget.onclick = () => {
+            currentRoutineTab = 'target';
+            switchTab('routine');
+        };
+    }
+
+    const btnCardTasbih = document.getElementById('btn-card-routine-tasbih');
+    if (btnCardTasbih) {
+        btnCardTasbih.onclick = () => {
+            currentRoutineTab = 'tasbih';
+            switchTab('routine');
+        };
+    }
+
+    const btnCardAlarms = document.getElementById('btn-card-routine-alarms');
+    if (btnCardAlarms) {
+        btnCardAlarms.onclick = () => {
+            currentRoutineTab = 'alarms';
+            switchTab('routine');
+        };
+    }
+
+    const btnCardVibrate = document.getElementById('btn-card-routine-vibrate');
+    if (btnCardVibrate) {
+        btnCardVibrate.onclick = () => {
+            currentRoutineTab = 'vibrate';
+            switchTab('routine');
+        };
+    }
+
+    const btnCardGuard = document.getElementById('btn-card-routine-guard');
+    if (btnCardGuard) {
+        btnCardGuard.onclick = () => {
+            currentRoutineTab = 'guard';
+            switchTab('routine');
+        };
+    }
+
+    // পুরোনো সাব-ট্যাব হ্যান্ডলার (যদি কোথাও রেফারেন্স থাকে)
     document.querySelectorAll('.tab-sub-item').forEach(el => {
         el.onclick = () => {
             currentRoutineTab = el.dataset.sub;

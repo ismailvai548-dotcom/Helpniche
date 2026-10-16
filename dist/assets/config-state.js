@@ -3,7 +3,7 @@
    ========================================================================== */
 var currentTab = 'home';
 var currentStreakView = 'home';
-var currentRoutineTab = 'target';
+var currentRoutineTab = 'menu';
 
 // Language State & Real-time Translation Manager (Default: Bangla)
 var currentLang = localStorage.getItem('APP_LANGUAGE') || 'bn';
