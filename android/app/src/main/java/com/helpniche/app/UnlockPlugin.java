@@ -28,19 +28,7 @@ import java.io.FileOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-@CapacitorPlugin(
-    name = "UnlockPlugin",
-    permissions = {
-        @Permission(
-            alias = "camera",
-            strings = { android.Manifest.permission.CAMERA }
-        ),
-        @Permission(
-            alias = "location",
-            strings = { android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION }
-        )
-    }
-)
+@CapacitorPlugin(name = "UnlockPlugin")
 public class UnlockPlugin extends Plugin {
 
     private static final String TAG = "UnlockPlugin";
@@ -634,175 +622,13 @@ public class UnlockPlugin extends Plugin {
     }
 
     @PluginMethod
-    public void getIntruderSettings(PluginCall call) {
-        try {
-            Context context = getContext();
-            SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-            boolean enabled = prefs.getBoolean("intruder_selfie_enabled", false);
-            int threshold = prefs.getInt("intruder_selfie_threshold", 1);
-
-            File dir = new File(context.getFilesDir(), "intruder_logs");
-            int count = 0;
-            if (dir.exists() && dir.isDirectory()) {
-                File[] files = dir.listFiles();
-                if (files != null) {
-                    for (File f : files) {
-                        if (f.getName().endsWith(".jpg") || f.getName().endsWith(".jpeg")) count++;
-                    }
-                }
-            }
-
-            boolean hasCamera = true;
-            boolean hasLocation = true;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                hasCamera = context.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-                hasLocation = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-            }
-
-            JSObject ret = new JSObject();
-            ret.put("enabled", enabled);
-            ret.put("threshold", threshold);
-            ret.put("totalCount", count);
-            ret.put("hasCameraPermission", hasCamera);
-            ret.put("hasLocationPermission", hasLocation);
-            ret.put("isAdminActive", isDeviceAdminActive());
-            ret.put("telegramChatId", prefs.getString("intruder_telegram_chat_id", ""));
-            ret.put("telegramBotToken", prefs.getString("intruder_telegram_bot_token", ""));
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting intruder settings", e);
-            call.reject("Failed to get intruder settings: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void setIntruderSettings(PluginCall call) {
-        try {
-            Context context = getContext();
-            SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-            SharedPreferences.Editor editor = prefs.edit();
-
-            if (call.hasOption("enabled")) {
-                editor.putBoolean("intruder_selfie_enabled", Boolean.TRUE.equals(call.getBoolean("enabled", false)));
-            }
-            if (call.hasOption("threshold")) {
-                editor.putInt("intruder_selfie_threshold", call.getInt("threshold", 1));
-            }
-            if (call.hasOption("telegramChatId")) {
-                editor.putString("intruder_telegram_chat_id", call.getString("telegramChatId", "").trim());
-            }
-            if (call.hasOption("telegramBotToken")) {
-                editor.putString("intruder_telegram_bot_token", call.getString("telegramBotToken", "").trim());
-            }
-            editor.apply();
-
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error setting intruder settings", e);
-            call.reject("Failed to set intruder settings: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void testTelegramNotification(PluginCall call) {
-        new Thread(() -> {
-            try {
-                Context context = getContext();
-                SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-                String chatId = call.getString("chatId", prefs.getString("intruder_telegram_chat_id", ""));
-                if (chatId == null || chatId.trim().isEmpty()) {
-                    chatId = "6271611009";
-                }
-                String customToken = call.getString("botToken", prefs.getString("intruder_telegram_bot_token", ""));
-                String botToken = (customToken != null && !customToken.trim().isEmpty()) ? customToken.trim() : "8808381690:AAH0wNxbtraOhxP6q3v7mQuqfhCQHXX6EMM";
-
-                String text = java.net.URLEncoder.encode("Helpniche সিকিউরিটি টেস্ট:\nআপনার ব্যক্তিগত টেলিগ্রাম চ্যাট আইডি সফলভাবে সংযুক্ত হয়েছে। ভুল পাসওয়ার্ড দিলে এই আইডিতে ছবি ও লোকেশন আসবে।", "UTF-8");
-                URL url = new URL("https://api.telegram.org/bot" + botToken + "/sendMessage?chat_id=" + chatId.trim() + "&text=" + text);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(6000);
-                int code = conn.getResponseCode();
-
-                JSObject ret = new JSObject();
-                ret.put("success", code == 200);
-                ret.put("responseCode", code);
-                if (code == 403) {
-                    ret.put("errorMsg", "বট সক্রিয় করা হয়নি। প্রথমে টেলিগ্রাম বটে গিয়ে Start চাপুন।");
-                } else if (code == 400) {
-                    ret.put("errorMsg", "চ্যাট আইডি বা বট টোকেন সঠিক নয়।");
-                } else if (code != 200) {
-                    ret.put("errorMsg", "সার্ভার রেসপন্স এরর কোড: " + code);
-                }
-                call.resolve(ret);
-            } catch (Exception e) {
-                Log.e(TAG, "Error testing telegram notification", e);
-                call.reject("Failed to test telegram: " + e.getMessage());
-            }
-        }).start();
-    }
-
-    @PluginMethod
-    public void requestCameraPermission(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (getContext().checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissionForAlias("camera", call, "cameraPermCallback");
-                return;
-            }
-        }
-        JSObject ret = new JSObject();
-        ret.put("success", true);
-        ret.put("hasCameraPermission", true);
-        call.resolve(ret);
-    }
-
-    @PermissionCallback
-    private void cameraPermCallback(PluginCall call) {
-        boolean granted = true;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            granted = getContext().checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-        }
-        JSObject ret = new JSObject();
-        ret.put("success", true);
-        ret.put("hasCameraPermission", granted);
-        call.resolve(ret);
-    }
-
-    @PluginMethod
-    public void requestLocationPermission(PluginCall call) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (getContext().checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                requestPermissionForAlias("location", call, "locationPermCallback");
-                return;
-            }
-        }
-        JSObject ret = new JSObject();
-        ret.put("success", true);
-        ret.put("hasLocationPermission", true);
-        call.resolve(ret);
-    }
-
-    @PermissionCallback
-    private void locationPermCallback(PluginCall call) {
-        boolean granted = true;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            granted = getContext().checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-        }
-        JSObject ret = new JSObject();
-        ret.put("success", true);
-        ret.put("hasLocationPermission", granted);
-        call.resolve(ret);
-    }
-
-    @PluginMethod
     public void requestDeviceAdminPermission(PluginCall call) {
         try {
             Context ctx = getContext();
             android.content.ComponentName admin = new android.content.ComponentName(ctx, AdminReceiver.class);
             Intent intent = new Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
             intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin);
-            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "অনুপ্রবেশকারী সেলফি ও আনইনস্টল সুরক্ষার জন্য ডিভাইস অ্যাডমিন পারমিশন দিন।");
+            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "অনাকাঙ্ক্ষিত আনইনস্টল রোধ ও সুরক্ষার জন্য ডিভাইস অ্যাডমিন পারমিশন দিন।");
             if (getActivity() != null) {
                 getActivity().startActivityForResult(intent, 102);
             } else {
@@ -836,88 +662,6 @@ public class UnlockPlugin extends Plugin {
         }
     }
 
-    @PluginMethod
-    public void getIntruderLogs(PluginCall call) {
-        try {
-            Context context = getContext();
-            File dir = new File(context.getFilesDir(), "intruder_logs");
-            JSArray logs = new JSArray();
-
-            if (dir.exists() && dir.isDirectory()) {
-                File[] files = dir.listFiles();
-                if (files != null && files.length > 0) {
-                    java.util.Arrays.sort(files, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
-
-                    java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd MMM yyyy, hh:mm a", java.util.Locale.ENGLISH);
-
-                    for (int i = 0; i < Math.min(files.length, 60); i++) {
-                        File f = files[i];
-                        if (f.getName().endsWith(".jpg") || f.getName().endsWith(".jpeg")) {
-                            byte[] bytes = new byte[(int) f.length()];
-                            try (java.io.FileInputStream fis = new java.io.FileInputStream(f)) {
-                                fis.read(bytes);
-                            }
-                            String base64 = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP);
-
-                            JSObject item = new JSObject();
-                            item.put("id", f.getName());
-                            item.put("timestamp", f.lastModified());
-                            item.put("dateText", sdf.format(new java.util.Date(f.lastModified())));
-                            item.put("image", base64);
-                            logs.put(item);
-                        }
-                    }
-                }
-            }
-
-            JSObject ret = new JSObject();
-            ret.put("logs", logs);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error getting intruder logs", e);
-            call.reject("Failed to get intruder logs: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void deleteIntruderLog(PluginCall call) {
-        try {
-            String id = call.getString("id");
-            if (id != null) {
-                File file = new File(new File(getContext().getFilesDir(), "intruder_logs"), id);
-                if (file.exists()) {
-                    file.delete();
-                }
-            }
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error deleting intruder log", e);
-            call.reject("Failed to delete log: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void clearAllIntruderLogs(PluginCall call) {
-        try {
-            File dir = new File(getContext().getFilesDir(), "intruder_logs");
-            if (dir.exists() && dir.isDirectory()) {
-                File[] files = dir.listFiles();
-                if (files != null) {
-                    for (File f : files) {
-                        f.delete();
-                    }
-                }
-            }
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error clearing intruder logs", e);
-            call.reject("Failed to clear logs: " + e.getMessage());
-        }
-    }
 
     @PluginMethod
     public void getAutoVibrateConfig(PluginCall call) {

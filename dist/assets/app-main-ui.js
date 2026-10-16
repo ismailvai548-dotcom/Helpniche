@@ -82,9 +82,6 @@ function switchTab(tabName) {
     } else if (tabName === 'network-control') {
         content.innerHTML = renderNetworkControlTab();
         bindNetworkControlEvents();
-    } else if (tabName === 'video-downloader') {
-        content.innerHTML = renderVideoDownloaderTab();
-        bindVideoDownloaderEvents();
     } else if (tabName === 'focus-tasks') {
         content.innerHTML = renderFocusTasksTab();
         bindFocusTasksEvents();

@@ -100,7 +100,6 @@ public class MainActivity extends BridgeActivity {
                 editor.putBoolean("is_permanent_unlock", false);
                 editor.putLong("unlock_until_timestamp", 0);
                 editor.putBoolean("is_focus_locked", false);
-                editor.putBoolean("intruder_selfie_enabled", false);
                 editor.putLong("app_first_install_time", currentInstallTime);
                 editor.putBoolean("is_first_launch_done", true);
                 editor.apply();

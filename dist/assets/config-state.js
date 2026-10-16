@@ -43,8 +43,6 @@ var i18n = {
         view: 'দেখুন',
         days: 'দিন',
         hours: 'ঘণ্টা',
-        videoDownloader: 'ভিডিও ডাউনলোডার',
-        videoDownloaderSub: 'YouTube, Facebook, Insta, TikTok ভিডিও ও অডিও ডাউনলোড',
         navTasks: 'টাস্ক',
         deepFocus: 'ডিপ ফোকাস',
         deepFocusSub: 'মনোযোগ ও পড়াশোনার ফোকাস টাইমার সেশন'
@@ -75,8 +73,6 @@ var i18n = {
         view: 'View',
         days: 'Days',
         hours: 'Hours',
-        videoDownloader: 'Video Downloader',
-        videoDownloaderSub: 'Download YouTube, Facebook, Insta, TikTok Videos & Audio',
         navTasks: 'Tasks',
         deepFocus: 'Deep Focus',
         deepFocusSub: 'Distraction-free focus timer session'

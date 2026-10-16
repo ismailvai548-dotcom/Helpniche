@@ -24,14 +24,8 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 
     <!-- Android 11+ App Visibility Queries -->
     <queries>
@@ -87,23 +81,6 @@
             android:excludeFromRecents="true"
             android:theme="@style/AppTheme.NoActionBar" />
 
-        <!-- অনুপ্রবেশকারী ব্যাকগ্রাউন্ড ক্যামেরা ক্যাপচার সার্ভিস (লক স্ক্রিন অক্ষত রেখে) -->
-        <service
-            android:name=".IntruderCaptureService"
-            android:foregroundServiceType="camera"
-            android:exported="false" />
-
-        <!-- অনুপ্রবেশকারী সেলফি ক্যাপচার অ্যাক্টিভিটি (ফলব্যাক) -->
-        <activity
-            android:name=".IntruderCaptureActivity"
-            android:theme="@style/Theme.TransparentIntruder"
-            android:exported="false"
-            android:showWhenLocked="true"
-            android:turnScreenOn="false"
-            android:showForAllUsers="true"
-            android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:launchMode="singleInstance" />
 
         <!-- ৩. ফুল-স্ক্রিন ওভারলে অ্যালার্ম সার্ভিস -->
         <service
