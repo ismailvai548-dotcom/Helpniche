@@ -34,6 +34,7 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
@@ -76,6 +77,7 @@ public class IntruderCaptureService extends Service {
     private Handler backgroundHandler = null;
     private CameraDevice cameraDevice = null;
     private ImageReader imageReader = null;
+    private PowerManager.WakeLock wakeLock = null;
     private boolean isFinished = false;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -91,8 +93,17 @@ public class IntruderCaptureService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForegroundSilent();
 
-        // সেফগার্ড: সর্বোচ্চ ১৫ সেকেন্ডের মধ্যে ব্যাকগ্রাউন্ড কাজ শেষ না হলে স্বয়ংক্রিয় বন্ধ হবে
-        mainHandler.postDelayed(timeoutRunnable, 15000);
+        // প্রসেসর সক্রিয় রাখতে WakeLock নেওয়া
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null && wakeLock == null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Helpniche:IntruderCaptureServiceWakeLock");
+                wakeLock.acquire(8000);
+            }
+        } catch (Exception ignored) {}
+
+        // সেফগার্ড: সর্বোচ্চ ৭ সেকেন্ডের মধ্যে ব্যাকগ্রাউন্ড কাজ শেষ না হলে বন্ধ হবে
+        mainHandler.postDelayed(timeoutRunnable, 7000);
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             Log.w(TAG, "Camera permission not granted for intruder capture service.");
@@ -150,7 +161,7 @@ public class IntruderCaptureService extends Service {
     }
 
     private void startBackgroundThread() {
-        backgroundThread = new HandlerThread("IntruderCaptureServiceThread");
+        backgroundThread = new HandlerThread("IntruderCaptureServiceThread", android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY);
         backgroundThread.start();
         backgroundHandler = new Handler(backgroundThread.getLooper());
     }
@@ -195,9 +206,17 @@ public class IntruderCaptureService extends Service {
                 Size[] jpegSizes = map.getOutputSizes(ImageFormat.JPEG);
                 if (jpegSizes != null && jpegSizes.length > 0) {
                     for (Size s : jpegSizes) {
-                        if (s.getWidth() <= 1280 && s.getHeight() <= 720) {
+                        if (s.getWidth() == 640 && s.getHeight() == 480) {
                             captureSize = s;
                             break;
+                        }
+                    }
+                    if (captureSize.getWidth() != 640) {
+                        for (Size s : jpegSizes) {
+                            if (s.getWidth() <= 1280 && s.getHeight() <= 720) {
+                                captureSize = s;
+                                break;
+                            }
                         }
                     }
                 }
@@ -273,7 +292,8 @@ public class IntruderCaptureService extends Service {
                         CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(imageReader.getSurface());
                         builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-                        builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                        builder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF);
+                        builder.set(CaptureRequest.CONTROL_AE_MODE, CameraMetadata.CONTROL_AE_MODE_ON);
                         builder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
                         builder.set(CaptureRequest.JPEG_ORIENTATION, jpegOrientation);
                         session.capture(builder.build(), null, backgroundHandler);
@@ -597,6 +617,11 @@ public class IntruderCaptureService extends Service {
         try {
             stopForeground(true);
         } catch (Exception ignored) {}
+
+        if (wakeLock != null && wakeLock.isHeld()) {
+            try { wakeLock.release(); } catch (Exception ignored) {}
+            wakeLock = null;
+        }
 
         stopSelf();
     }

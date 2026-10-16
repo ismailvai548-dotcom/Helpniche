@@ -28,6 +28,25 @@ public class AdminReceiver extends DeviceAdminReceiver {
     @Override
     public void onPasswordFailed(Context context, Intent intent) {
         super.onPasswordFailed(context, intent);
+        handlePasswordFailed(context);
+    }
+
+    @Override
+    public void onPasswordFailed(Context context, Intent intent, android.os.UserHandle user) {
+        super.onPasswordFailed(context, intent, user);
+        handlePasswordFailed(context);
+    }
+
+    private void handlePasswordFailed(Context context) {
+        // প্রসেসর যেন সাথে সাথে স্লিপে না যায় সেজন্য তাত্ক্ষণিক WakeLock নেওয়া
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) context.getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Helpniche:AdminReceiverWakeLock");
+                wl.acquire(8000);
+            }
+        } catch (Exception ignored) {}
+
         try {
             android.content.SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
             boolean enabled = prefs.getBoolean("intruder_selfie_enabled", false);
@@ -52,7 +71,7 @@ public class AdminReceiver extends DeviceAdminReceiver {
                 }
             }
         } catch (Exception e) {
-            android.util.Log.e("AdminReceiver", "Error in onPasswordFailed", e);
+            android.util.Log.e("AdminReceiver", "Error in handlePasswordFailed", e);
         }
     }
 
