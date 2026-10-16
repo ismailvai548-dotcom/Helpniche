@@ -529,6 +529,7 @@ public class UnlockPlugin extends Plugin {
             boolean exactAlarmGranted = true;
             boolean fullScreenIntentGranted = true;
             try {
+                Context ctx = getContext();
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     overlayGranted = Settings.canDrawOverlays(ctx);
                 }

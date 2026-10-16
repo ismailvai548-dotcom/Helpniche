@@ -100,8 +100,16 @@
         return '';
     }
 
+    let lastTrackTime = 0;
+
     // অ্যাপ ওপেন বা আনলক ট্র্যাক করা
     function trackAppOpen() {
+        const now = Date.now();
+        if (now - lastTrackTime < 3000) {
+            return;
+        }
+        lastTrackTime = now;
+
         const totalDonated = parseFloat(localStorage.getItem('donation_total_amount') || '0');
         let openCount = parseInt(localStorage.getItem('donation_open_count') || '0', 10) + 1;
         localStorage.setItem('donation_open_count', openCount.toString());
@@ -113,7 +121,7 @@
             // সামান্য বিরতি দিয়ে ডায়ালগ দেখানো যাতে ইউআই পুরোপুরি লোড হতে পারে
             setTimeout(() => {
                 showDonationModal();
-            }, 1200);
+            }, 1000);
         }
     }
 
@@ -131,7 +139,7 @@
             width: 100%;
             height: 100%;
             background: rgba(2, 6, 23, 0.88);
-            z-index: 99999;
+            z-index: 1000000;
             justify-content: center;
             align-items: center;
             backdrop-filter: blur(8px);
@@ -759,6 +767,10 @@
         showDonationModal();
     };
 
+    window.trackDonationAppOpen = function() {
+        trackAppOpen();
+    };
+
     window.getDonationStats = function() {
         return {
             totalDonated: parseFloat(localStorage.getItem('donation_total_amount') || '0'),
@@ -767,18 +779,45 @@
         };
     };
 
-    // ইনিশিয়ালাইজেশন
-    document.addEventListener('DOMContentLoaded', () => {
+    function initDonationSystem() {
         ensureModalDOMElements();
         fetchRemoteDonationConfig();
         trackAppOpen();
-    });
+    }
 
-    // অ্যাপ ভিজিবিলিটি / ফোকাসে ট্র্যাক করা
+    // ১. কোল্ড স্টার্ট ইনিশিয়ালাইজেশন (রেডি স্টেট সেফগার্ডসহ)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDonationSystem);
+    } else {
+        initDonationSystem();
+    }
+
+    // ২. ওয়েবভিউ ভিজিবিলিটি ট্র্যাকিং
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             trackAppOpen();
         }
     });
+
+    // ৩. কর্ডোভা / ক্যাপাসিটর রিজিউম ইভেন্ট
+    document.addEventListener('resume', () => {
+        trackAppOpen();
+    });
+
+    // ৪. উইন্ডো ফোকাস ইভেন্ট
+    window.addEventListener('focus', () => {
+        trackAppOpen();
+    });
+
+    // ৫. ক্যাপাসিটর অ্যাপ স্টেট প্লাগইন ইভেন্ট
+    try {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+                if (state && state.isActive) {
+                    trackAppOpen();
+                }
+            });
+        }
+    } catch (e) {}
 
 })();

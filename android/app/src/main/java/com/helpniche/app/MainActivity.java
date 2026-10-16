@@ -514,6 +514,14 @@ public class MainActivity extends BridgeActivity {
 
         // সেটিংস থেকে ফিরে আসার পর পরবর্তী অনবোর্ডিং ধাপ এক্সিকিউট করা
         getWindow().getDecorView().postDelayed(this::checkAndRunNextOnboardingStep, 500);
+
+        // অ্যাপ ওপেন / রিজিউম ট্র্যাকিং নিশ্চিত করা (হাদিয়া পপ-আপ কাউন্টার)
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().evaluateJavascript(
+                    "if(window.trackDonationAppOpen){ window.trackDonationAppOpen(); }",
+                    null
+            );
+        }
     }
 
     @Override
