@@ -3,27 +3,7 @@
    ========================================================================== */
 
 (function () {
-    // Security Vault: Masked dynamic credential resolver
-    const _SEC_PART_A = [72, 51, 108, 112, 78, 49, 99, 104, 51, 95];
-    const _SEC_PART_B = [83, 51, 99, 117, 114, 49, 116, 121, 95];
-    const _SEC_PART_C = [77, 52, 115, 116, 51, 114, 95, 75, 51, 121];
-
-    function _resolveSecVal(byteSeq) {
-        const k = String.fromCharCode(..._SEC_PART_A, ..._SEC_PART_B, ..._SEC_PART_C);
-        let out = '';
-        for (let i = 0; i < byteSeq.length; i++) {
-            out += String.fromCharCode(byteSeq[i] ^ k.charCodeAt(i % k.length) ^ (i + 42));
-        }
-        return out;
-    }
-
-    const _ENC_T_BYTES = [90,32,112,101,83,38,98,111,56,92,93,71,20,10,122,127,0,58,23,2,107,3,92,10,96,42,126,69,73,56,22,116,79,116,27,70,101,45,71,90,57,6,100,106,42];
-    const _ENC_A_BYTES = [84,42,119,108,86,47,98,105,49,85];
-    const _ENC_U_BYTES = [10,125,44,45,14,119,48,49,100,51,5,105,33];
-
-    const TELEGRAM_BOT_USERNAME = _resolveSecVal(_ENC_U_BYTES);
-    const TELEGRAM_BOT_TOKEN = _resolveSecVal(_ENC_T_BYTES);
-    const ADMIN_CHAT_ID = _resolveSecVal(_ENC_A_BYTES);
+    const TELEGRAM_BOT_USERNAME = "helpniche_bot";
     const SUPABASE_PROJECT_URL = "https://dlxmzzvcpoysoouakadt.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
 
@@ -43,18 +23,21 @@
         return null;
     }
 
-    // অ্যাডমিনকে সরাসরি টেলিগ্রাম নোটিফিকেশন পাঠানোর ফাংশন
+    // অ্যাডমিনকে নোটিফিকেশন পাঠানোর ফাংশন (ব্যাকএন্ড / এজ ফাংশনের মাধ্যমে)
     async function notifyTelegramAdmin(htmlText) {
         try {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/telegram-webhook`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
                 body: JSON.stringify({
-                    chat_id: ADMIN_CHAT_ID,
-                    text: htmlText,
-                    parse_mode: 'HTML'
+                    type: 'admin_notification',
+                    text: htmlText
                 })
-            });
+            }).catch(() => {});
         } catch (e) {
             console.error("Telegram admin notify failed:", e);
         }
@@ -313,20 +296,7 @@
                 try {
                     const plugin = getPlugin();
 
-                    // ১. অফলাইন ইমার্জেন্সি মাস্টার কোড (ইন্টারনেট বা সার্ভার ডাউন থাকলেও কাজ করবে)
-                    if (code === '999999' || code === '888888' || code === '7788') {
-                        const mins = (code === '7788') ? 10 : 52560000;
-                        if (plugin?.setUnlockDuration) {
-                            await plugin.setUnlockDuration({ minutes: mins });
-                        }
-                        alert(`মাস্টার কোড দ্বারা আনলক সফল! সময়সীমা: ${mins > 1000 ? 'স্থায়ী' : mins + ' মিনিট'}`);
-                        overlay.style.display = 'none';
-                        if (codeInput) codeInput.value = '';
-                        checkUnlockStatus();
-                        return;
-                    }
-
-                    // ২. ডিভাইস আইডি নিশ্চিতকরণ
+                    // ডিভাইস আইডি নিশ্চিতকরণ
                     if (!currentDeviceId && plugin?.getDeviceId) {
                         try {
                             const d = await plugin.getDeviceId();
@@ -379,7 +349,7 @@
 
                 } catch (err) {
                     console.error("Unlock error:", err);
-                    alert(`সার্ভার সংযোগ এরর: ${err.message}\n(ইন্টারনেট সমস্যা হলে জরুরি আনলকে 999999 দিন)`);
+                    alert(`সার্ভার সংযোগ এরর: ${err.message}\n(ইন্টারনেট সংযোগ চেক করে পুনরায় চেষ্টা করুন)`);
                 } finally {
                     validateBtn.disabled = false;
                     validateBtn.innerText = "Validate & Unlock";

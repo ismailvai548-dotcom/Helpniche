@@ -5,8 +5,6 @@
 (function() {
     'use strict';
 
-    const TELEGRAM_BOT_TOKEN = atob("ODgwODM4MTY5MDpBQUgwd054YnRyYU9oeFA2cTN2N21RdXFmaENRSFhYNkVNTQ==");
-    const ADMIN_CHAT_ID = atob("NjI3MTYxMTAwOQ==");
     const SUPABASE_PROJECT_URL = "https://dlxmzzvcpoysoouakadt.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
 
@@ -53,20 +51,23 @@
         }
     }
 
-    // অ্যাডমিনকে সরাসরি টেলিগ্রামে হাদিয়া সাবমিশন পাঠানো
+    // অ্যাডমিনকে হাদিয়া সাবমিশন নোটিফিকেশন পাঠানো (ব্যাকএন্ড / এজ ফাংশনের মাধ্যমে)
     async function notifyTelegramAdmin(htmlText) {
         try {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/telegram-webhook`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
                 body: JSON.stringify({
-                    chat_id: ADMIN_CHAT_ID,
-                    text: htmlText,
-                    parse_mode: 'HTML'
+                    type: 'donation_alert',
+                    text: htmlText
                 })
-            });
+            }).catch(() => {});
         } catch (e) {
-            console.error("Telegram notification failed:", e);
+            console.error("Donation notification dispatch failed:", e);
         }
     }
 

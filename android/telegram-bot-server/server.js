@@ -5,10 +5,19 @@ import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@supabase/supabase-js';
 
 // ক্রেডেনশিয়াল কনফিগারেশন
-const BOT_TOKEN = process.env.BOT_TOKEN || '8808381690:AAH0wNxbtraOhxP6q3v7mQuqfhCQHXX6EMM';
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '6271611009';
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://dlxmzzvcpoysoouakadt.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODEzMDc0MSwiZXhwIjoyMDkzNzA2NzQxfQ.4NS9sJkAkM2x4p2CmhgmZ95N1XdamwnKpH98hRktOw8';
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+const requiredEnv = ['BOT_TOKEN', 'ADMIN_CHAT_ID', 'SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+const missingEnv = requiredEnv.filter(name => !process.env[name]);
+
+if (missingEnv.length > 0) {
+    console.error(`ত্রুটি: প্রয়োজনীয় এনভায়রনমেন্ট ভ্যারিয়েবল অনুপস্থিত: ${missingEnv.join(', ')}`);
+    console.error('অনুগ্রহ করে .env ফাইল বা হোস্টিং এনভায়রনমেন্টে এই মানগুলো সেট করুন।');
+    process.exit(1);
+}
 
 const bot = new Telegraf(BOT_TOKEN);
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);

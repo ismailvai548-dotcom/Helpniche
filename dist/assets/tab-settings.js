@@ -3,8 +3,6 @@
    ========================================================================== */
 
 const TELEGRAM_BOT_USERNAME = "helpniche_bot";
-const TELEGRAM_BOT_TOKEN = atob("ODgwODM4MTY5MDpBQUgwd054YnRyYU9oeFA2cTN2N21RdXFmaENRSFhYNkVNTQ==");
-const ADMIN_CHAT_ID = atob("NjI3MTYxMTAwOQ==");
 const SUPABASE_PROJECT_URL = "https://dlxmzzvcpoysoouakadt.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
 
@@ -227,20 +225,23 @@ function bindSettingsTabEvents() {
         };
     }
 
-    // অ্যাডমিনকে সরাসরি টেলিগ্রাম নোটিফিকেশন পাঠানোর ফাংশন
+    // অ্যাডমিনকে নোটিফিকেশন পাঠানোর ফাংশন (ব্যাকএন্ড / এজ ফাংশনের মাধ্যমে)
     async function notifyAdmin(text) {
         try {
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/telegram-webhook`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
                 body: JSON.stringify({
-                    chat_id: ADMIN_CHAT_ID,
-                    text: text,
-                    parse_mode: 'HTML'
+                    type: 'admin_notification',
+                    text: text
                 })
-            });
+            }).catch(() => {});
         } catch (e) {
-            console.error("Telegram notify failed:", e);
+            console.error("Admin notify failed:", e);
         }
     }
 
@@ -299,24 +300,7 @@ function bindSettingsTabEvents() {
             try {
                 const plugin = window.Capacitor?.Plugins?.UnlockPlugin || null;
 
-                // ১. জরুরি মাস্টার কোড ব্যাকআপ
-                if (code === '999999' || code === '888888' || code === '7788') {
-                    const mins = (code === '7788') ? 10 : 52560000;
-                    if (plugin?.setUnlockDuration) {
-                        await plugin.setUnlockDuration({ minutes: mins });
-                    }
-                    if (statusMsg) {
-                        statusMsg.style.color = "#4ade80";
-                        statusMsg.innerText = "মাস্টার কোড সফল!";
-                    }
-                    setTimeout(() => {
-                        if (modalUnlock) modalUnlock.style.display = 'none';
-                        alert(`আনলক সফল! সময়সীমা: ${mins > 1000 ? 'স্থায়ী' : mins + ' মিনিট'}`);
-                    }, 400);
-                    return;
-                }
-
-                // ২. ডিভাইস আইডি সংগ্রহ
+                // ডিভাইস আইডি সংগ্রহ
                 let deviceId = '';
                 if (plugin?.getDeviceId) {
                     try {
