@@ -15,6 +15,12 @@ CREATE TABLE IF NOT EXISTS public.telegram_users (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
+-- If the table already existed with an older shape, add any missing columns
+ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS user_id TEXT;
+ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS telegram_username TEXT;
+ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS last_device_id TEXT;
+ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.telegram_users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 3. Ensure canonical table: unlock_requests
 CREATE TABLE IF NOT EXISTS public.unlock_requests (
@@ -29,6 +35,16 @@ CREATE TABLE IF NOT EXISTS public.unlock_requests (
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     approved_at TIMESTAMPTZ
 );
+-- Backfill for pre-existing tables with an older shape
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'anonymous_user';
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS device_id TEXT;
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS device_name TEXT DEFAULT 'Android Phone';
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS telegram_chat_id BIGINT;
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS reason TEXT DEFAULT 'জরুরি আনলক প্রয়োজন';
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.unlock_requests ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
 
 -- 4. Ensure canonical table: unlock_codes
 CREATE TABLE IF NOT EXISTS public.unlock_codes (
@@ -44,6 +60,29 @@ CREATE TABLE IF NOT EXISTS public.unlock_codes (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     used_at TIMESTAMPTZ
 );
+-- Backfill for pre-existing tables with an older shape
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS request_id UUID REFERENCES public.unlock_requests(id) ON DELETE CASCADE;
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS user_id TEXT DEFAULT 'anonymous_user';
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS device_id TEXT;
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS code_hash TEXT;
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'unused';
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS duration_minutes INTEGER DEFAULT 10;
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT 'admin';
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.unlock_codes ADD COLUMN IF NOT EXISTS used_at TIMESTAMPTZ;
+
+-- Preserve any still-unused legacy plaintext codes by hashing them into code_hash
+-- before the legacy columns are dropped (pgcrypto is enabled in step 1).
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_schema = 'public' AND table_name = 'unlock_codes'
+               AND column_name = 'code') THEN
+        EXECUTE 'UPDATE public.unlock_codes SET code_hash = encode(digest(code, ''sha256''), ''hex'')
+                 WHERE (code_hash IS NULL OR code_hash = '''') AND code IS NOT NULL AND code <> ''''';
+    END IF;
+END $$;
 
 -- Drop plaintext_code or legacy mismatch columns if they exist
 ALTER TABLE public.unlock_codes DROP COLUMN IF EXISTS plaintext_code;
