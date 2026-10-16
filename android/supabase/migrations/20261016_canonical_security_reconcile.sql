@@ -139,6 +139,9 @@ CREATE POLICY "anon_insert_unlock_requests" ON public.unlock_requests
 -- Codes can ONLY be consumed through the SECURITY DEFINER function consume_unlock_code.
 
 -- 9. Atomic Code Verification & Consumption Function
+-- Drop first: a previous version may exist with a different return type,
+-- which makes CREATE OR REPLACE fail with 42P13.
+DROP FUNCTION IF EXISTS public.consume_unlock_code(TEXT, TEXT);
 CREATE OR REPLACE FUNCTION public.consume_unlock_code(
     p_device_id TEXT,
     p_code_hash TEXT
