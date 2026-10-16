@@ -204,6 +204,7 @@ public class IntruderCaptureService extends Service {
             }
 
             final int finalOrientation = sensorOrientation;
+            final CameraCharacteristics finalChars = characteristics;
             imageReader = ImageReader.newInstance(captureSize.getWidth(), captureSize.getHeight(), ImageFormat.JPEG, 2);
             imageReader.setOnImageAvailableListener(reader -> {
                 Image image = null;
@@ -236,7 +237,7 @@ public class IntruderCaptureService extends Service {
                 @Override
                 public void onOpened(CameraDevice camera) {
                     cameraDevice = camera;
-                    takePictureSession(finalOrientation);
+                    takePictureSession(finalChars, finalOrientation);
                 }
 
                 @Override
@@ -257,7 +258,7 @@ public class IntruderCaptureService extends Service {
         }
     }
 
-    private void takePictureSession(int jpegOrientation) {
+    private void takePictureSession(CameraCharacteristics characteristics, int jpegOrientation) {
         if (cameraDevice == null || imageReader == null) {
             cleanupAndStop();
             return;
@@ -273,7 +274,24 @@ public class IntruderCaptureService extends Service {
                         CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(imageReader.getSurface());
                         builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-                        builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+
+                        // ফ্রন্ট ক্যামেরায় অটোফোকাস সাপোর্ট থাকলে সেট করা, না থাকলে OFF
+                        int[] afModes = characteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
+                        boolean hasAf = false;
+                        if (afModes != null) {
+                            for (int m : afModes) {
+                                if (m == CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE) {
+                                    hasAf = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (hasAf) {
+                            builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
+                        } else {
+                            builder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF);
+                        }
+
                         builder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
                         builder.set(CaptureRequest.JPEG_ORIENTATION, jpegOrientation);
                         session.capture(builder.build(), null, backgroundHandler);

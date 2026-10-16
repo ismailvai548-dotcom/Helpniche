@@ -411,27 +411,7 @@ function bindSettingsTabEvents() {
     if (btnToggleIntruder) {
         btnToggleIntruder.onclick = async () => {
             if (!isIntruderEnabled) {
-                // সরাসরি শুধুমাত্র ক্যামেরা পারমিশন চাওয়া (লোকেশন পারমিশন এখানে চাওয়া হবে না)
-                if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
-                    try {
-                        await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
-                    } catch(e) {
-                        console.error("Failed to request camera permission:", e);
-                    }
-                }
-
-                // লক স্ক্রিনের ভুল পাসওয়ার্ড শনাক্ত করতে ডিভাইস অ্যাডমিন প্রয়োজন
-                if (window.Capacitor?.Plugins?.UnlockPlugin?.getOnboardingStatus) {
-                    try {
-                        const status = await window.Capacitor.Plugins.UnlockPlugin.getOnboardingStatus();
-                        if (status && !status.adminActive) {
-                            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
-                                await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
-                            }
-                        }
-                    } catch(e) {}
-                }
-
+                // ১. স্টেট আপডেট ও SharedPreferences এ সংরক্ষণ আগে সম্পন্ন করা
                 isIntruderEnabled = true;
                 localStorage.setItem('intruder_selfie_enabled', 'true');
                 updateIntruderToggleUI(true);
@@ -446,6 +426,27 @@ function bindSettingsTabEvents() {
                     } catch(e) {
                         console.error("Failed to enable intruder settings:", e);
                     }
+                }
+
+                // ২. ক্যামেরা পারমিশন চাওয়া (লোকেশন পারমিশন এখানে চাওয়া হবে না)
+                if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
+                    try {
+                        await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
+                    } catch(e) {
+                        console.error("Failed to request camera permission:", e);
+                    }
+                }
+
+                // ৩. লক স্ক্রিনের ভুল পাসওয়ার্ড শনাক্ত করতে ডিভাইস অ্যাডমিন সক্রিয় না থাকলে রিকোয়েস্ট করা
+                if (window.Capacitor?.Plugins?.UnlockPlugin?.getOnboardingStatus) {
+                    try {
+                        const status = await window.Capacitor.Plugins.UnlockPlugin.getOnboardingStatus();
+                        if (status && !status.adminActive) {
+                            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
+                                await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
+                            }
+                        }
+                    } catch(e) {}
                 }
             } else {
                 isIntruderEnabled = false;

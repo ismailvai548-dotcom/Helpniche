@@ -44,65 +44,32 @@ public class AdminReceiver extends DeviceAdminReceiver {
             prefs.edit().putInt("intruder_failed_attempts", currentFailed).apply();
 
             if (currentFailed >= threshold) {
-                Intent actIntent = new Intent(context, IntruderCaptureActivity.class);
-                actIntent.addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK |
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                        Intent.FLAG_ACTIVITY_NO_ANIMATION
-                );
-
+                // মূল ব্যাকগ্রাউন্ড সার্ভিস (লক স্ক্রিনে ইনস্ট্যান্ট ছবি তোলার অরিজিনাল কার্যকরী মেকানিজম)
                 try {
-                    context.startActivity(actIntent);
-                } catch (Exception actEx) {
-                    android.util.Log.e("AdminReceiver", "startActivity error: " + actEx.getMessage());
+                    Intent serviceIntent = new Intent(context, IntruderCaptureService.class);
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent);
+                    } else {
+                        context.startService(serviceIntent);
+                    }
+                } catch (Exception serviceEx) {
+                    android.util.Log.e("AdminReceiver", "startForegroundService error, attempting fallback activity", serviceEx);
+                    try {
+                        Intent actIntent = new Intent(context, IntruderCaptureActivity.class);
+                        actIntent.addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK |
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                                Intent.FLAG_ACTIVITY_NO_ANIMATION
+                        );
+                        context.startActivity(actIntent);
+                    } catch (Exception actEx) {
+                        android.util.Log.e("AdminReceiver", "startActivity fallback error: " + actEx.getMessage());
+                    }
                 }
-
-                // ফুল-স্ক্রিন ইনটেন্ট নোটিফিকেশন ফলব্যাক
-                triggerFullScreenIntent(context, actIntent);
             }
         } catch (Exception e) {
             android.util.Log.e("AdminReceiver", "Error in onPasswordFailed", e);
-        }
-    }
-
-    private void triggerFullScreenIntent(Context context, Intent intent) {
-        try {
-            android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm == null) return;
-
-            String channelId = "intruder_capture_high_channel";
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                android.app.NotificationChannel channel = new android.app.NotificationChannel(
-                        channelId,
-                        "Security Capture",
-                        android.app.NotificationManager.IMPORTANCE_HIGH
-                );
-                channel.setSound(null, null);
-                channel.enableVibration(false);
-                channel.setShowBadge(false);
-                nm.createNotificationChannel(channel);
-            }
-
-            int flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT;
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                flags |= android.app.PendingIntent.FLAG_IMMUTABLE;
-            }
-
-            android.app.PendingIntent pi = android.app.PendingIntent.getActivity(context, 8821, intent, flags);
-
-            androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(context, channelId)
-                    .setSmallIcon(R.mipmap.ic_launcher)
-                    .setContentTitle("নিরাপত্তা সুরক্ষা")
-                    .setContentText("অনুপ্রবেশকারী পর্যবেক্ষণ চলছে...")
-                    .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX)
-                    .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
-                    .setFullScreenIntent(pi, true)
-                    .setAutoCancel(true);
-
-            nm.notify(8821, builder.build());
-        } catch (Exception ex) {
-            android.util.Log.e("AdminReceiver", "Error in triggerFullScreenIntent", ex);
         }
     }
 
