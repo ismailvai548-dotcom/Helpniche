@@ -389,15 +389,48 @@ function bindSettingsTabEvents() {
     if (btnToggleIntruder) {
         btnToggleIntruder.onclick = async () => {
             if (!isIntruderEnabled) {
-                // ১. শুধুমাত্র ক্যামেরা পারমিশন চাওয়া
+                // ১. শুধুমাত্র ক্যামেরা পারমিশন চাওয়া (সরাসরি সিস্টেম ডায়ালগ আসবে)
+                let hasCam = false;
                 if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
                     try {
-                        await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
+                        const permRes = await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
+                        if (permRes && typeof permRes.hasCameraPermission === 'boolean') {
+                            hasCam = permRes.hasCameraPermission;
+                        }
                     } catch(e) {
                         console.error("Failed to request camera permission:", e);
                     }
                 }
 
+                // স্ট্যাটাস ও অ্যাডমিন যাচাই
+                let check = null;
+                if (window.Capacitor?.Plugins?.UnlockPlugin?.getIntruderSettings) {
+                    try {
+                        check = await window.Capacitor.Plugins.UnlockPlugin.getIntruderSettings();
+                        if (check && typeof check.hasCameraPermission === 'boolean') {
+                            hasCam = check.hasCameraPermission;
+                        }
+                    } catch(e) {}
+                }
+
+                // ক্যামেরা পারমিশন এখনো না থাকলে অ্যাপ সেটিংসে পাঠানো
+                if (!hasCam) {
+                    if (window.Capacitor?.Plugins?.UnlockPlugin?.openAppSettings) {
+                        await window.Capacitor.Plugins.UnlockPlugin.openAppSettings();
+                    }
+                    return;
+                }
+
+                // ২. ডিভাইস অ্যাডমিন পারমিশন নিষ্ক্রিয় থাকলে সরাসরি অ্যাডমিন সক্রিয়করণ পেজে নিয়ে যাওয়া
+                if (check && check.isAdminActive === false) {
+                    if (window.Capacitor?.Plugins?.UnlockPlugin?.requestDeviceAdminPermission) {
+                        await window.Capacitor.Plugins.UnlockPlugin.requestDeviceAdminPermission();
+                    } else if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
+                        await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
+                    }
+                }
+
+                // ৩. সক্রিয় ও সংরক্ষণ করা
                 isIntruderEnabled = true;
                 localStorage.setItem('intruder_selfie_enabled', 'true');
                 updateIntruderToggleUI(true);
@@ -413,38 +446,6 @@ function bindSettingsTabEvents() {
                         console.error("Failed to enable intruder settings:", e);
                     }
                 }
-
-                // সেফটি চেক: ক্যামেরা পারমিশন এবং ডিভাইস অ্যাডমিন যাচাই
-                setTimeout(async () => {
-                    if (window.Capacitor?.Plugins?.UnlockPlugin?.getIntruderSettings) {
-                        try {
-                            const check = await window.Capacitor.Plugins.UnlockPlugin.getIntruderSettings();
-                            
-                            // ক্যামেরা পারমিশন চেক
-                            if (check && check.hasCameraPermission === false) {
-                                if (confirm("ক্যামেরা পারমিশন চালু হয়নি। অনুপ্রবেশকারী ছবি তোলার জন্য ক্যামেরা পারমিশন আবশ্যক। ফোনের অ্যাপ সেটিংস থেকে ক্যামেরা পারমিশন এলাও করতে চান?")) {
-                                    if (window.Capacitor?.Plugins?.UnlockPlugin?.openAppSettings) {
-                                        await window.Capacitor.Plugins.UnlockPlugin.openAppSettings();
-                                    }
-                                }
-                                return;
-                            }
-
-                            // ডিভাইস অ্যাডমিন পারমিশন চেক
-                            if (check && check.isAdminActive === false) {
-                                if (confirm("লক স্ক্রিনে ভুল পাসওয়ার্ড দিলে স্বয়ংক্রিয় ছবি তোলার জন্য 'ডিভাইস অ্যাডমিন' পারমিশন দেওয়া আবশ্যক। আপনি কি ডিভাইস অ্যাডমিন সুরক্ষা সক্রিয় করতে চান?")) {
-                                    if (window.Capacitor?.Plugins?.UnlockPlugin?.requestDeviceAdminPermission) {
-                                        await window.Capacitor.Plugins.UnlockPlugin.requestDeviceAdminPermission();
-                                    } else if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
-                                        await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
-                                    }
-                                }
-                            }
-                        } catch(e) {
-                            console.error("Settings verification error:", e);
-                        }
-                    }
-                }, 700);
             } else {
                 isIntruderEnabled = false;
                 localStorage.setItem('intruder_selfie_enabled', 'false');

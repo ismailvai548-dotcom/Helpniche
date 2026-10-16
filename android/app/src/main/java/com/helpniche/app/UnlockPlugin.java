@@ -18,6 +18,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -744,63 +745,54 @@ public class UnlockPlugin extends Plugin {
 
     @PluginMethod
     public void requestCameraPermission(PluginCall call) {
-        try {
-            boolean hasCamera = true;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Context context = getContext();
-                hasCamera = context.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-
-                if (!hasCamera && getActivity() != null) {
-                    final String[] perms = new String[]{ android.Manifest.permission.CAMERA };
-                    getActivity().runOnUiThread(() -> {
-                        try {
-                            androidx.core.app.ActivityCompat.requestPermissions(getActivity(), perms, 205);
-                        } catch (Exception ex) {
-                            Log.e(TAG, "Error requesting runtime camera permission", ex);
-                        }
-                    });
-                }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (getContext().checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissionForAlias("camera", call, "cameraPermCallback");
+                return;
             }
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            ret.put("hasCameraPermission", hasCamera);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error requesting camera permission", e);
-            call.reject("Failed to request camera permission: " + e.getMessage());
         }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("hasCameraPermission", true);
+        call.resolve(ret);
+    }
+
+    @PermissionCallback
+    private void cameraPermCallback(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            granted = getContext().checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("hasCameraPermission", granted);
+        call.resolve(ret);
     }
 
     @PluginMethod
     public void requestLocationPermission(PluginCall call) {
-        try {
-            boolean hasLocation = true;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Context context = getContext();
-                hasLocation = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-
-                if (!hasLocation && getActivity() != null) {
-                    final String[] perms = new String[]{
-                            android.Manifest.permission.ACCESS_FINE_LOCATION,
-                            android.Manifest.permission.ACCESS_COARSE_LOCATION
-                    };
-                    getActivity().runOnUiThread(() -> {
-                        try {
-                            androidx.core.app.ActivityCompat.requestPermissions(getActivity(), perms, 206);
-                        } catch (Exception ex) {
-                            Log.e(TAG, "Error requesting runtime location permissions", ex);
-                        }
-                    });
-                }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (getContext().checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissionForAlias("location", call, "locationPermCallback");
+                return;
             }
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            ret.put("hasLocationPermission", hasLocation);
-            call.resolve(ret);
-        } catch (Exception e) {
-            Log.e(TAG, "Error requesting location permissions", e);
-            call.reject("Failed to request location permissions: " + e.getMessage());
         }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("hasLocationPermission", true);
+        call.resolve(ret);
+    }
+
+    @PermissionCallback
+    private void locationPermCallback(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            granted = getContext().checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        }
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        ret.put("hasLocationPermission", granted);
+        call.resolve(ret);
     }
 
     @PluginMethod
