@@ -425,6 +425,39 @@ function renderModalsAndOverlays() {
                         </p>
                     </div>
 
+                    <!-- Overlay: Display over other apps (alarm + floating unlock bubble) -->
+                    <div id="row-perm-overlay" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">অন্য অ্যাপের ওপরে দেখানো</span>
+                            <button id="btn-perm-overlay" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            লকস্ক্রিনে অ্যালার্ম ও আনলক কাউন্টডাউন বাবল দেখাতে এই অনুমতি প্রয়োজন।
+                        </p>
+                    </div>
+
+                    <!-- Exact alarm: Alarms & reminders (Android 12+) -->
+                    <div id="row-perm-exact-alarm" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">সঠিক সময়ে অ্যালার্ম (অ্যান্ড্রয়েড ১২+)</span>
+                            <button id="btn-perm-exact-alarm" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            নির্ধারিত সময়ে হুবহু অ্যালার্ম বাজাতে এই অনুমতি দিন।
+                        </p>
+                    </div>
+
+                    <!-- Full-screen intent (Android 14+) -->
+                    <div id="row-perm-fullscreen-intent" style="display: none; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 12px; padding: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-weight: 700; font-size: 13.5px; color: #f1f5f9; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">লকস্ক্রিনে অ্যালার্ম পপ-আপ (অ্যান্ড্রয়েড ১৪+)</span>
+                            <button id="btn-perm-fullscreen-intent" style="padding: 5px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0; outline: none; border: none; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;"></button>
+                        </div>
+                        <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.45; margin: 0; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ফোন লক থাকা অবস্থায় অ্যালার্ম স্ক্রিনে ভেসে উঠতে এই অনুমতি প্রয়োজন।
+                        </p>
+                    </div>
+
                 </div>
 
                 <!-- Footer & Trust Line -->
@@ -724,23 +757,10 @@ function bindGlobalEvents() {
         };
     }
 
-    // Penalty Manual Tap
-    const btnPenaltyTap = document.getElementById('btn-penalty-manual-tap');
-    if (btnPenaltyTap) {
-        btnPenaltyTap.onclick = () => {
-            dailyTarget.completedCount++;
-            const remaining = dailyTarget.goal - dailyTarget.completedCount;
-            const countEl = document.getElementById('penalty-remaining-count');
-            if (countEl) countEl.innerText = Math.max(0, remaining);
-            if (remaining <= 0) {
-                document.getElementById('fullscreen-penalty-lock').style.display = 'none';
-                dailyTarget.completedCount = 0;
-                dailyTarget.lastTrackedDate = new Date().toDateString();
-                localStorage.setItem('DAILY_TARGET_CONFIG', JSON.stringify(dailyTarget));
-                alert('পেনাল্টি সম্পন্ন হয়েছে! ফোন আনলক হলো।');
-            }
-        };
-    }
+    // H18 FIX: removed dead "Penalty Manual Tap" handler — #btn-penalty-manual-tap,
+    // #penalty-remaining-count and #fullscreen-penalty-lock markup do not exist
+    // anywhere in the app and nothing ever shows the overlay, so the handler
+    // could never run. (CSS + dailyTarget.penaltyLockEnabled scaffolding kept.)
 
 
     // Dismiss Blocked App Takeover Overlay
@@ -968,6 +988,9 @@ let onboardingPermissionStatus = {
     restrictedSettingsDone: false,
     accessibilityEnabled: false,
     batteryBypassed: false,
+    overlayGranted: true,
+    exactAlarmGranted: true,
+    fullScreenIntentGranted: true,
     sdkInt: 33
 };
 
@@ -1180,6 +1203,77 @@ function updatePermissionGuideUI() {
             btnRestricted.onclick = null;
         } else {
             rowRestricted.style.display = 'none';
+        }
+    }
+
+    // H15: Overlay permission (step 6) — needed for alarm popup + floating bubble
+    const rowOverlay = document.getElementById('row-perm-overlay');
+    const btnOverlay = document.getElementById('btn-perm-overlay');
+    if (rowOverlay && btnOverlay) {
+        if (!onboardingPermissionStatus.overlayGranted) {
+            rowOverlay.style.display = 'block';
+            btnOverlay.innerText = 'চালু করুন';
+            btnOverlay.style.background = '#0284c7';
+            btnOverlay.style.color = '#ffffff';
+            btnOverlay.style.border = 'none';
+            btnOverlay.onclick = () => executePermissionRequestStep(6);
+        } else if (onboardingPermissionStatus.overlayGranted) {
+            rowOverlay.style.display = 'block';
+            btnOverlay.innerText = 'চালু আছে';
+            btnOverlay.style.background = 'rgba(34, 197, 94, 0.12)';
+            btnOverlay.style.color = '#4ade80';
+            btnOverlay.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+            btnOverlay.onclick = null;
+        } else {
+            rowOverlay.style.display = 'none';
+        }
+    }
+
+    // H15: Exact alarm permission (step 7, Android 12+)
+    const rowExactAlarm = document.getElementById('row-perm-exact-alarm');
+    const btnExactAlarm = document.getElementById('btn-perm-exact-alarm');
+    if (rowExactAlarm && btnExactAlarm) {
+        const isAndroid12Plus = (onboardingPermissionStatus.sdkInt || 33) >= 31;
+        if (isAndroid12Plus && !onboardingPermissionStatus.exactAlarmGranted) {
+            rowExactAlarm.style.display = 'block';
+            btnExactAlarm.innerText = 'চালু করুন';
+            btnExactAlarm.style.background = '#0284c7';
+            btnExactAlarm.style.color = '#ffffff';
+            btnExactAlarm.style.border = 'none';
+            btnExactAlarm.onclick = () => executePermissionRequestStep(7);
+        } else if (isAndroid12Plus && onboardingPermissionStatus.exactAlarmGranted) {
+            rowExactAlarm.style.display = 'block';
+            btnExactAlarm.innerText = 'চালু আছে';
+            btnExactAlarm.style.background = 'rgba(34, 197, 94, 0.12)';
+            btnExactAlarm.style.color = '#4ade80';
+            btnExactAlarm.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+            btnExactAlarm.onclick = null;
+        } else {
+            rowExactAlarm.style.display = 'none';
+        }
+    }
+
+    // H15: Full-screen intent permission (step 8, Android 14+)
+    const rowFsi = document.getElementById('row-perm-fullscreen-intent');
+    const btnFsi = document.getElementById('btn-perm-fullscreen-intent');
+    if (rowFsi && btnFsi) {
+        const isAndroid14Plus = (onboardingPermissionStatus.sdkInt || 33) >= 34;
+        if (isAndroid14Plus && !onboardingPermissionStatus.fullScreenIntentGranted) {
+            rowFsi.style.display = 'block';
+            btnFsi.innerText = 'চালু করুন';
+            btnFsi.style.background = '#0284c7';
+            btnFsi.style.color = '#ffffff';
+            btnFsi.style.border = 'none';
+            btnFsi.onclick = () => executePermissionRequestStep(8);
+        } else if (isAndroid14Plus && onboardingPermissionStatus.fullScreenIntentGranted) {
+            rowFsi.style.display = 'block';
+            btnFsi.innerText = 'চালু আছে';
+            btnFsi.style.background = 'rgba(34, 197, 94, 0.12)';
+            btnFsi.style.color = '#4ade80';
+            btnFsi.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+            btnFsi.onclick = null;
+        } else {
+            rowFsi.style.display = 'none';
         }
     }
 

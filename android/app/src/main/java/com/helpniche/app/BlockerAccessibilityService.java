@@ -846,8 +846,12 @@ public class BlockerAccessibilityService extends AccessibilityService {
             for (int i = 0; i < childCount; i++) {
                 AccessibilityNodeInfo child = node.getChild(i);
                 if (child != null) {
-                    if (hasNodeWithExactText(child, targets)) {
-                        return true;
+                    try {
+                        if (hasNodeWithExactText(child, targets)) {
+                            return true;
+                        }
+                    } finally {
+                        child.recycle();
                     }
                 }
             }
@@ -874,7 +878,11 @@ public class BlockerAccessibilityService extends AccessibilityService {
             for (int i = 0; i < childCount; i++) {
                 AccessibilityNodeInfo child = node.getChild(i);
                 if (child != null) {
-                    if (isShortsTabSelected(child)) return true;
+                    try {
+                        if (isShortsTabSelected(child)) return true;
+                    } finally {
+                        child.recycle();
+                    }
                 }
             }
         } catch (Exception ignored) {}
@@ -897,8 +905,12 @@ public class BlockerAccessibilityService extends AccessibilityService {
             for (int i = 0; i < childCount; i++) {
                 AccessibilityNodeInfo child = node.getChild(i);
                 if (child != null) {
-                    if (scanNodeTreeForIds(child, targetIds)) {
-                        return true;
+                    try {
+                        if (scanNodeTreeForIds(child, targetIds)) {
+                            return true;
+                        }
+                    } finally {
+                        child.recycle();
                     }
                 }
             }
@@ -1144,8 +1156,12 @@ public class BlockerAccessibilityService extends AccessibilityService {
         for (int i = 0; i < childCount; i++) {
             AccessibilityNodeInfo child = node.getChild(i);
             if (child != null) {
-                if (scanNodeTreeForText(child, targets)) {
-                    return true;
+                try {
+                    if (scanNodeTreeForText(child, targets)) {
+                        return true;
+                    }
+                } finally {
+                    child.recycle();
                 }
             }
         }

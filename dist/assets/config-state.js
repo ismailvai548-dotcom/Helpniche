@@ -119,6 +119,42 @@ function addTodayFocusMinutes(mins) {
     return updated;
 }
 
+// H17: Incremental focus-minute crediting.
+// Credits only whole minutes that actually ELAPSED since the session started,
+// capped at the session's planned minutes. Already-credited minutes are tracked
+// in FOCUS_SESSION_CREDITED_MINS so ticks never double-count, even across
+// reloads. Call on every timer tick, at natural session end, and when an
+// expired session is settled on boot.
+function focusSessionPlannedMins() {
+    var p = parseInt(localStorage.getItem('FOCUS_SESSION_PLANNED_MINS') || '0', 10);
+    if (p > 0) return p;
+    if (focusSessionStartTime > 0 && focusSessionEndTime > focusSessionStartTime) {
+        return Math.max(1, Math.round((focusSessionEndTime - focusSessionStartTime) / 60000));
+    }
+    return 0;
+}
+
+function creditElapsedFocusMinutes() {
+    if (!focusSessionStartTime || focusSessionStartTime <= 0) return;
+    var planned = focusSessionPlannedMins();
+    if (!planned || planned <= 0) return;
+    var already = parseInt(localStorage.getItem('FOCUS_SESSION_CREDITED_MINS') || '0', 10);
+    var elapsed = Math.max(0, Math.floor((Date.now() - focusSessionStartTime) / 60000));
+    var target = Math.min(planned, elapsed);
+    var delta = target - already;
+    if (delta > 0) {
+        addTodayFocusMinutes(delta);
+        localStorage.setItem('FOCUS_SESSION_CREDITED_MINS', target.toString());
+    }
+}
+
+function clearFocusSessionCreditState() {
+    localStorage.removeItem('FOCUS_SESSION_START_TIME');
+    localStorage.removeItem('FOCUS_SESSION_PLANNED_MINS');
+    localStorage.removeItem('FOCUS_SESSION_CREDITED_MINS');
+    focusSessionStartTime = 0;
+}
+
 // Protection Duration Helper Function (অ্যাপ ইনস্টল/সেটআপের পর থেকে মোট দিন ও ঘণ্টার রিয়েল-টাইম কাউন্ট)
 function getProtectionDurationText() {
     let installTime = parseInt(localStorage.getItem('APP_INSTALL_TIMESTAMP') || '0', 10);
@@ -143,7 +179,20 @@ function getProtectionDurationText() {
 
 // Focus Session State
 var focusSessionEndTime = parseInt(localStorage.getItem('FOCUS_SESSION_END_TIME') || '0', 10);
+// H17: persisted session start + already-credited minutes so focus time is
+// credited INCREMENTALLY (only elapsed minutes), never the full session at start.
+var focusSessionStartTime = parseInt(localStorage.getItem('FOCUS_SESSION_START_TIME') || '0', 10);
 var isFocusSessionActive = focusSessionEndTime > Date.now();
+// H17: a session may have expired while the app was closed/killed. Settle it
+// now — credit only the minutes that actually elapsed (capped at planned),
+// then clear the session state so it can never be double-credited later.
+if (focusSessionEndTime > 0 && focusSessionEndTime <= Date.now()) {
+    creditElapsedFocusMinutes();
+    localStorage.removeItem('FOCUS_SESSION_END_TIME');
+    clearFocusSessionCreditState();
+    focusSessionEndTime = 0;
+    isFocusSessionActive = false;
+}
 var focusTimerInterval = null;
 var spiralAnimInterval = null;
 var speechPromptInterval = null;

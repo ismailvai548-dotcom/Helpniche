@@ -3,6 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 const ADMIN_CHAT_ID = Deno.env.get("TELEGRAM_ADMIN_CHAT_ID") || "";
+// Optional shared secret for webhook validation (H3). Only enforced when set,
+// so local testing without it keeps working.
+const TELEGRAM_WEBHOOK_SECRET = Deno.env.get("TELEGRAM_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SB_SERVICE_ROLE_KEY") || "";
 
@@ -29,7 +32,7 @@ async function hashSha256(text: string): Promise<string> {
 
 async function sendTelegramMessage(chatId: string | number, text: string, replyMarkup?: any) {
   if (!TELEGRAM_BOT_TOKEN || !chatId) {
-    console.error("sendTelegramMessage error: missing token or chatId", { TELEGRAM_BOT_TOKEN, chatId });
+    console.error("sendTelegramMessage error: missing token or chatId", { tokenConfigured: !!TELEGRAM_BOT_TOKEN, chatId });
     return false;
   }
   try {
@@ -70,6 +73,14 @@ serve(async (req) => {
       return new Response("Method Not Allowed", { status: 405 });
     }
 
+    // H3: validate the Telegram webhook shared secret when configured.
+    if (TELEGRAM_WEBHOOK_SECRET) {
+      const gotSecret = req.headers.get("x-telegram-bot-api-secret-token") || "";
+      if (gotSecret !== TELEGRAM_WEBHOOK_SECRET) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+    }
+
     const update = await req.json();
 
     // 1. Handle Callbacks from Admin Inline Keyboard
@@ -77,7 +88,9 @@ serve(async (req) => {
       const query = update.callback_query;
       const fromUserId = query.from ? query.from.id.toString() : "";
 
-      if (ADMIN_CHAT_ID && fromUserId !== ADMIN_CHAT_ID.toString()) {
+      // H2: fail CLOSED — when TELEGRAM_ADMIN_CHAT_ID is unset/empty, deny ALL
+      // admin actions instead of letting everyone through.
+      if (!ADMIN_CHAT_ID || fromUserId !== ADMIN_CHAT_ID) {
         await answerCallbackQuery(query.id, "❌ আপনার এই কাজটি করার অনুমতি নেই।", true);
         return new Response("OK");
       }
@@ -172,6 +185,8 @@ serve(async (req) => {
         const validityWindowMs = Math.max(durationMinutes * 60 * 1000, 30 * 60 * 1000);
         const expiresAt = new Date(Date.now() + validityWindowMs).toISOString();
 
+        // H7: never display or send a code that was NOT persisted. Fail loudly instead.
+        let codePersisted = false;
         try {
           const { error } = await supabase
             .from("unlock_codes")
@@ -185,9 +200,21 @@ serve(async (req) => {
               expires_at: expiresAt,
               created_by: "admin"
             });
-          if (error) console.error("Code Save DB Error:", error);
+          if (error) {
+            console.error("Code Save DB Error:", error);
+          } else {
+            codePersisted = true;
+          }
         } catch (e) {
           console.error("DB Insert Code Exception:", e);
+        }
+
+        if (!codePersisted) {
+          await answerCallbackQuery(query.id, "❌ ডাটাবেসে কোড সংরক্ষণ ব্যর্থ হয়েছে! কোড পাঠানো হয়নি।", true);
+          if (ADMIN_CHAT_ID) {
+            await sendTelegramMessage(ADMIN_CHAT_ID, `❌ <b>Unlock Code তৈরি ব্যর্থ</b>\n\n📱 <b>Device:</b> <code>${cleanDeviceId}</code>\n\n⚠️ কোডটি ডাটাবেসে সংরক্ষণ করা যায়নি, তাই ইউজারকে পাঠানো হয়নি।`);
+          }
+          return new Response("OK");
         }
 
         let userDelivered = false;
@@ -317,19 +344,51 @@ serve(async (req) => {
 
           // ALWAYS notify Admin directly in Telegram
           if (ADMIN_CHAT_ID) {
+            // Use the tiny cd:<dur>:<requestId> button format (<64 bytes, Telegram limit).
+            // Reuse the device's latest pending request, or create one if none exists.
+            let adminRequestId = "";
+            try {
+              const { data: pendingReq } = await supabase
+                .from("unlock_requests")
+                .select("id")
+                .eq("device_id", deviceId)
+                .eq("status", "pending")
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (pendingReq && pendingReq.id) {
+                adminRequestId = pendingReq.id;
+              } else {
+                const { data: newReq } = await supabase
+                  .from("unlock_requests")
+                  .insert({
+                    device_id: deviceId,
+                    device_name: deviceName || "Android Phone",
+                    telegram_chat_id: Number(userChatId) || null,
+                    reason: "টেলিগ্রাম সংযোগ থেকে অ্যাডমিন কোড",
+                    status: "pending"
+                  })
+                  .select("id")
+                  .maybeSingle();
+                if (newReq && newReq.id) adminRequestId = newReq.id;
+              }
+            } catch (e) {
+              console.error("DB Admin Request Lookup Error:", e);
+            }
+
             const adminNotice = `🔔 <b>Telegram User Connected</b>\n\n📱 <b>Device:</b> ${deviceName}\n🆔 <b>Device ID:</b> <code>${deviceId}</code>\n👤 <b>Telegram Chat ID:</b> <code>${userChatId}</code> (@${username || "none"})`;
-            const durationKeyboard = {
+            const durationKeyboard = adminRequestId ? {
               inline_keyboard: [
                 [
-                  { text: "⏱️ ৫ মিনিট", callback_data: `need_code:5::${userChatId}:${deviceId}` },
-                  { text: "⏱️ ১০ মিনিট", callback_data: `need_code:10::${userChatId}:${deviceId}` }
+                  { text: "⏱️ ৫ মিনিট", callback_data: `cd:5:${adminRequestId}` },
+                  { text: "⏱️ ১০ মিনিট", callback_data: `cd:10:${adminRequestId}` }
                 ],
                 [
-                  { text: "⏱️ ৩০ মিনিট", callback_data: `need_code:30::${userChatId}:${deviceId}` },
-                  { text: "♾️ পার্মানেন্ট", callback_data: `need_code:perm::${userChatId}:${deviceId}` }
+                  { text: "⏱️ ৩০ মিনিট", callback_data: `cd:30:${adminRequestId}` },
+                  { text: "♾️ পার্মানেন্ট", callback_data: `cd:perm:${adminRequestId}` }
                 ]
               ]
-            };
+            } : undefined;
 
             await sendTelegramMessage(ADMIN_CHAT_ID, adminNotice, durationKeyboard);
           }

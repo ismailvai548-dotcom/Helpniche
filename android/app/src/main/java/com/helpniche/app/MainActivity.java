@@ -223,6 +223,19 @@ public class MainActivity extends BridgeActivity {
                     case 5:
                         requestBatteryOptimizationBypass();
                         break;
+                    // H15: wire the previously dead permission requests into the
+                    // onboarding step sequence. Steps 6/7/8 match the existing
+                    // REQUEST_CODE_OVERLAY(106) / REQUEST_CODE_EXACT_ALARM(108) /
+                    // REQUEST_CODE_FULL_SCREEN(109) handling in onActivityResult.
+                    case 6:
+                        requestOverlayPermission();
+                        break;
+                    case 7:
+                        requestExactAlarmPermission();
+                        break;
+                    case 8:
+                        requestFullScreenIntentPermission();
+                        break;
                     default:
                         Log.w(TAG, "Unknown permission step requested: " + step);
                 }
@@ -371,6 +384,7 @@ public class MainActivity extends BridgeActivity {
     private void requestOverlayPermission() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                hasPromptedOverlayPermission = true;
                 Toast.makeText(this, "'Display over other apps' পারমিশন অন করুন", Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName()));
@@ -384,6 +398,7 @@ public class MainActivity extends BridgeActivity {
     private void requestExactAlarmPermission() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                hasPromptedExactAlarmPermission = true;
                 Toast.makeText(this, "সঠিক সময়ে অ্যালার্ম বাজার জন্য 'Alarms & Reminders' পারমিশন অন করুন", Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
                         Uri.parse("package:" + getPackageName()));
@@ -397,6 +412,7 @@ public class MainActivity extends BridgeActivity {
     private void requestFullScreenIntentPermission() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                hasPromptedFullScreenIntentPermission = true;
                 Toast.makeText(this, "লক স্ক্রিনে ফুল স্ক্রিন অ্যালার্ম দেখানোর জন্য 'Full screen notifications' পারমিশন অন করুন", Toast.LENGTH_LONG).show();
                 Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
                         Uri.parse("package:" + getPackageName()));

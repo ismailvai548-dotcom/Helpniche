@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "start": "node server.js"
   },
+  "dist_hand_maintained_note": "dist/ is the HAND-WRITTEN shipped app (Capacitor webDir), NOT vite build output. 'npm run build' only syncs dist/ into the Android project. Do NOT run 'vite build' and do NOT enable emptyOutDir in vite.config.js — it would wipe dist/.",
   "dependencies": {
     "@capacitor/android": "^8.5.1",
     "@capacitor/cli": "^8.5.1",

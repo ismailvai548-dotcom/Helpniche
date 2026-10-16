@@ -73,6 +73,34 @@ CREATE POLICY "service_role_all_unlock_codes" ON public.unlock_codes
 CREATE POLICY "anon_insert_unlock_requests" ON public.unlock_requests
     FOR INSERT TO anon WITH CHECK (true);
 
+-- 5b. Donations table: restrictive RLS (H1 — donor PII protection).
+-- Anon: INSERT-only. No SELECT/UPDATE/DELETE policy for anon or authenticated,
+-- so donation rows (TrxID + sender hash) are never publicly readable.
+-- Service role keeps full access.
+ALTER TABLE public.donations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_role_all_donations" ON public.donations
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "anon_insert_donations" ON public.donations
+    FOR INSERT TO anon WITH CHECK (true);
+
+-- 5c. Per-device OTP rate-limit state for verify-unlock-code (H5).
+-- Only the edge function (service role) touches this table: no anon or
+-- authenticated policies at all.
+CREATE TABLE IF NOT EXISTS public.unlock_attempts (
+    device_id TEXT PRIMARY KEY,
+    failed_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE public.unlock_attempts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "service_role_all_unlock_attempts" ON public.unlock_attempts
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
 -- 6. Atomic Code Verification & Consumption Function
 CREATE OR REPLACE FUNCTION public.consume_unlock_code(
     p_device_id TEXT,

@@ -1,6 +1,7 @@
 package com.helpniche.app;
 
 import android.app.AlarmManager;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -523,12 +524,33 @@ public class UnlockPlugin extends Plugin {
             boolean accessibility = isAccessibilityServiceEnabled();
             boolean battery = isIgnoringBatteryOptimizations();
 
+            // H15: alarm-related permission states for the onboarding guide (steps 6-8)
+            boolean overlayGranted = true;
+            boolean exactAlarmGranted = true;
+            boolean fullScreenIntentGranted = true;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    overlayGranted = Settings.canDrawOverlays(ctx);
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                    exactAlarmGranted = am == null || am.canScheduleExactAlarms();
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+                    fullScreenIntentGranted = nm == null || nm.canUseFullScreenIntent();
+                }
+            } catch (Exception ignored) {}
+
             JSObject ret = new JSObject();
             ret.put("vpnGranted", vpn);
             ret.put("adminActive", admin);
             ret.put("restrictedSettingsDone", restrictedDone);
             ret.put("accessibilityEnabled", accessibility);
             ret.put("batteryBypassed", battery);
+            ret.put("overlayGranted", overlayGranted);
+            ret.put("exactAlarmGranted", exactAlarmGranted);
+            ret.put("fullScreenIntentGranted", fullScreenIntentGranted);
             ret.put("sdkInt", Build.VERSION.SDK_INT);
             call.resolve(ret);
         } catch (Exception e) {
@@ -609,6 +631,56 @@ public class UnlockPlugin extends Plugin {
                                 ctx.startActivity(fallback);
                             }
                         } catch (Exception ignored) {}
+                    }
+                }
+            } else if (step == 6) {
+                // H15: Overlay ("Display over other apps") permission — matches
+                // MainActivity REQUEST_CODE_OVERLAY (106) handled in onActivityResult.
+                try {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + ctx.getPackageName()));
+                    if (getActivity() != null) {
+                        getActivity().startActivityForResult(intent, 106);
+                    } else {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        ctx.startActivity(intent);
+                    }
+                } catch (Exception ex) {
+                    Log.e(TAG, "Error requesting overlay permission", ex);
+                }
+            } else if (step == 7) {
+                // H15: Exact alarm ("Alarms & reminders") permission — matches
+                // MainActivity REQUEST_CODE_EXACT_ALARM (108).
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                Uri.parse("package:" + ctx.getPackageName()));
+                        if (getActivity() != null) {
+                            getActivity().startActivityForResult(intent, 108);
+                        } else {
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            ctx.startActivity(intent);
+                        }
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Error requesting exact alarm permission", ex);
+                    }
+                }
+            } else if (step == 8) {
+                // H15: Full-screen intent permission (Android 14+) — matches
+                // MainActivity REQUEST_CODE_FULL_SCREEN (109). Without this the
+                // alarm full-screen intent is silently downgraded on the lockscreen.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    try {
+                        Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                Uri.parse("package:" + ctx.getPackageName()));
+                        if (getActivity() != null) {
+                            getActivity().startActivityForResult(intent, 109);
+                        } else {
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            ctx.startActivity(intent);
+                        }
+                    } catch (Exception ex) {
+                        Log.e(TAG, "Error requesting full screen intent permission", ex);
                     }
                 }
             }

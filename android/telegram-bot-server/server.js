@@ -355,7 +355,10 @@ bot.action(/^dev_ctrl_(.+)$/, async (ctx) => {
 });
 
 // রিমোট কমান্ড এক্সিকিউশন হ্যান্ডলার
-bot.action(/^cmd_exec_([^_]+)_(.+)$/, async (ctx) => {
+// H9: anchor on the known command SUFFIX — device ids may contain '_' themselves,
+// and the old ([^_]+) capture truncated them, mis-targeting remote commands at the
+// wrong device. Longest suffixes first so CMD_SIREN_STOP wins over CMD_SIREN.
+bot.action(/^cmd_exec_(.+)_(CMD_SIREN_STOP|CMD_SIREN|CMD_LOCATION|CMD_INTRUDER_PHOTO|CMD_TORCH_ON|CMD_TORCH_OFF|CMD_BACKUP_CONTACTS)$/, async (ctx) => {
     if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) return ctx.answerCbQuery("অননুমোদিত!");
     const deviceId = ctx.match[1].toLowerCase();
     const command = ctx.match[2];
@@ -377,7 +380,7 @@ bot.action(/^cmd_exec_([^_]+)_(.+)$/, async (ctx) => {
         const { error } = await supabase.from('unlock_requests').insert({
             device_id: deviceId,
             reason: command,
-            status: 'PENDING',
+            status: 'pending',
             device_name: 'Security Recovery'
         });
 
@@ -420,7 +423,9 @@ bot.action('admin_view_device_status', async (ctx) => {
 });
 
 // ২. ইনলাইন বাটন ক্লিকের অ্যাকশন হ্যান্ডলার (আনলক কোড তৈরি)
-bot.action(/^(unlock_5|unlock_10|unlock_perm|reject)_([^_]+)_([^_]+)$/, async (ctx) => {
+// H9: the trailing segment is the numeric Telegram user id; capture the device id
+// greedily in the middle so device ids containing '_' survive intact.
+bot.action(/^(unlock_5|unlock_10|unlock_perm|reject)_(.+)_(\d+)$/, async (ctx) => {
     try {
         const action = ctx.match[1];
         const deviceId = ctx.match[2];

@@ -47,8 +47,8 @@ public class AlarmOverlayService extends Service {
     private final Runnable autoMuteRunnable = new Runnable() {
         @Override
         public void run() {
-            Log.i(TAG, "Unattended alarm timeout (60s) reached. Auto-muting and scheduling 2-min snooze...");
-            performSnoozeTwoMinutes();
+            Log.i(TAG, "Unattended alarm timeout (60s) reached. Auto-muting and rescheduling for next day...");
+            performAutoMuteDismiss();
         }
     };
 
@@ -327,10 +327,17 @@ public class AlarmOverlayService extends Service {
         }
     }
 
-    private void performSnoozeTwoMinutes() {
+    /**
+     * H16: Unattended auto-mute path. Previously this scheduled a 2-minute snooze
+     * without advancing to the next day, so the alarm re-fired every 2 minutes
+     * forever. Now a missed alarm is treated like a user dismissal: audio stops
+     * and the alarm is rescheduled for its next daily occurrence (or disabled if
+     * one-time) via scheduleNextDayAlarm().
+     */
+    private void performAutoMuteDismiss() {
         stopAudioAndCleanup();
-        AlarmManagerHelper.scheduleSnoozeAlarm(this, originalAlarmId, titleStr, timeStr, audioTypeStr);
-        Toast.makeText(this, "২ মিনিট পর আবার ডাকবে।", Toast.LENGTH_SHORT).show();
+        AlarmManagerHelper.scheduleNextDayAlarm(this, originalAlarmId);
+        Toast.makeText(this, "অ্যালার্ম মিস হয়েছে। পরের বার নির্ধারিত সময়ে ডাকবে।", Toast.LENGTH_SHORT).show();
         stopSelf();
     }
 
