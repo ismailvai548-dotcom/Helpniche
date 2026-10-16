@@ -389,12 +389,12 @@ function bindSettingsTabEvents() {
     if (btnToggleIntruder) {
         btnToggleIntruder.onclick = async () => {
             if (!isIntruderEnabled) {
-                // সরাসরি ক্যামেরা ও লোকেশন পারমিশন চাওয়া (টেলিগ্রাম চ্যাট আইডি বাধ্যতামূলক নয়)
+                // ১. শুধুমাত্র ক্যামেরা পারমিশন চাওয়া
                 if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
                     try {
                         await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
                     } catch(e) {
-                        console.error("Failed to request camera/location permission:", e);
+                        console.error("Failed to request camera permission:", e);
                     }
                 }
 
@@ -414,19 +414,35 @@ function bindSettingsTabEvents() {
                     }
                 }
 
-                // সেফটি চেক: যদি অ্যান্ড্রয়েড ১১+ এর কারণে সিস্টেম ডায়ালগ শো না হয়ে সরাসরি পারমিশন আটকে থাকে
+                // সেফটি চেক: ক্যামেরা পারমিশন এবং ডিভাইস অ্যাডমিন যাচাই
                 setTimeout(async () => {
                     if (window.Capacitor?.Plugins?.UnlockPlugin?.getIntruderSettings) {
                         try {
                             const check = await window.Capacitor.Plugins.UnlockPlugin.getIntruderSettings();
+                            
+                            // ক্যামেরা পারমিশন চেক
                             if (check && check.hasCameraPermission === false) {
-                                if (confirm("ক্যামেরা পারমিশন চালু হয়নি। ফোনের অ্যাপ সেটিংস থেকে ক্যামেরা পারমিশন এলাও করতে চান?")) {
+                                if (confirm("ক্যামেরা পারমিশন চালু হয়নি। অনুপ্রবেশকারী ছবি তোলার জন্য ক্যামেরা পারমিশন আবশ্যক। ফোনের অ্যাপ সেটিংস থেকে ক্যামেরা পারমিশন এলাও করতে চান?")) {
                                     if (window.Capacitor?.Plugins?.UnlockPlugin?.openAppSettings) {
                                         await window.Capacitor.Plugins.UnlockPlugin.openAppSettings();
                                     }
                                 }
+                                return;
                             }
-                        } catch(e) {}
+
+                            // ডিভাইস অ্যাডমিন পারমিশন চেক
+                            if (check && check.isAdminActive === false) {
+                                if (confirm("লক স্ক্রিনে ভুল পাসওয়ার্ড দিলে স্বয়ংক্রিয় ছবি তোলার জন্য 'ডিভাইস অ্যাডমিন' পারমিশন দেওয়া আবশ্যক। আপনি কি ডিভাইস অ্যাডমিন সুরক্ষা সক্রিয় করতে চান?")) {
+                                    if (window.Capacitor?.Plugins?.UnlockPlugin?.requestDeviceAdminPermission) {
+                                        await window.Capacitor.Plugins.UnlockPlugin.requestDeviceAdminPermission();
+                                    } else if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
+                                        await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
+                                    }
+                                }
+                            }
+                        } catch(e) {
+                            console.error("Settings verification error:", e);
+                        }
                     }
                 }, 700);
             } else {
@@ -463,6 +479,11 @@ function bindSettingsTabEvents() {
             if (intruderPermDialog) {
                 intruderPermDialog.style.display = 'flex';
             }
+
+            // ব্যাকআপ ডায়ালগে লোকেশন পারমিশন চাওয়া (টেলিগ্রাম রিপোর্টে লোকেশন পাঠানোর জন্য)
+            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestLocationPermission) {
+                window.Capacitor.Plugins.UnlockPlugin.requestLocationPermission().catch(() => {});
+            }
         };
     }
 
@@ -484,6 +505,13 @@ function bindSettingsTabEvents() {
                 }
                 if (modalIntruderChatId) modalIntruderChatId.focus();
                 return;
+            }
+
+            // ব্যাকআপ সেভ করার সময় লোকেশন পারমিশন চাওয়া
+            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestLocationPermission) {
+                try {
+                    await window.Capacitor.Plugins.UnlockPlugin.requestLocationPermission();
+                } catch(e) {}
             }
 
             if (modalChatIdError) modalChatIdError.style.display = 'none';
