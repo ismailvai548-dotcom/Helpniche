@@ -2,13 +2,13 @@ package com.helpniche.app;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.NotificationManager;
+import android.content.ContentValues;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.ImageFormat;
+import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -17,11 +17,8 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.params.StreamConfigurationMap;
-import android.location.Location;
-import android.location.LocationManager;
 import android.media.Image;
 import android.media.ImageReader;
-import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,26 +33,16 @@ import android.view.WindowManager;
 import androidx.core.content.ContextCompat;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.ByteBuffer;
-import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 
 public class IntruderCaptureActivity extends Activity {
 
     private static final String TAG = "IntruderCapture";
-    private static final String DEFAULT_BOT_TOKEN = "8808381690:AAH0wNxbtraOhxP6q3v7mQuqfhCQHXX6EMM";
 
     private HandlerThread backgroundThread = null;
     private Handler backgroundHandler = null;
@@ -75,12 +62,8 @@ public class IntruderCaptureActivity extends Activity {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true);
-            setTurnScreenOn(true);
         } else {
-            getWindow().addFlags(
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-            );
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED);
         }
 
         getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
@@ -102,8 +85,8 @@ public class IntruderCaptureActivity extends Activity {
         lp.y = 0;
         getWindow().setAttributes(lp);
 
-        // সেফগার্ড: সর্বোচ্চ ৮ সেকেন্ডের মধ্যে ফ্রেম না পেলে বন্ধ হবে
-        mainHandler.postDelayed(timeoutRunnable, 8000);
+        // সেফগার্ড: কোনো কারণে ক্যামেরা ব্যস্ত থাকলে সর্বোচ্চ ৩ সেকেন্ড পর অ্যাক্টিভিটি শেষ হবে
+        mainHandler.postDelayed(timeoutRunnable, 3000);
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             Log.w(TAG, "Camera permission not granted for intruder capture.");
@@ -143,7 +126,7 @@ public class IntruderCaptureActivity extends Activity {
                 }
             }
 
-            // যদি ফ্রন্ট ক্যামেরা না পাওয়া যায়, তবে প্রথম ক্যামেরা ব্যবহার
+            // যদি ফ্রন্ট ক্যামেরা না পাওয়া যায়, তবে ব্যাক ক্যামেরা ব্যবহার করা
             if (targetCameraId == null && manager.getCameraIdList().length > 0) {
                 targetCameraId = manager.getCameraIdList()[0];
             }
@@ -160,9 +143,8 @@ public class IntruderCaptureActivity extends Activity {
             if (map != null) {
                 Size[] jpegSizes = map.getOutputSizes(ImageFormat.JPEG);
                 if (jpegSizes != null && jpegSizes.length > 0) {
-                    captureSize = jpegSizes[0];
                     for (Size s : jpegSizes) {
-                        if (s.getWidth() <= 1280 && s.getHeight() <= 720 && s.getWidth() >= 480) {
+                        if (s.getWidth() <= 1280 && s.getHeight() <= 720) {
                             captureSize = s;
                             break;
                         }
@@ -171,19 +153,16 @@ public class IntruderCaptureActivity extends Activity {
             }
 
             final int finalOrientation = sensorOrientation;
-            final CameraCharacteristics finalChars = characteristics;
-
             imageReader = ImageReader.newInstance(captureSize.getWidth(), captureSize.getHeight(), ImageFormat.JPEG, 2);
             imageReader.setOnImageAvailableListener(reader -> {
                 Image image = null;
-                File savedFile = null;
                 try {
                     image = reader.acquireLatestImage();
                     if (image != null) {
                         ByteBuffer buffer = image.getPlanes()[0].getBuffer();
                         byte[] bytes = new byte[buffer.remaining()];
                         buffer.get(bytes);
-                        savedFile = saveCapturedPhoto(bytes);
+                        saveCapturedPhoto(bytes);
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error acquiring image", e);
@@ -191,11 +170,6 @@ public class IntruderCaptureActivity extends Activity {
                     if (image != null) {
                         try { image.close(); } catch (Exception ignored) {}
                     }
-                }
-
-                if (savedFile != null && savedFile.exists()) {
-                    dispatchTelegramAlert(savedFile);
-                } else {
                     cleanupAndFinish();
                 }
             }, backgroundHandler);
@@ -204,7 +178,7 @@ public class IntruderCaptureActivity extends Activity {
                 @Override
                 public void onOpened(CameraDevice camera) {
                     cameraDevice = camera;
-                    takePictureSession(finalChars, finalOrientation);
+                    takePictureSession(finalOrientation);
                 }
 
                 @Override
@@ -225,7 +199,7 @@ public class IntruderCaptureActivity extends Activity {
         }
     }
 
-    private void takePictureSession(CameraCharacteristics characteristics, int jpegOrientation) {
+    private void takePictureSession(int jpegOrientation) {
         if (cameraDevice == null || imageReader == null) {
             cleanupAndFinish();
             return;
@@ -241,24 +215,7 @@ public class IntruderCaptureActivity extends Activity {
                         CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(imageReader.getSurface());
                         builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-
-                        // ফ্রন্ট ক্যামেরায় অটোফোকাস সাপোর্ট থাকলে সেট করা, না থাকলে OFF
-                        int[] afModes = characteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
-                        boolean hasAf = false;
-                        if (afModes != null) {
-                            for (int m : afModes) {
-                                if (m == CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE) {
-                                    hasAf = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (hasAf) {
-                            builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-                        } else {
-                            builder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF);
-                        }
-
+                        builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
                         builder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
                         builder.set(CaptureRequest.JPEG_ORIENTATION, jpegOrientation);
                         session.capture(builder.build(), null, backgroundHandler);
@@ -270,7 +227,6 @@ public class IntruderCaptureActivity extends Activity {
 
                 @Override
                 public void onConfigureFailed(CameraCaptureSession session) {
-                    Log.e(TAG, "Capture session configure failed");
                     cleanupAndFinish();
                 }
             }, backgroundHandler);
@@ -280,18 +236,18 @@ public class IntruderCaptureActivity extends Activity {
         }
     }
 
-    private File saveCapturedPhoto(byte[] data) {
+    private void saveCapturedPhoto(byte[] data) {
         try {
             File dir = new File(getFilesDir(), "intruder_logs");
             if (!dir.exists()) {
                 dir.mkdirs();
             }
 
-            // সর্বোচ্চ ৫০টি ছবি রাখা হবে
+            // অটো-রিসাইকেল: সর্বোচ্চ ১০টি ছবি রাখা হবে, অতিরিক্ত ছবি থাকলে পুরনো ছবি মুছে যাবে
             File[] existing = dir.listFiles();
-            if (existing != null && existing.length >= 50) {
+            if (existing != null && existing.length >= 10) {
                 Arrays.sort(existing, Comparator.comparingLong(File::lastModified));
-                for (int i = 0; i <= existing.length - 50; i++) {
+                for (int i = 0; i <= existing.length - 10; i++) {
                     existing[i].delete();
                 }
             }
@@ -302,146 +258,46 @@ public class IntruderCaptureActivity extends Activity {
                 fos.write(data);
                 fos.flush();
             }
-            Log.i(TAG, "Intruder photo saved internally: " + photoFile.getAbsolutePath());
+            Log.i(TAG, "Intruder photo saved locally: " + photoFile.getAbsolutePath());
 
-            File noMedia = new File(dir, ".nomedia");
-            if (!noMedia.exists()) {
-                try { noMedia.createNewFile(); } catch (Exception ignored) {}
+            // ফোনের সাধারণ গ্যালারি ও মেমোরি ফোল্ডারেও (Pictures/Helpniche) সংরক্ষণ করা
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, photoName);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Helpniche");
+                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+                    Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri != null) {
+                        try (java.io.OutputStream out = getContentResolver().openOutputStream(uri)) {
+                            if (out != null) {
+                                out.write(data);
+                                out.flush();
+                            }
+                        }
+                        values.clear();
+                        values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                        getContentResolver().update(uri, values, null, null);
+                        Log.i(TAG, "Photo successfully saved to phone storage via MediaStore");
+                    }
+                } else {
+                    File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+                    File helpnicheDir = new File(picturesDir, "Helpniche");
+                    if (!helpnicheDir.exists()) helpnicheDir.mkdirs();
+                    File pubFile = new File(helpnicheDir, photoName);
+                    try (FileOutputStream fos = new FileOutputStream(pubFile)) {
+                        fos.write(data);
+                        fos.flush();
+                    }
+                    Log.i(TAG, "Photo successfully saved to phone storage: " + pubFile.getAbsolutePath());
+                }
+            } catch (Exception pubEx) {
+                Log.w(TAG, "Could not save to public pictures folder: " + pubEx.getMessage());
             }
-
-            return photoFile;
         } catch (Exception e) {
             Log.e(TAG, "Failed to save intruder photo", e);
-            return null;
         }
-    }
-
-    private void dispatchTelegramAlert(File photoFile) {
-        new Thread(() -> {
-            try {
-                SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-                String userChatId = prefs.getString("intruder_telegram_chat_id", "");
-                if (userChatId == null || userChatId.trim().isEmpty()) {
-                    SharedPreferences altPrefs = getSharedPreferences("FocusDuroodPrefs", Context.MODE_PRIVATE);
-                    userChatId = altPrefs.getString("intruder_telegram_chat_id", "");
-                }
-
-                // যদি টেলিগ্রাম আইডি কনফিগার করা না থাকে, তবে শুধু ফোনে সেভ থাকবে
-                if (userChatId == null || userChatId.trim().isEmpty()) {
-                    cleanupAndFinish();
-                    return;
-                }
-
-                String deviceId = prefs.getString("custom_device_id", "");
-                if (deviceId.isEmpty()) {
-                    deviceId = android.provider.Settings.Secure.getString(getContentResolver(), android.provider.Settings.Secure.ANDROID_ID);
-                }
-                if (deviceId == null || deviceId.isEmpty()) deviceId = "UNKNOWN";
-
-                int batteryPercent = -1;
-                try {
-                    Intent batteryIntent = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-                    if (batteryIntent != null) {
-                        int level = batteryIntent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-                        int scale = batteryIntent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-                        if (level >= 0 && scale > 0) batteryPercent = (level * 100) / scale;
-                    }
-                } catch (Exception ignored) {}
-
-                String mapsUrl = "";
-                double latitude = 0.0;
-                double longitude = 0.0;
-                try {
-                    LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-                    if (lm != null) {
-                        List<String> providers = lm.getAllProviders();
-                        if (providers != null) {
-                            Location best = null;
-                            for (String p : providers) {
-                                try {
-                                    Location l = lm.getLastKnownLocation(p);
-                                    if (l != null && (best == null || l.getTime() > best.getTime())) {
-                                        best = l;
-                                    }
-                                } catch (SecurityException ignored) {}
-                            }
-                            if (best != null) {
-                                latitude = best.getLatitude();
-                                longitude = best.getLongitude();
-                                mapsUrl = "https://www.google.com/maps?q=" + latitude + "," + longitude;
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {}
-
-                String timeStr = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-                StringBuilder caption = new StringBuilder();
-                caption.append("সতর্কতা: অবৈধ আনলক চেষ্টা (অনুপ্রবেশকারী)\n\n");
-                caption.append("ডিভাইস আইডি: #HN_").append(deviceId.toUpperCase()).append("\n");
-                caption.append("তারিখ ও সময়: ").append(timeStr).append("\n");
-                if (batteryPercent >= 0) caption.append("ব্যাটারি চার্জ: ").append(batteryPercent).append("%\n");
-                if (!mapsUrl.isEmpty()) {
-                    caption.append("\nগুগল ম্যাপ লোকেশন:\n").append(mapsUrl);
-                }
-
-                String customBot = prefs.getString("intruder_telegram_bot_token", "");
-                String targetBotToken = (customBot != null && !customBot.trim().isEmpty()) ? customBot.trim() : DEFAULT_BOT_TOKEN;
-                String targetChatId = userChatId.trim();
-
-                String boundary = "===" + System.currentTimeMillis() + "===";
-                String LINE_FEED = "\r\n";
-                URL url = new URL("https://api.telegram.org/bot" + targetBotToken + "/sendPhoto");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setUseCaches(false);
-                conn.setDoOutput(true);
-                conn.setDoInput(true);
-                conn.setRequestMethod("POST");
-                conn.setConnectTimeout(8000);
-                conn.setReadTimeout(8000);
-                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
-
-                try (OutputStream outputStream = conn.getOutputStream();
-                     PrintWriter writer = new PrintWriter(new OutputStreamWriter(outputStream, "UTF-8"), true)) {
-
-                    writer.append("--").append(boundary).append(LINE_FEED);
-                    writer.append("Content-Disposition: form-data; name=\"chat_id\"").append(LINE_FEED);
-                    writer.append("Content-Type: text/plain; charset=UTF-8").append(LINE_FEED).append(LINE_FEED);
-                    writer.append(targetChatId).append(LINE_FEED);
-                    writer.flush();
-
-                    writer.append("--").append(boundary).append(LINE_FEED);
-                    writer.append("Content-Disposition: form-data; name=\"caption\"").append(LINE_FEED);
-                    writer.append("Content-Type: text/plain; charset=UTF-8").append(LINE_FEED).append(LINE_FEED);
-                    writer.append(caption.toString()).append(LINE_FEED);
-                    writer.flush();
-
-                    writer.append("--").append(boundary).append(LINE_FEED);
-                    writer.append("Content-Disposition: form-data; name=\"photo\"; filename=\"").append(photoFile.getName()).append("\"").append(LINE_FEED);
-                    writer.append("Content-Type: image/jpeg").append(LINE_FEED).append(LINE_FEED);
-                    writer.flush();
-
-                    try (FileInputStream fis = new FileInputStream(photoFile)) {
-                        byte[] buffer = new byte[4096];
-                        int bytesRead;
-                        while ((bytesRead = fis.read(buffer)) != -1) {
-                            outputStream.write(buffer, 0, bytesRead);
-                        }
-                        outputStream.flush();
-                    }
-
-                    writer.append(LINE_FEED).flush();
-                    writer.append("--").append(boundary).append("--").append(LINE_FEED).flush();
-                }
-
-                int code = conn.getResponseCode();
-                Log.i(TAG, "Telegram sendPhoto response: " + code);
-
-            } catch (Exception e) {
-                Log.e(TAG, "Error in dispatchTelegramAlert", e);
-            } finally {
-                cleanupAndFinish();
-            }
-        }).start();
     }
 
     private synchronized void cleanupAndFinish() {
@@ -471,14 +327,6 @@ public class IntruderCaptureActivity extends Activity {
             backgroundThread = null;
             backgroundHandler = null;
         }
-
-        // নোটিফিকেশন থাকলে বন্ধ করা
-        try {
-            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm != null) {
-                nm.cancel(8821);
-            }
-        } catch (Exception ignored) {}
 
         runOnUiThread(() -> {
             finish();

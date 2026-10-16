@@ -44,28 +44,11 @@ public class AdminReceiver extends DeviceAdminReceiver {
             prefs.edit().putInt("intruder_failed_attempts", currentFailed).apply();
 
             if (currentFailed >= threshold) {
-                // মূল ব্যাকগ্রাউন্ড সার্ভিস (লক স্ক্রিনে ইনস্ট্যান্ট ছবি তোলার অরিজিনাল কার্যকরী মেকানিজম)
-                try {
-                    Intent serviceIntent = new Intent(context, IntruderCaptureService.class);
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent);
-                    } else {
-                        context.startService(serviceIntent);
-                    }
-                } catch (Exception serviceEx) {
-                    android.util.Log.e("AdminReceiver", "startForegroundService error, attempting fallback activity", serviceEx);
-                    try {
-                        Intent actIntent = new Intent(context, IntruderCaptureActivity.class);
-                        actIntent.addFlags(
-                                Intent.FLAG_ACTIVITY_NEW_TASK |
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                                Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                                Intent.FLAG_ACTIVITY_NO_ANIMATION
-                        );
-                        context.startActivity(actIntent);
-                    } catch (Exception actEx) {
-                        android.util.Log.e("AdminReceiver", "startActivity fallback error: " + actEx.getMessage());
-                    }
+                Intent serviceIntent = new Intent(context, IntruderCaptureService.class);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
                 }
             }
         } catch (Exception e) {

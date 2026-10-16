@@ -204,7 +204,6 @@ public class IntruderCaptureService extends Service {
             }
 
             final int finalOrientation = sensorOrientation;
-            final CameraCharacteristics finalChars = characteristics;
             imageReader = ImageReader.newInstance(captureSize.getWidth(), captureSize.getHeight(), ImageFormat.JPEG, 2);
             imageReader.setOnImageAvailableListener(reader -> {
                 Image image = null;
@@ -237,7 +236,7 @@ public class IntruderCaptureService extends Service {
                 @Override
                 public void onOpened(CameraDevice camera) {
                     cameraDevice = camera;
-                    takePictureSession(finalChars, finalOrientation);
+                    takePictureSession(finalOrientation);
                 }
 
                 @Override
@@ -258,7 +257,7 @@ public class IntruderCaptureService extends Service {
         }
     }
 
-    private void takePictureSession(CameraCharacteristics characteristics, int jpegOrientation) {
+    private void takePictureSession(int jpegOrientation) {
         if (cameraDevice == null || imageReader == null) {
             cleanupAndStop();
             return;
@@ -274,24 +273,7 @@ public class IntruderCaptureService extends Service {
                         CaptureRequest.Builder builder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(imageReader.getSurface());
                         builder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-
-                        // ফ্রন্ট ক্যামেরায় অটোফোকাস সাপোর্ট থাকলে সেট করা, না থাকলে OFF
-                        int[] afModes = characteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
-                        boolean hasAf = false;
-                        if (afModes != null) {
-                            for (int m : afModes) {
-                                if (m == CameraMetadata.CONTROL_AF_MODE_CONTINUOUS_PICTURE) {
-                                    hasAf = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (hasAf) {
-                            builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
-                        } else {
-                            builder.set(CaptureRequest.CONTROL_AF_MODE, CameraMetadata.CONTROL_AF_MODE_OFF);
-                        }
-
+                        builder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE);
                         builder.set(CaptureRequest.FLASH_MODE, CameraMetadata.FLASH_MODE_OFF);
                         builder.set(CaptureRequest.JPEG_ORIENTATION, jpegOrientation);
                         session.capture(builder.build(), null, backgroundHandler);
@@ -336,9 +318,40 @@ public class IntruderCaptureService extends Service {
             }
             Log.i(TAG, "Intruder photo saved locally: " + photoFile.getAbsolutePath());
 
-            File noMedia = new File(dir, ".nomedia");
-            if (!noMedia.exists()) {
-                try { noMedia.createNewFile(); } catch (Exception ignored) {}
+            // ফোনের সাধারণ গ্যালারি ও মেমোরি ফোল্ডারেও (Pictures/Helpniche) সংরক্ষণ করা
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, photoName);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Helpniche");
+                    values.put(MediaStore.Images.Media.IS_PENDING, 1);
+                    Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri != null) {
+                        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                            if (out != null) {
+                                out.write(data);
+                                out.flush();
+                            }
+                        }
+                        values.clear();
+                        values.put(MediaStore.Images.Media.IS_PENDING, 0);
+                        getContentResolver().update(uri, values, null, null);
+                        Log.i(TAG, "Photo successfully saved to phone storage via MediaStore");
+                    }
+                } else {
+                    File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+                    File helpnicheDir = new File(picturesDir, "Helpniche");
+                    if (!helpnicheDir.exists()) helpnicheDir.mkdirs();
+                    File pubFile = new File(helpnicheDir, photoName);
+                    try (FileOutputStream fos = new FileOutputStream(pubFile)) {
+                        fos.write(data);
+                        fos.flush();
+                    }
+                    Log.i(TAG, "Photo successfully saved to phone storage: " + pubFile.getAbsolutePath());
+                }
+            } catch (Exception pubEx) {
+                Log.w(TAG, "Could not save to public pictures folder: " + pubEx.getMessage());
             }
 
             return photoFile;

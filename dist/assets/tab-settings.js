@@ -2,27 +2,9 @@
    TAB 5: SETTINGS & SECURITY (Fully Synchronized with Supabase)
    ========================================================================== */
 
-// Security Vault: Masked dynamic credential resolver
-const _SEC_PART_A = [72, 51, 108, 112, 78, 49, 99, 104, 51, 95];
-const _SEC_PART_B = [83, 51, 99, 117, 114, 49, 116, 121, 95];
-const _SEC_PART_C = [77, 52, 115, 116, 51, 114, 95, 75, 51, 121];
-
-function _resolveSecVal(byteSeq) {
-    const k = String.fromCharCode(..._SEC_PART_A, ..._SEC_PART_B, ..._SEC_PART_C);
-    let out = '';
-    for (let i = 0; i < byteSeq.length; i++) {
-        out += String.fromCharCode(byteSeq[i] ^ k.charCodeAt(i % k.length) ^ (i + 42));
-    }
-    return out;
-}
-
-const _ENC_T_BYTES = [90,32,112,101,83,38,98,111,56,92,93,71,20,10,122,127,0,58,23,2,107,3,92,10,96,42,126,69,73,56,22,116,79,116,27,70,101,45,71,90,57,6,100,106,42];
-const _ENC_A_BYTES = [84,42,119,108,86,47,98,105,49,85];
-const _ENC_U_BYTES = [10,125,44,45,14,119,48,49,100,51,5,105,33];
-
-const TELEGRAM_BOT_USERNAME = _resolveSecVal(_ENC_U_BYTES);
-const TELEGRAM_BOT_TOKEN = _resolveSecVal(_ENC_T_BYTES);
-const ADMIN_CHAT_ID = _resolveSecVal(_ENC_A_BYTES);
+const TELEGRAM_BOT_USERNAME = "helpniche_bot";
+const TELEGRAM_BOT_TOKEN = atob("ODgwODM4MTY5MDpBQUgwd054YnRyYU9oeFA2cTN2N21RdXFmaENRSFhYNkVNTQ==");
+const ADMIN_CHAT_ID = atob("NjI3MTYxMTAwOQ==");
 const SUPABASE_PROJECT_URL = "https://dlxmzzvcpoysoouakadt.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
 
@@ -107,10 +89,6 @@ function renderSettingsTab() {
                         <button id="btn-view-intruder-logs" style="padding:10px 8px; background:rgba(244, 63, 94, 0.15); border:1px solid rgba(244, 63, 94, 0.4); color:#fda4af; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font-family:'Kalpurush', 'SolaimanLipi', sans-serif;">
                             <svg class="svg-icon" viewBox="0 0 24 24" style="width:15px; height:15px;"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z"/></svg>
                             <span>সংরক্ষিত ছবি</span>
-                        </button>
-                        <button id="btn-test-intruder-capture" style="grid-column: 1 / -1; padding:9px 8px; background:rgba(56, 189, 248, 0.1); border:1px solid rgba(56, 189, 248, 0.3); color:#38bdf8; font-size:12px; font-weight:700; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; font-family:'Kalpurush', 'SolaimanLipi', sans-serif; margin-top:2px;">
-                            <svg class="svg-icon" viewBox="0 0 24 24" style="width:15px; height:15px;"><path fill="currentColor" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 2a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm7-13h-3.17L14 2H10L8.17 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/></svg>
-                            <span id="txt-test-intruder-capture">ক্যামেরা টেস্ট করুন (ছবি তুলুন)</span>
                         </button>
                     </div>
 
@@ -411,7 +389,15 @@ function bindSettingsTabEvents() {
     if (btnToggleIntruder) {
         btnToggleIntruder.onclick = async () => {
             if (!isIntruderEnabled) {
-                // ১. স্টেট আপডেট ও SharedPreferences এ সংরক্ষণ আগে সম্পন্ন করা
+                // সরাসরি ক্যামেরা ও লোকেশন পারমিশন চাওয়া (টেলিগ্রাম চ্যাট আইডি বাধ্যতামূলক নয়)
+                if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
+                    try {
+                        await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
+                    } catch(e) {
+                        console.error("Failed to request camera/location permission:", e);
+                    }
+                }
+
                 isIntruderEnabled = true;
                 localStorage.setItem('intruder_selfie_enabled', 'true');
                 updateIntruderToggleUI(true);
@@ -428,26 +414,21 @@ function bindSettingsTabEvents() {
                     }
                 }
 
-                // ২. ক্যামেরা পারমিশন চাওয়া (লোকেশন পারমিশন এখানে চাওয়া হবে না)
-                if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
-                    try {
-                        await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
-                    } catch(e) {
-                        console.error("Failed to request camera permission:", e);
-                    }
-                }
-
-                // ৩. লক স্ক্রিনের ভুল পাসওয়ার্ড শনাক্ত করতে ডিভাইস অ্যাডমিন সক্রিয় না থাকলে রিকোয়েস্ট করা
-                if (window.Capacitor?.Plugins?.UnlockPlugin?.getOnboardingStatus) {
-                    try {
-                        const status = await window.Capacitor.Plugins.UnlockPlugin.getOnboardingStatus();
-                        if (status && !status.adminActive) {
-                            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestPermissionStep) {
-                                await window.Capacitor.Plugins.UnlockPlugin.requestPermissionStep({ step: 2 });
+                // সেফটি চেক: যদি অ্যান্ড্রয়েড ১১+ এর কারণে সিস্টেম ডায়ালগ শো না হয়ে সরাসরি পারমিশন আটকে থাকে
+                setTimeout(async () => {
+                    if (window.Capacitor?.Plugins?.UnlockPlugin?.getIntruderSettings) {
+                        try {
+                            const check = await window.Capacitor.Plugins.UnlockPlugin.getIntruderSettings();
+                            if (check && check.hasCameraPermission === false) {
+                                if (confirm("ক্যামেরা পারমিশন চালু হয়নি। ফোনের অ্যাপ সেটিংস থেকে ক্যামেরা পারমিশন এলাও করতে চান?")) {
+                                    if (window.Capacitor?.Plugins?.UnlockPlugin?.openAppSettings) {
+                                        await window.Capacitor.Plugins.UnlockPlugin.openAppSettings();
+                                    }
+                                }
                             }
-                        }
-                    } catch(e) {}
-                }
+                        } catch(e) {}
+                    }
+                }, 700);
             } else {
                 isIntruderEnabled = false;
                 localStorage.setItem('intruder_selfie_enabled', 'false');
@@ -507,15 +488,6 @@ function bindSettingsTabEvents() {
 
             if (modalChatIdError) modalChatIdError.style.display = 'none';
             if (intruderPermDialog) intruderPermDialog.style.display = 'none';
-
-            // ব্যাকআপ যুক্ত করার সময় লোকেশন পারমিশন চাওয়া
-            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestLocationPermission) {
-                try {
-                    await window.Capacitor.Plugins.UnlockPlugin.requestLocationPermission();
-                } catch(e) {
-                    console.error("Failed to request location permission on backup add:", e);
-                }
-            }
 
             localStorage.setItem('intruder_telegram_chat_id', enteredChatId);
             updateChatIdBadge(enteredChatId);
@@ -620,37 +592,6 @@ function bindSettingsTabEvents() {
                     telegramChatIdStatus.style.color = '#f87171';
                     telegramChatIdStatus.style.display = 'block';
                 }
-            }
-        };
-    }
-
-    // ক্যামেরা টেস্ট বাটন (সরাসরি ছবি তোলার পরীক্ষা)
-    const btnTestIntruderCapture = document.getElementById('btn-test-intruder-capture');
-    const txtTestIntruderCapture = document.getElementById('txt-test-intruder-capture');
-    if (btnTestIntruderCapture) {
-        btnTestIntruderCapture.onclick = async () => {
-            if (txtTestIntruderCapture) txtTestIntruderCapture.innerText = 'ক্যামেরা চালু হচ্ছে...';
-
-            if (window.Capacitor?.Plugins?.UnlockPlugin?.requestCameraPermission) {
-                try {
-                    await window.Capacitor.Plugins.UnlockPlugin.requestCameraPermission();
-                } catch(e) {}
-            }
-
-            try {
-                if (window.Capacitor?.Plugins?.UnlockPlugin?.triggerTestCapture) {
-                    await window.Capacitor.Plugins.UnlockPlugin.triggerTestCapture();
-                    setTimeout(async () => {
-                        if (txtTestIntruderCapture) txtTestIntruderCapture.innerText = 'ক্যামেরা টেস্ট করুন (ছবি তুলুন)';
-                        if (typeof loadIntruderLogs === 'function') {
-                            await loadIntruderLogs();
-                        }
-                        alert('টেস্ট ছবি সফলভাবে তোলা হয়েছে এবং সংরক্ষিত ছবি তালিকায় যুক্ত হয়েছে।');
-                    }, 2500);
-                }
-            } catch(e) {
-                if (txtTestIntruderCapture) txtTestIntruderCapture.innerText = 'ক্যামেরা টেস্ট করুন (ছবি তুলুন)';
-                alert('ক্যামেরা চালু করতে সমস্যা হয়েছে: ' + (e?.message || e));
             }
         };
     }
