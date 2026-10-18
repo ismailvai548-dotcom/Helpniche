@@ -76,6 +76,250 @@ public class BlockerAccessibilityService extends AccessibilityService {
             "com.vivaldi.browser"
     };
 
+    // অ্যাডাল্ট / পর্ন সাইটের সুনির্দিষ্ট নাম ও ডোমেইনসমূহ
+    private static final String[] ADULT_SITE_DOMAINS = {
+            "pornhub", "xvideos", "xnxx", "xhamster", "brazzers", "redtube",
+            "youporn", "chaturbate", "stripchat", "bongacams", "beeg", "tnaflix",
+            "spankbang", "eporner", "fapello", "heavy-r", "nhentai", "rule34",
+            "onlyfans", "cam4", "livejasmin", "erovideo", "hqporner", "motherless",
+            "camgirl", "javhd", "tube8", "x-art", "camsoda", "streamate",
+            "manyvids", "pornktube", "daftsex", "thumbzilla", "txxx", "hotmovs",
+            "empflix", "xcafe", "pornhat", "sunporno", "porndoe", "nuvid",
+            "youjizz", "spankwire", "keezmovies", "extremetube", "drtuber",
+            "hdporn", "desi52", "antarvasna", "fsiblog", "desipapa"
+    };
+
+    // অ্যাডাল্ট সুনির্দিষ্ট ফ্রেজ (ইংরেজি ও বাংলা)
+    private static final String[] ADULT_EXPLICIT_PHRASES = {
+            "sex video", "sexy video", "hot sex", "nude video", "adult video", "adult movie",
+            "hardcore porn", "porn video", "porn movie", "desi porn", "indian sex", "pakistani sex",
+            "বাংলা সেক্স", "সেক্স ভিডিও", "যৌন মিলন", "নীল ছবি", "বাংলা চটি", "চোদাচুদি", "মাগি", "খানকি",
+            "যৌনসঙ্গম", "choti golpo"
+    };
+
+    // একক স্ট্যান্ডঅ্যালোন অ্যাডাল্ট শব্দ
+    private static final String[] ADULT_STANDALONE_WORDS = {
+            "porn", "porno", "hentai", "choti", "চটি", "পর্ন", "পর্ণ"
+    };
+
+    private long lastAdultBlockTime = 0;
+
+    private static boolean containsAdultContent(String text) {
+        if (text == null) return false;
+        String raw = text.trim();
+        if (raw.length() < 3) return false;
+        String lower = raw.toLowerCase();
+
+        // ১. সেফ ওয়ার্ডস ফিল্টার
+        boolean hasSafeWord = lower.contains("assessment") ||
+                lower.contains("compass") ||
+                lower.contains("classic") ||
+                lower.contains("class") ||
+                lower.contains("glass") ||
+                lower.contains("grass") ||
+                lower.contains("mass") ||
+                lower.contains("pass") ||
+                lower.contains("sussex") ||
+                lower.contains("essex") ||
+                lower.contains("middlesex") ||
+                lower.contains("unisex") ||
+                lower.contains("section");
+
+        // ২. সরাসরি সাইট / ব্র্যান্ড ডোমেইন
+        for (String domain : ADULT_SITE_DOMAINS) {
+            if (lower.contains(domain)) {
+                return true;
+            }
+        }
+
+        // ৩. সুস্পষ্ট অ্যাডাল্ট ফ্রেজ
+        for (String phrase : ADULT_EXPLICIT_PHRASES) {
+            if (lower.contains(phrase)) {
+                return true;
+            }
+        }
+
+        // সেফ ওয়ার্ড থাকলে একক কিওয়ার্ড চেক বাদ
+        if (hasSafeWord) {
+            return false;
+        }
+
+        // ৪. একক স্ট্যান্ডঅ্যালোন অ্যাডাল্ট শব্দ
+        for (String word : ADULT_STANDALONE_WORDS) {
+            if (word.equals("porn") || word.equals("porno") || word.equals("hentai") || word.equals("পর্ন") || word.equals("পর্ণ")) {
+                if (lower.contains(word)) {
+                    return true;
+                }
+            } else if (word.equals("choti") || word.equals("চটি")) {
+                if (lower.contains("চটি") || lower.matches(".*\\bchoti\\b.*")) {
+                    return true;
+                }
+            }
+        }
+
+        // ৫. "xxx" বা "sex" বা "nude" ইত্যাদির জন্য বাউন্ডারি চেক
+        if (lower.contains("xxx")) {
+            if (lower.matches(".*\\bxxx\\b.*") || lower.contains(".xxx") || lower.contains("xxx.")) {
+                return true;
+            }
+        }
+
+        if (lower.matches(".*\\b(sex|nude|nudity|milf|incest|fetish)\\b.*")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private void kickToHomeForAdultContent(String reason) {
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastAdultBlockTime < 1500) {
+            return;
+        }
+        lastAdultBlockTime = now;
+
+        Log.w(TAG, "অ্যাডাল্ট কনটেন্ট সনাক্ত: " + reason + " -> হোমস্ক্রিনে ফিরিয়ে দেওয়া হলো!");
+
+        performGlobalAction(GLOBAL_ACTION_HOME);
+
+        try {
+            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+            homeIntent.addCategory(Intent.CATEGORY_HOME);
+            homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(homeIntent);
+        } catch (Exception ignored) {}
+
+        try {
+            Toast.makeText(this, "অনুপযুক্ত বা ক্ষতিকর কনটেন্ট সুরক্ষিতভাবে প্রতিহত করা হয়েছে", Toast.LENGTH_SHORT).show();
+        } catch (Exception ignored) {}
+    }
+
+    private boolean scanNodeForAdultContent(AccessibilityNodeInfo node, int depth) {
+        if (node == null || depth > 25) return false;
+        try {
+            CharSequence textSeq = node.getText();
+            if (textSeq != null && containsAdultContent(textSeq.toString())) {
+                return true;
+            }
+            CharSequence descSeq = node.getContentDescription();
+            if (descSeq != null && containsAdultContent(descSeq.toString())) {
+                return true;
+            }
+
+            int childCount = node.getChildCount();
+            for (int i = 0; i < childCount; i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    try {
+                        if (scanNodeForAdultContent(child, depth + 1)) {
+                            return true;
+                        }
+                    } finally {
+                        child.recycle();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private boolean checkAndHandleAdultScreenContent(AccessibilityEvent event, String packageName) {
+        if (event == null) return false;
+        if (packageName == null || packageName.equals(getPackageName()) || isHomeLauncher(packageName)) {
+            return false;
+        }
+
+        int evtType = event.getEventType();
+        boolean isKeyboard = packageName.contains("inputmethod") || packageName.contains("keyboard") || packageName.contains("ime");
+
+        // ১. ইভেন্টের টেক্সট সরাসরি চেক করা (কীবোর্ড এবং সব অ্যাপের ক্ষেত্রে প্রযোজ্য)
+        java.util.List<CharSequence> texts = event.getText();
+        if (texts != null && !texts.isEmpty()) {
+            for (CharSequence cs : texts) {
+                if (cs != null && containsAdultContent(cs.toString())) {
+                    kickToHomeForAdultContent("Event text: " + cs);
+                    return true;
+                }
+            }
+        }
+
+        // কীবোর্ড প্যাকেজ হলে শুধুমাত্র ইভেন্ট টেক্সট চেক করাই যথেষ্ট, পুরো নোড ট্রি স্ক্যান করার প্রয়োজন নেই
+        if (isKeyboard) {
+            return false;
+        }
+
+        // ২. টাইপিং বা টেক্সট সিলেকশন পরিবর্তন হলে সোর্স নোডের টেক্সট চেক
+        if (evtType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED ||
+                evtType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED ||
+                evtType == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+
+            AccessibilityNodeInfo source = null;
+            try {
+                source = event.getSource();
+            } catch (Exception ignored) {}
+            if (source != null) {
+                try {
+                    CharSequence st = source.getText();
+                    if (st != null && containsAdultContent(st.toString())) {
+                        kickToHomeForAdultContent("Source text: " + st);
+                        return true;
+                    }
+                    CharSequence desc = source.getContentDescription();
+                    if (desc != null && containsAdultContent(desc.toString())) {
+                        kickToHomeForAdultContent("Source desc: " + desc);
+                        return true;
+                    }
+                } finally {
+                    try { source.recycle(); } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        // ৩. নতুন উইন্ডো বা পেজ ওপেন হলে পুরো উইন্ডো স্ক্যান করা
+        if (evtType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            AccessibilityNodeInfo rootNode = null;
+            try {
+                rootNode = getRootInActiveWindow();
+            } catch (Exception ignored) {}
+            if (rootNode != null) {
+                try {
+                    if (scanNodeForAdultContent(rootNode, 0)) {
+                        kickToHomeForAdultContent("Screen window in " + packageName);
+                        return true;
+                    }
+                } finally {
+                    try { rootNode.recycle(); } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        // ৪. কন্টেন্ট পরিবর্তনের সময় (যেমন: ব্রাউজার অ্যাড্রেস বার বা সার্চ ড্রপডাউন)
+        if (evtType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            AccessibilityNodeInfo source = null;
+            try {
+                source = event.getSource();
+            } catch (Exception ignored) {}
+            if (source != null) {
+                try {
+                    CharSequence st = source.getText();
+                    if (st != null && containsAdultContent(st.toString())) {
+                        kickToHomeForAdultContent("Content changed: " + st);
+                        return true;
+                    }
+                    CharSequence desc = source.getContentDescription();
+                    if (desc != null && containsAdultContent(desc.toString())) {
+                        kickToHomeForAdultContent("Content desc: " + desc);
+                        return true;
+                    }
+                } finally {
+                    try { source.recycle(); } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static final String[] FOCUS_APP_IDENTIFIERS = {
             "helpniche", "com.helpniche.app", "focusdurood", "focus durood",
             "focus_durood", "focus.durood", "com.focus.durood", "focushield", "focus shield"
@@ -938,6 +1182,11 @@ public class BlockerAccessibilityService extends AccessibilityService {
         CharSequence pkgNameSeq = event.getPackageName();
         if (pkgNameSeq == null) return;
         String packageName = pkgNameSeq.toString().toLowerCase();
+
+        // অ্যাডাল্ট সাইট, নিষিদ্ধ শব্দ ও স্ক্রিন কনটেন্ট মনিটরিং (টাইপ করা মাত্রই বা প্রদর্শিত হলে সরাসরি হোমস্ক্রিনে নিয়ে যাওয়া)
+        if (checkAndHandleAdultScreenContent(event, packageName)) {
+            return;
+        }
 
         // ২. ফাস্ট বাইপাস: কীবোর্ড, আইএমই এবং সিস্টেম প্যাকেজ সম্পূর্ণ এড়িয়ে যাওয়া (জিরো সিপিইউ লস)
         if (isIgnoredOrKeyboardPackage(packageName)) return;
