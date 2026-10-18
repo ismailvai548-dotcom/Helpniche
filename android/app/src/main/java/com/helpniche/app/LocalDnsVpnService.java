@@ -292,7 +292,10 @@ public class LocalDnsVpnService extends VpnService {
 
                     @Override
                     public void onLost(Network network) {
-                        // Keep VPN running to handle reconnection smoothly without background restart failures
+                        if (!ScreenUnlockReceiver.isNetworkAvailable(LocalDnsVpnService.this)) {
+                            Log.i(TAG, "Network lost (WiFi/Data off): Stopping VPN immediately.");
+                            stopVpn(LocalDnsVpnService.this);
+                        }
                     }
 
                     @Override
@@ -491,6 +494,13 @@ public class LocalDnsVpnService extends VpnService {
         boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
         if (!isSystemWide && BlockerAccessibilityService.isUnlocked(this) && !hasActiveNetworkBlocks(this)) {
             Log.i(TAG, "Ad block disabled, protection is unlocked and no network blocks. Stopping VPN.");
+            stopVpn(this);
+            isStarting = false;
+            return START_NOT_STICKY;
+        }
+
+        if (!ScreenUnlockReceiver.isScreenInteractiveAndUnlocked(this) || !ScreenUnlockReceiver.isNetworkAvailable(this)) {
+            Log.i(TAG, "Screen off/locked or no network available. Stopping VPN.");
             stopVpn(this);
             isStarting = false;
             return START_NOT_STICKY;

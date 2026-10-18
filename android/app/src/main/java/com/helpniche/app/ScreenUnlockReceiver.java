@@ -41,36 +41,47 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
         } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
             handleScreenLocked(context);
         } else if (ConnectivityManager.CONNECTIVITY_ACTION.equals(action)) {
-            if (isNetworkAvailable(context)) {
+            if (!isNetworkAvailable(context)) {
+                Log.i(TAG, "Network disconnected (WiFi/Data off): Stopping VPN immediately.");
+                LocalDnsVpnService.stopVpn(context);
+            } else if (isScreenInteractiveAndUnlocked(context)) {
                 handleScreenUnlocked(context);
             }
         }
     }
 
     public static void handleScreenLocked(Context context) {
-        // Do not stop VPN when screen is locked. A local DNS VPN consumes negligible battery when idle,
-        // and stopping it causes ForegroundServiceStartNotAllowedException on Android 12+
-        // when attempting to restart it later from background.
+        if (context == null) return;
+        try {
+            if (LocalDnsVpnService.isVpnRunning() || LocalDnsVpnService.isVpnStartingOrRunning()) {
+                Log.i(TAG, "Screen locked or turned off: Stopping VPN to save power.");
+                LocalDnsVpnService.stopVpn(context);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping VPN on screen lock", e);
+        }
     }
 
     public static void handleScreenUnlocked(Context context) {
         if (context == null) return;
         try {
-            SharedPreferences prefs = context.getApplicationContext().getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-            boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
-            if (!isSystemWide) return;
-
-            if (BlockerAccessibilityService.isUnlocked(context) && !LocalDnsVpnService.hasActiveNetworkBlocks(context)) {
+            if (!isNetworkAvailable(context)) {
+                Log.i(TAG, "Screen unlocked but no active internet (WiFi/Data off): VPN remains stopped.");
+                if (LocalDnsVpnService.isVpnRunning()) {
+                    LocalDnsVpnService.stopVpn(context);
+                }
                 return;
             }
 
-            if (isNetworkAvailable(context)) {
+            SharedPreferences prefs = context.getApplicationContext().getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
+            boolean inBrowser = BlockerAccessibilityService.isCurrentlyInBrowser();
+
+            if (inBrowser || isSystemWide) {
                 if (!LocalDnsVpnService.isVpnRunning()) {
-                    Log.i(TAG, "Screen unlocked and internet available: Resuming VPN for ad-blocking.");
+                    Log.i(TAG, "Screen unlocked and internet available (inBrowser=" + inBrowser + "): Starting VPN.");
                     LocalDnsVpnService.startVpn(context);
                 }
-            } else {
-                Log.i(TAG, "Screen unlocked but no active internet.");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error handling screen unlocked event", e);

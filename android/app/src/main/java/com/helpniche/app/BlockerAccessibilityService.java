@@ -368,15 +368,22 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     private boolean isBrowserOrTargetApp(String packageName) {
         if (packageName == null || packageName.isEmpty()) return false;
+        String lower = packageName.toLowerCase();
         for (String browser : BROWSER_PACKAGES) {
-            if (packageName.equalsIgnoreCase(browser)) {
+            if (lower.equalsIgnoreCase(browser)) {
                 return true;
             }
         }
-        return packageName.contains("browser") ||
-                (packageName.contains("chrome") && !packageName.contains("chromecast")) ||
-                packageName.contains("firefox") ||
-                packageName.contains("opera");
+        return lower.contains("browser") ||
+                (lower.contains("chrome") && !lower.contains("chromecast")) ||
+                lower.contains("firefox") ||
+                lower.contains("opera") ||
+                lower.contains("brave") ||
+                lower.contains("duckduckgo") ||
+                lower.contains("ucmobile") ||
+                lower.contains("phoenix") ||
+                lower.contains("heytap") ||
+                lower.contains("coloros");
     }
 
     public static boolean isThirdPartyVpnActive(Context context) {
@@ -957,86 +964,47 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return;
         }
 
-        // পার্মানেন্ট আনলক মোড সক্রিয় থাকলে অ্যাপ ব্লকার নিষ্ক্রিয় থাকবে, কিন্তু সিস্টেম-ওয়াইড অ্যাড/অ্যাডাল্ট ব্লকার সচল থাকবে
-        if (isPermanentUnlocked(this)) {
-            SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-            boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
-            if (!isSystemWide && !LocalDnsVpnService.hasActiveNetworkBlocks(this)) {
-                LocalDnsVpnService.stopVpn(this);
-            } else if (!LocalDnsVpnService.isVpnRunning()) {
-                LocalDnsVpnService.startVpn(this);
-            }
-            return;
-        }
+        // ৪. অন-ডিমান্ড ব্রাউজার ডিটেকশন ও স্বয়ংক্রিয় ভিপিএন হ্যান্ডলিং
+        if (evtType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || evtType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            if (!isIgnoredOrKeyboardPackage(packageName)) {
+                if (isBrowserOrTargetApp(packageName)) {
+                    currentlyInBrowser = true;
+                    if (stopVpnRunnable != null) {
+                        vpnHandler.removeCallbacks(stopVpnRunnable);
+                        stopVpnRunnable = null;
+                    }
 
-        boolean isTempUnlocked = isUnlocked(this);
-
-        // অন-ডিমান্ড ভিপিএন ও ব্রাউজারে স্মার্ট টেকওভার / প্রোটেকশন হ্যান্ডলিং
-        if (!isTempUnlocked) {
-            if (evtType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || evtType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
-                if (!isIgnoredOrKeyboardPackage(packageName)) {
-                    if (isBrowserOrTargetApp(packageName)) {
-                        currentlyInBrowser = true;
-                        if (stopVpnRunnable != null) {
-                            vpnHandler.removeCallbacks(stopVpnRunnable);
-                            stopVpnRunnable = null;
-                        }
-
-                        // ১. থার্ড-পার্টি VPN সক্রিয় থাকা অবস্থায় ব্রাউজারে প্রবেশ করলে
-                        if (isThirdPartyVpnActive(this)) {
-                            // ক. অটো-টেকওভার চেষ্টা: আমাদের ফ্যামিলি ফিল্টার VPN শুরু করা (Android OS আগের VPN কেটে আমাদেরটি কানেক্ট করবে)
+                    // ব্রাউজারে প্রবেশ করা মাত্রই: ডাটা/ওয়াইফাই সচল এবং স্ক্রিন আনলকড থাকলে সাথে সাথে VPN অন হবে
+                    if (ScreenUnlockReceiver.isScreenInteractiveAndUnlocked(this) && ScreenUnlockReceiver.isNetworkAvailable(this)) {
+                        if (!LocalDnsVpnService.isVpnRunning()) {
                             LocalDnsVpnService.startVpn(this);
-
-                            // খ. ওয়ার্কঅ্যারাউন্ড / সেফগার্ড: যদি ব্যাকগ্রাউন্ডে টেকওভার বাধা পায় বা অন্য VPN এখনও সক্রিয় থাকে
-                            vpnHandler.postDelayed(() -> {
-                                if (isThirdPartyVpnActive(BlockerAccessibilityService.this)) {
-                                    blockAndGoHome("ব্রাউজার ব্যবহারের জন্য অন্য VPN বন্ধ করে Helpniche সুরক্ষিত মোডে আসুন!");
-                                }
-                            }, 2500);
-                        } else {
-                            // কোনো থার্ড-পার্টি VPN চালু না থাকলে বা আমাদের VPN ইতোমধ্যে সক্রিয় থাকলে
-                            if (!LocalDnsVpnService.isVpnRunning()) {
-                                LocalDnsVpnService.startVpn(this);
-                                Log.i(TAG, "ব্রাউজার ডিটেক্ট (" + packageName + ") -> Helpniche VPN সক্রিয় করা হলো!");
-                            }
+                            Log.i(TAG, "ব্রাউজার ডিটেক্ট (" + packageName + ") -> Helpniche VPN স্বয়ংক্রিয়ভাবে চালু হলো!");
                         }
-                    } else {
-                        currentlyInBrowser = false;
-                        SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-                        boolean isSystemWideEnabled = prefs.getBoolean("system_wide_adblock_enabled", true);
+                    }
+                } else {
+                    currentlyInBrowser = false;
+                    SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                    boolean isSystemWideEnabled = prefs.getBoolean("system_wide_adblock_enabled", true);
 
-                        if (!isSystemWideEnabled) {
-                            // সিস্টেম-ওয়াইড বন্ধ থাকলে ব্রাউজার ত্যাগ করার ৩ সেকেন্ড পর VPN বন্ধ করা
-                            if (LocalDnsVpnService.isVpnRunning() && stopVpnRunnable == null) {
-                                stopVpnRunnable = () -> {
-                                    LocalDnsVpnService.stopVpn(BlockerAccessibilityService.this);
-                                    stopVpnRunnable = null;
-                                    Log.i(TAG, "ব্রাউজার ত্যাগ -> Helpniche VPN বন্ধ করা হলো!");
-                                };
-                                vpnHandler.postDelayed(stopVpnRunnable, 3000);
-                            }
-                        } else {
-                            // সিস্টেম-ওয়াইড সক্রিয় থাকলে টাইমার বাতিল এবং সার্বক্ষণিক ভিপিএন অন রাখা
-                            if (stopVpnRunnable != null) {
-                                vpnHandler.removeCallbacks(stopVpnRunnable);
+                    if (!isSystemWideEnabled) {
+                        // সিস্টেম-ওয়াইড বন্ধ থাকলে ব্রাউজার ত্যাগ করার ৩ সেকেন্ড পর VPN বন্ধ করা
+                        if (LocalDnsVpnService.isVpnRunning() && stopVpnRunnable == null) {
+                            stopVpnRunnable = () -> {
+                                LocalDnsVpnService.stopVpn(BlockerAccessibilityService.this);
                                 stopVpnRunnable = null;
-                            }
-                            if (!LocalDnsVpnService.isVpnRunning()) {
-                                LocalDnsVpnService.startVpn(this);
-                            }
+                                Log.i(TAG, "ব্রাউজার ত্যাগ -> Helpniche VPN বন্ধ করা হলো!");
+                            };
+                            vpnHandler.postDelayed(stopVpnRunnable, 3000);
                         }
                     }
                 }
             }
-        } else {
-            // টেম্পোরারি আনলক থাকা অবস্থায় অ্যাপ ব্লক হবে না, কিন্তু সিস্টেম-ওয়াইড অ্যাড/অ্যাডাল্ট ফিল্টারিং চালু থাকবে
-            SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-            boolean isSystemWideEnabled = prefs.getBoolean("system_wide_adblock_enabled", true);
-            if (!isSystemWideEnabled && !LocalDnsVpnService.hasActiveNetworkBlocks(this)) {
-                LocalDnsVpnService.stopVpn(this);
-            } else if (!LocalDnsVpnService.isVpnRunning()) {
-                LocalDnsVpnService.startVpn(this);
-            }
+        }
+
+        // ৫. পার্মানেন্ট আনলক বা টেম্পোরারি আনলক মোড চেক (অ্যাপ ব্লকার ওভারলে এর জন্য)
+        boolean isTempUnlocked = isUnlocked(this);
+        if (isPermanentUnlocked(this) || isTempUnlocked) {
+            return;
         }
 
         // Strict App Blocker Check
