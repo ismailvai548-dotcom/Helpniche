@@ -86,81 +86,100 @@ public class LocalDnsVpnService extends VpnService {
     private static volatile boolean isBlocklistLoaded = false;
 
     /**
-     * ব্যাকগ্রাউন্ড থ্রেডে assets/blocklist.txt.gz ফাইল লোড করার মেথড
+     * ব্যাকগ্রাউন্ড থ্রেডে blocklist লোড করার মেথড।
+     * প্রথমে assets/blocklist.txt.gz চেষ্টা করে; না পেলে assets/blocklist.txt (plain)
+     * ফলব্যাক হিসেবে লোড করে — যাতে build-এ ভুল ফাইল গেলেও AdBlock নীরবে মরে না যায়।
      */
     private void loadBlocklistFromAssets() {
         if (isBlocklistLoaded) return;
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
-            BufferedReader reader = null;
-            InputStream inputStream = null;
-            try {
-                inputStream = getAssets().open("blocklist.txt.gz");
+            boolean loaded = tryLoadBlocklist("blocklist.txt.gz", true);
+            if (!loaded) {
+                Log.w(TAG, "blocklist.txt.gz not found, falling back to plain blocklist.txt");
+                loaded = tryLoadBlocklist("blocklist.txt", false);
+            }
+            if (!loaded) {
+                Log.e(TAG, "CRITICAL: No blocklist asset found (tried .gz and .txt). AdBlock DNS sinkhole is DISABLED.");
+            }
+            executor.shutdown();
+        });
+    }
+
+    private boolean tryLoadBlocklist(String assetName, boolean gzipped) {
+        BufferedReader reader = null;
+        try {
+            InputStream inputStream = getAssets().open(assetName);
+            if (gzipped) {
                 inputStream = new GZIPInputStream(inputStream);
-                reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+            }
+            reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
 
-                Set<String> tempSet = new HashSet<>(150000);
+            Set<String> tempSet = new HashSet<>(150000);
 
-                String line;
-                while (true) {
-                    try {
-                        line = reader.readLine();
-                        if (line == null) break;
-                    } catch (java.io.EOFException e) {
-                        Log.w(TAG, "Reached EOF of blocklist GZIP file.");
-                        break;
-                    }
+            String line;
+            while (true) {
+                try {
+                    line = reader.readLine();
+                    if (line == null) break;
+                } catch (java.io.EOFException e) {
+                    Log.w(TAG, "Reached EOF of blocklist file: " + assetName);
+                    break;
+                }
 
-                    line = line.trim().toLowerCase();
+                line = line.trim().toLowerCase();
 
-                    // ১. খালি লাইন ও কমেন্ট বাদ দেওয়া
-                    if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") || line.startsWith("//")) {
+                // ১. খালি লাইন ও কমেন্ট বাদ দেওয়া
+                if (line.isEmpty() || line.startsWith("#") || line.startsWith("!") || line.startsWith("//")) {
+                    continue;
+                }
+
+                // ২. ইনলাইন কমেন্ট থাকলে কেটে বাদ দেওয়া
+                int commentIdx = line.indexOf('#');
+                if (commentIdx != -1) {
+                    line = line.substring(0, commentIdx).trim();
+                }
+
+                // ৩. IP প্রিফিক্স (0.0.0.0 বা 127.0.0.1) বাদ দিয়ে মূল ডোমেইন আলাদা করা
+                if (line.startsWith("0.0.0.0") || line.startsWith("127.0.0.1")) {
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) {
+                        line = parts[1].trim();
+                    } else {
                         continue;
                     }
-
-                    // ২. ইনলাইন কমেন্ট থাকলে কেটে বাদ দেওয়া
-                    int commentIdx = line.indexOf('#');
-                    if (commentIdx != -1) {
-                        line = line.substring(0, commentIdx).trim();
-                    }
-
-                    // ৩. IP প্রিফিক্স (0.0.0.0 বা 127.0.0.1) বাদ দিয়ে মূল ডোমেইন আলাদা করা
-                    if (line.startsWith("0.0.0.0") || line.startsWith("127.0.0.1")) {
-                        String[] parts = line.split("\\s+");
-                        if (parts.length >= 2) {
-                            line = parts[1].trim();
-                        } else {
-                            continue;
-                        }
-                    } else if (line.contains(" ")) {
-                        String[] parts = line.split("\\s+");
-                        if (parts.length >= 2) {
-                            line = parts[1].trim();
-                        }
-                    }
-
-                    if (!line.isEmpty()) {
-                        tempSet.add(line);
+                } else if (line.contains(" ")) {
+                    String[] parts = line.split("\\s+");
+                    if (parts.length >= 2) {
+                        line = parts[1].trim();
                     }
                 }
 
-                synchronized (LocalDnsVpnService.class) {
-                    BLOCKED_DOMAINS = tempSet;
-                    isBlocklistLoaded = true;
+                if (!line.isEmpty()) {
+                    tempSet.add(line);
                 }
-                Log.i(TAG, "GZIP blocklist loaded successfully from assets! Total blocked domains: " + tempSet.size());
-            } catch (Exception e) {
-                Log.e(TAG, "Error loading blocklist.txt.gz from assets", e);
-            } finally {
-                if (reader != null) {
-                    try {
-                        reader.close();
-                    } catch (Exception ignored) {}
-                }
-                executor.shutdown();
             }
-        });
+
+            synchronized (LocalDnsVpnService.class) {
+                BLOCKED_DOMAINS = tempSet;
+                isBlocklistLoaded = true;
+            }
+            Log.i(TAG, "Blocklist loaded successfully from " + assetName + "! Total blocked domains: " + tempSet.size());
+            return true;
+        } catch (java.io.FileNotFoundException e) {
+            Log.w(TAG, "Blocklist asset not found: " + assetName);
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading " + assetName + " from assets", e);
+            return false;
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception ignored) {}
+            }
+        }
     }
 
     @Override

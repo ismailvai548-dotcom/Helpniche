@@ -245,15 +245,20 @@ function bindHomeEvents() {
     const homeVpnTitle = document.getElementById('home-vpn-title');
     const homeVpnDesc = document.getElementById('home-vpn-desc');
 
-    function updateHomeVpnUI(enabled) {
+    function updateHomeVpnUI(enabled, isRunning) {
         if (!btnHomeToggleVpn || !homeVpnKnob) return;
         if (enabled) {
             btnHomeToggleVpn.style.background = '#10b981';
             homeVpnKnob.style.left = '25px';
             if (homeVpnTitle) homeVpnTitle.innerText = 'অ্যাড কন্ট্রোলার';
             if (homeVpnDesc) {
-                homeVpnDesc.innerText = 'সক্রিয় (অন)';
-                homeVpnDesc.style.color = '#34d399';
+                if (typeof isRunning === 'boolean' && !isRunning) {
+                    homeVpnDesc.innerText = 'অন (ভিপিএন সংযোগ অপেক্ষমাণ)';
+                    homeVpnDesc.style.color = '#f59e0b';
+                } else {
+                    homeVpnDesc.innerText = 'সক্রিয় (অন)';
+                    homeVpnDesc.style.color = '#34d399';
+                }
             }
         } else {
             btnHomeToggleVpn.style.background = '#334155';
@@ -266,25 +271,34 @@ function bindHomeEvents() {
         }
     }
 
+    let isHomeVpnRunning = null;
+
     if (window.Capacitor?.Plugins?.UnlockPlugin?.getSystemWideAdBlockStatus) {
         window.Capacitor.Plugins.UnlockPlugin.getSystemWideAdBlockStatus().then(res => {
             if (res && typeof res.enabled === 'boolean') {
                 isHomeVpnEnabled = res.enabled;
+                isHomeVpnRunning = typeof res.isVpnRunning === 'boolean' ? res.isVpnRunning : null;
                 localStorage.setItem('system_wide_adblock_enabled', isHomeVpnEnabled ? 'true' : 'false');
-                updateHomeVpnUI(isHomeVpnEnabled);
+                updateHomeVpnUI(isHomeVpnEnabled, isHomeVpnRunning);
             }
         }).catch(() => {});
     }
-    updateHomeVpnUI(isHomeVpnEnabled);
+    updateHomeVpnUI(isHomeVpnEnabled, isHomeVpnRunning);
 
     if (btnHomeToggleVpn) {
         btnHomeToggleVpn.onclick = async () => {
             isHomeVpnEnabled = !isHomeVpnEnabled;
             localStorage.setItem('system_wide_adblock_enabled', isHomeVpnEnabled ? 'true' : 'false');
-            updateHomeVpnUI(isHomeVpnEnabled);
+            updateHomeVpnUI(isHomeVpnEnabled, isHomeVpnRunning);
             if (window.Capacitor?.Plugins?.UnlockPlugin?.setSystemWideAdBlock) {
                 try {
                     await window.Capacitor.Plugins.UnlockPlugin.setSystemWideAdBlock({ enabled: isHomeVpnEnabled });
+                    // রিফ্রেশ স্ট্যাটাস
+                    const refreshed = await window.Capacitor.Plugins.UnlockPlugin.getSystemWideAdBlockStatus();
+                    if (refreshed && typeof refreshed.isVpnRunning === 'boolean') {
+                        isHomeVpnRunning = refreshed.isVpnRunning;
+                        updateHomeVpnUI(isHomeVpnEnabled, isHomeVpnRunning);
+                    }
                 } catch(e) {
                     console.error("Failed to toggle home VPN:", e);
                 }
