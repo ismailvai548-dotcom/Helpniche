@@ -336,8 +336,10 @@ public class LocalDnsVpnService extends VpnService {
             return;
         }
 
-        if (BlockerAccessibilityService.isUnlocked(context) && !hasActiveNetworkBlocks(context)) {
-            Log.i(TAG, "Device/Protection is currently unlocked and no network blocks. Skipping VPN start.");
+        SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+        boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
+        if (!isSystemWide && BlockerAccessibilityService.isUnlocked(context) && !hasActiveNetworkBlocks(context)) {
+            Log.i(TAG, "Ad block disabled, protection is unlocked and no network blocks. Skipping VPN start.");
             return;
         }
 
@@ -485,8 +487,10 @@ public class LocalDnsVpnService extends VpnService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForegroundServiceNotification();
 
-        if (BlockerAccessibilityService.isUnlocked(this) && !hasActiveNetworkBlocks(this)) {
-            Log.i(TAG, "Protection unlocked and no network blocks. Stopping VPN.");
+        SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+        boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
+        if (!isSystemWide && BlockerAccessibilityService.isUnlocked(this) && !hasActiveNetworkBlocks(this)) {
+            Log.i(TAG, "Ad block disabled, protection is unlocked and no network blocks. Stopping VPN.");
             stopVpn(this);
             isStarting = false;
             return START_NOT_STICKY;
@@ -609,6 +613,7 @@ public class LocalDnsVpnService extends VpnService {
 
             // ১. সেফ ও ফ্যামিলি ডিএনএস সার্ভিস যুক্ত করা
             builder.addDnsServer("10.0.0.2"); // Local TUN DNS - ensures all port 53 traffic routes directly into VPN
+            builder.addDnsServer("fd00:1::2"); // Local TUN IPv6 DNS
             builder.addDnsServer("1.1.1.3");   // Cloudflare Family
             builder.addDnsServer("94.140.14.15"); // AdGuard Family
 
@@ -634,6 +639,20 @@ public class LocalDnsVpnService extends VpnService {
             for (String ip : publicDnsIps) {
                 try {
                     builder.addRoute(ip, 32);
+                } catch (Exception ignored) {}
+            }
+
+            // IPv6 পাবলিক ও ফ্যামিলি DNS বাইপাস রোধে রাউট যুক্ত করা
+            String[] publicDnsV6 = {
+                    "2001:4860:4860::8888", "2001:4860:4860::8844",
+                    "2606:4700:4700::1111", "2606:4700:4700::1001",
+                    "2606:4700:4700::1113", "2606:4700:4700::1003",
+                    "2a10:50c0::bad1:ff", "2a10:50c0::bad2:ff",
+                    "2620:fe::fe", "2620:fe::9"
+            };
+            for (String ip6 : publicDnsV6) {
+                try {
+                    builder.addRoute(ip6, 128);
                 } catch (Exception ignored) {}
             }
 
@@ -731,54 +750,145 @@ public class LocalDnsVpnService extends VpnService {
     }
 
     private void processPacket(byte[] packet, int length, FileOutputStream out) {
-        if (length < 28) return; // Minimum IPv4 (20) + UDP (8)
+        if (length < 28) return;
 
         int version = (packet[0] >> 4) & 0x0F;
-        if (version != 4) return; // IPv4
 
-        int protocol = packet[9] & 0xFF;
-        if (protocol != 17) return; // UDP
+        if (version == 4) {
+            int ihl = (packet[0] & 0x0F) * 4;
+            if (length < ihl + 8) return;
 
-        int ihl = (packet[0] & 0x0F) * 4;
-        if (length < ihl + 8 + 12) return;
+            int protocol = packet[9] & 0xFF;
 
-        int destPort = ((packet[ihl + 2] & 0xFF) << 8) | (packet[ihl + 3] & 0xFF);
-        if (destPort != 53) return; // Port 53 DNS
-
-        int dnsOffset = ihl + 8;
-        String queryDomain = parseDnsQueryDomain(packet, dnsOffset, length);
-
-        if (isFirewallMode) {
-            if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
-                byte[] packetCopy = Arrays.copyOf(packet, length);
-                dnsThreadPool.submit(() -> sendSinkholeDnsResponse(packetCopy, length, ihl, dnsOffset, out));
+            // ১. Private DNS (DoT - Port 853) ইন্টারসেপ্ট ও TCP RST ইনজেকশন
+            // Android OS যখন DoT সার্ভারে পোর্ট ৮৫৩-এ কানেক্ট করার চেষ্টা করে, সাথে সাথে TCP RST পাঠানো হলে
+            // ফোন বুঝতে পারে DoT অনুপলব্ধ এবং সাথে সাথে লোকাল UDP Port 53 DNS (10.0.0.2)-এ ফলব্যাক করে।
+            if (protocol == 6) { // TCP
+                if (length < ihl + 20) return;
+                int destPort = ((packet[ihl + 2] & 0xFF) << 8) | (packet[ihl + 3] & 0xFF);
+                if (destPort == 853) {
+                    sendTcpReset(packet, length, ihl, out);
+                }
+                return;
             }
-            return;
-        }
 
-        if (queryDomain != null) {
-            byte[] packetCopy = Arrays.copyOf(packet, length);
-            if (isAdDomain(queryDomain)) {
+            if (protocol != 17) return; // UDP
+            if (length < ihl + 8 + 12) return;
+
+            int destPort = ((packet[ihl + 2] & 0xFF) << 8) | (packet[ihl + 3] & 0xFF);
+            if (destPort != 53) return; // Port 53 DNS
+
+            int dnsOffset = ihl + 8;
+            String queryDomain = parseDnsQueryDomain(packet, dnsOffset, length);
+
+            if (isFirewallMode) {
                 if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                    byte[] packetCopy = Arrays.copyOf(packet, length);
                     dnsThreadPool.submit(() -> sendSinkholeDnsResponse(packetCopy, length, ihl, dnsOffset, out));
                 }
-                Log.d(TAG, "DNS Sinkhole Blocked Domain: " + queryDomain);
                 return;
             }
 
-            // লোকাল ডিএনএস ক্যাশ চেক (যদি ক্যাশে থাকে, তবে আপস্ট্রিম সকেট ছাড়া দ্রুত লোকাল রেসপন্স)
-            DnsCacheEntry cached = DNS_CACHE.get(queryDomain);
-            if (cached != null && System.currentTimeMillis() < cached.expiresAt) {
-                if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
-                    dnsThreadPool.submit(() -> sendCachedDnsResponse(packetCopy, length, ihl, dnsOffset, cached.responseDnsBytes, out));
+            if (queryDomain != null) {
+                byte[] packetCopy = Arrays.copyOf(packet, length);
+                if (isAdDomain(queryDomain)) {
+                    if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                        dnsThreadPool.submit(() -> sendSinkholeDnsResponse(packetCopy, length, ihl, dnsOffset, out));
+                    }
+                    Log.d(TAG, "DNS Sinkhole Blocked Domain: " + queryDomain);
+                    return;
                 }
+
+                // লোকাল ডিএনএস ক্যাশ চেক (যদি ক্যাশে থাকে, তবে আপস্ট্রিম সকেট ছাড়া দ্রুত লোকাল রেসপন্স)
+                DnsCacheEntry cached = DNS_CACHE.get(queryDomain);
+                if (cached != null && System.currentTimeMillis() < cached.expiresAt) {
+                    if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                        dnsThreadPool.submit(() -> sendCachedDnsResponse(packetCopy, length, ihl, dnsOffset, cached.responseDnsBytes, out));
+                    }
+                    return;
+                }
+
+                if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                    dnsThreadPool.submit(() -> forwardDnsQueryUpstream(packetCopy, length, ihl, dnsOffset, out, queryDomain));
+                }
+            }
+        } else if (version == 6) {
+            // IPv6 DNS ও DoT হ্যান্ডলিং
+            if (length < 48) return; // 40 IPv6 + 8 UDP
+            int nextHeader = packet[6] & 0xFF;
+            if (nextHeader == 6) { // TCP (IPv6)
+                // IPv6 DoT ট্রাফিক ড্রপ
                 return;
             }
+            if (nextHeader != 17) return; // UDP (IPv6)
+            int destPort = ((packet[42] & 0xFF) << 8) | (packet[43] & 0xFF);
+            if (destPort != 53) return;
 
-            if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
-                dnsThreadPool.submit(() -> forwardDnsQueryUpstream(packetCopy, length, ihl, dnsOffset, out, queryDomain));
+            int dnsOffset = 48;
+            String queryDomain = parseDnsQueryDomain(packet, dnsOffset, length);
+            if (queryDomain != null) {
+                byte[] packetCopy = Arrays.copyOf(packet, length);
+                if (isAdDomain(queryDomain)) {
+                    if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                        dnsThreadPool.submit(() -> sendSinkholeDnsResponseV6(packetCopy, length, 40, dnsOffset, out));
+                    }
+                    Log.d(TAG, "DNS Sinkhole Blocked IPv6 Domain: " + queryDomain);
+                    return;
+                }
+
+                if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                    dnsThreadPool.submit(() -> forwardDnsQueryUpstreamV6(packetCopy, length, 40, dnsOffset, out, queryDomain));
+                }
             }
         }
+    }
+
+    // Canary ডোমেইন: গুগল ক্রোম ও ফায়ারফক্সকে DoH বন্ধ করানোর নির্দেশক
+    private static final String CANARY_DOMAIN = "use-application-dns.net";
+    private static final String[] DOH_BOOTSTRAP_DOMAINS = {
+            "dns.google", "dns.google.com",
+            "cloudflare-dns.com", "one.one.one.one",
+            "dns.quad9.net", "doh.cleanbrowsing.org",
+            "dns.adguard.com", "dns.adguard-dns.com"
+    };
+
+    // স্পষ্ট অ্যাডাল্ট ও পর্নোগ্রাফিক কিওয়ার্ড তালিকা
+    private static final String[] ADULT_KEYWORDS = {
+            "porn", "xxx", "xvideos", "xnxx", "xhamster", "hentai",
+            "brazzers", "redtube", "youporn", "chaturbate", "stripchat",
+            "bongacams", "beeg", "tnaflix", "spankbang", "eporner",
+            "fapello", "heavy-r", "nhentai", "rule34", "onlyfans",
+            "cam4", "livejasmin", "erovideo", "hqporner", "motherless",
+            "nudist", "camgirl", "javhd", "porno", "jav", "fetish",
+            "erotic", "boobs", "nsfw", "tube8", "hardcore"
+    };
+
+    private static boolean isAdultDomainPattern(String domain) {
+        if (domain == null || domain.length() < 4) return false;
+        if (domain.contains("essex") || domain.contains("sussex") ||
+            domain.contains("middlesex") || domain.contains("assessment") ||
+            domain.contains("pass") || domain.contains("class") ||
+            domain.contains("compass") || domain.contains("glass") ||
+            domain.contains("grass") || domain.contains("mass") ||
+            domain.contains("press") || domain.contains("brass") ||
+            domain.contains("asset") || domain.contains("express") ||
+            domain.contains("session") || domain.contains("lesson") ||
+            domain.contains("massage") || domain.contains("classic") ||
+            domain.contains("assistant") || domain.contains("javascript") ||
+            domain.contains("activex")) {
+            return false;
+        }
+
+        if (domain.contains("sex") && !domain.contains("essex") && !domain.contains("sussex") && !domain.contains("middlesex")) {
+            return true;
+        }
+
+        for (String kw : ADULT_KEYWORDS) {
+            if (domain.contains(kw)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -789,9 +899,26 @@ public class LocalDnsVpnService extends VpnService {
 
         String lower = domain.toLowerCase().trim();
 
-        // এআই প্ল্যাটফর্মের ডোমেইন ফিল্টারের বাইরে (100% Whitelist Bypass)
+        // ১. এআই প্ল্যাটফর্মের ডোমেইন ফিল্টারের বাইরে (100% Whitelist Bypass)
         if (isAiDomain(lower)) {
             return false;
+        }
+
+        // ২. DoH Canary ডোমেইন: NXDOMAIN দিলে ক্রোম ও ফায়ারফক্স DoH বন্ধ করে সিস্টেম ডিএনএসে ফিরে আসে
+        if (lower.equals(CANARY_DOMAIN) || lower.endsWith("." + CANARY_DOMAIN)) {
+            return true;
+        }
+
+        // ৩. DoH বুটস্ট্র্যাপ ডোমেইন ব্লক
+        for (String doh : DOH_BOOTSTRAP_DOMAINS) {
+            if (lower.equals(doh) || lower.endsWith("." + doh)) {
+                return true;
+            }
+        }
+
+        // ৪. স্পষ্ট অ্যাডাল্ট ও পর্নোগ্রাফিক কিওয়ার্ড/প্যাটার্ন ডোমেইন
+        if (isAdultDomainPattern(lower)) {
+            return true;
         }
 
         Set<String> currentBlocklist = BLOCKED_DOMAINS;
@@ -799,12 +926,12 @@ public class LocalDnsVpnService extends VpnService {
             return false;
         }
 
-        // ১. সরাসরি সমান (Exact Match)
+        // ৫. সরাসরি সমান (Exact Match from 160,000+ Blocklist)
         if (currentBlocklist.contains(lower)) {
             return true;
         }
 
-        // ২. সাবডোমেইন ম্যাচিং
+        // ৬. সাবডোমেইন ম্যাচিং
         int dotIndex = lower.indexOf('.');
         while (dotIndex != -1 && dotIndex < lower.length() - 1) {
             String sub = lower.substring(dotIndex + 1);
@@ -1071,6 +1198,300 @@ public class LocalDnsVpnService extends VpnService {
         int checksum = ~sum & 0xFFFF;
         packet[10] = (byte) ((checksum >> 8) & 0xFF);
         packet[11] = (byte) (checksum & 0xFF);
+    }
+
+    /**
+     * DoT (Port 853) রিকোয়েস্টের জন্য তৎক্ষণাৎ RFC 793 TCP RST রেসপন্স তৈরি ও পাঠানো।
+     * এর ফলে Android OS বিলম্ব ছাড়াই সাথে সাথে বুঝতে পারে DoT ডাউন, এবং লোকাল Port 53 UDP DNS-এ ট্রাফিকের গতি ঘুরিয়ে দেয়।
+     */
+    private void sendTcpReset(byte[] packet, int length, int ihl, FileOutputStream out) {
+        try {
+            int tcpOffset = ihl;
+            if (length < tcpOffset + 20) return;
+
+            int totalLen = ihl + 20;
+            byte[] rstPacket = new byte[totalLen];
+
+            // 1. IP Header কপি ও ফিল্ড এডজাস্ট
+            System.arraycopy(packet, 0, rstPacket, 0, ihl);
+            rstPacket[2] = (byte) ((totalLen >> 8) & 0xFF);
+            rstPacket[3] = (byte) (totalLen & 0xFF);
+
+            // Swap IP addresses
+            System.arraycopy(packet, 12, rstPacket, 16, 4);
+            System.arraycopy(packet, 16, rstPacket, 12, 4);
+
+            computeIpHeaderChecksum(rstPacket, ihl);
+
+            // 2. TCP Header
+            // Swap Ports: Source Port = packet destPort, Dest Port = packet srcPort
+            rstPacket[tcpOffset] = packet[tcpOffset + 2];
+            rstPacket[tcpOffset + 1] = packet[tcpOffset + 3];
+            rstPacket[tcpOffset + 2] = packet[tcpOffset];
+            rstPacket[tcpOffset + 3] = packet[tcpOffset + 1];
+
+            long origSeq = (((long) (packet[tcpOffset + 4] & 0xFF)) << 24) |
+                           (((long) (packet[tcpOffset + 5] & 0xFF)) << 16) |
+                           (((long) (packet[tcpOffset + 6] & 0xFF)) << 8) |
+                           ((long) (packet[tcpOffset + 7] & 0xFF));
+
+            int flags = packet[tcpOffset + 13] & 0xFF;
+            boolean isSyn = (flags & 0x02) != 0;
+            boolean isAck = (flags & 0x10) != 0;
+
+            long rstSeq = 0;
+            long rstAck = 0;
+            byte rstFlags = 0x04; // RST
+
+            if (isAck) {
+                rstSeq = (((long) (packet[tcpOffset + 8] & 0xFF)) << 24) |
+                         (((long) (packet[tcpOffset + 9] & 0xFF)) << 16) |
+                         (((long) (packet[tcpOffset + 10] & 0xFF)) << 8) |
+                         ((long) (packet[tcpOffset + 11] & 0xFF));
+                rstFlags = 0x04;
+            } else {
+                rstSeq = 0;
+                rstAck = (origSeq + (isSyn ? 1 : 0)) & 0xFFFFFFFFL;
+                rstFlags = 0x14; // RST | ACK
+            }
+
+            // Sequence Number
+            rstPacket[tcpOffset + 4] = (byte) ((rstSeq >> 24) & 0xFF);
+            rstPacket[tcpOffset + 5] = (byte) ((rstSeq >> 16) & 0xFF);
+            rstPacket[tcpOffset + 6] = (byte) ((rstSeq >> 8) & 0xFF);
+            rstPacket[tcpOffset + 7] = (byte) (rstSeq & 0xFF);
+
+            // Acknowledgment Number
+            rstPacket[tcpOffset + 8] = (byte) ((rstAck >> 24) & 0xFF);
+            rstPacket[tcpOffset + 9] = (byte) ((rstAck >> 16) & 0xFF);
+            rstPacket[tcpOffset + 10] = (byte) ((rstAck >> 8) & 0xFF);
+            rstPacket[tcpOffset + 11] = (byte) (rstAck & 0xFF);
+
+            // Data offset: 5 (20 bytes)
+            rstPacket[tcpOffset + 12] = 0x50;
+            rstPacket[tcpOffset + 13] = rstFlags;
+
+            // Window, Checksum placeholder, Urgent pointer
+            rstPacket[tcpOffset + 14] = 0;
+            rstPacket[tcpOffset + 15] = 0;
+            rstPacket[tcpOffset + 16] = 0;
+            rstPacket[tcpOffset + 17] = 0;
+            rstPacket[tcpOffset + 18] = 0;
+            rstPacket[tcpOffset + 19] = 0;
+
+            computeTcpChecksum(rstPacket, ihl, 20);
+
+            if (out != null) {
+                synchronized (out) {
+                    out.write(rstPacket, 0, totalLen);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending TCP RST", e);
+        }
+    }
+
+    private static void computeTcpChecksum(byte[] packet, int ihl, int tcpLen) {
+        long sum = 0;
+        for (int i = 12; i < 16; i += 2) {
+            sum += ((packet[i] & 0xFF) << 8) | (packet[i + 1] & 0xFF);
+        }
+        for (int i = 16; i < 20; i += 2) {
+            sum += ((packet[i] & 0xFF) << 8) | (packet[i + 1] & 0xFF);
+        }
+        sum += 6; // Protocol TCP
+        sum += tcpLen;
+
+        int tcpOffset = ihl;
+        for (int i = 0; i < tcpLen; i += 2) {
+            if (i + 1 < tcpLen) {
+                sum += ((packet[tcpOffset + i] & 0xFF) << 8) | (packet[tcpOffset + i + 1] & 0xFF);
+            } else {
+                sum += (packet[tcpOffset + i] & 0xFF) << 8;
+            }
+        }
+
+        while ((sum >> 16) > 0) {
+            sum = (sum & 0xFFFF) + (sum >> 16);
+        }
+
+        int checksum = (int) (~sum & 0xFFFF);
+        packet[tcpOffset + 16] = (byte) ((checksum >> 8) & 0xFF);
+        packet[tcpOffset + 17] = (byte) (checksum & 0xFF);
+    }
+
+    /**
+     * IPv6 DNS Sinkhole NXDOMAIN রেসপন্স
+     */
+    private void sendSinkholeDnsResponseV6(byte[] packet, int length, int ipHdrLen, int dnsOffset, FileOutputStream out) {
+        try {
+            int dnsQueryLen = length - dnsOffset;
+            if (dnsQueryLen < 12) return;
+
+            int qPos = dnsOffset + 12;
+            while (qPos < length) {
+                int labelLen = packet[qPos] & 0xFF;
+                if (labelLen == 0) {
+                    qPos++;
+                    break;
+                }
+                if ((labelLen & 0xC0) == 0xC0) {
+                    qPos += 2;
+                    break;
+                }
+                qPos += 1 + labelLen;
+            }
+            int qLen = (qPos + 4) - dnsOffset;
+            if (qLen <= 12 || dnsOffset + qLen > length) {
+                qLen = length - dnsOffset;
+            }
+
+            int respDnsLen = qLen;
+            int udpLen = 8 + respDnsLen;
+            int totalLen = ipHdrLen + udpLen;
+            byte[] respPacket = new byte[totalLen];
+
+            // 1. IPv6 Header কপি
+            System.arraycopy(packet, 0, respPacket, 0, ipHdrLen);
+            respPacket[4] = (byte) ((udpLen >> 8) & 0xFF);
+            respPacket[5] = (byte) (udpLen & 0xFF);
+
+            // Swap IPv6 addresses
+            System.arraycopy(packet, 8, respPacket, 24, 16);
+            System.arraycopy(packet, 24, respPacket, 8, 16);
+
+            // 2. UDP Header: Swap Ports
+            int udpOffset = ipHdrLen;
+            respPacket[udpOffset] = packet[udpOffset + 2];
+            respPacket[udpOffset + 1] = packet[udpOffset + 3];
+            respPacket[udpOffset + 2] = packet[udpOffset];
+            respPacket[udpOffset + 3] = packet[udpOffset + 1];
+
+            respPacket[udpOffset + 4] = (byte) ((udpLen >> 8) & 0xFF);
+            respPacket[udpOffset + 5] = (byte) (udpLen & 0xFF);
+            respPacket[udpOffset + 6] = 0;
+            respPacket[udpOffset + 7] = 0;
+
+            // 3. DNS Header + Question (NXDOMAIN)
+            int respDnsOffset = ipHdrLen + 8;
+            System.arraycopy(packet, dnsOffset, respPacket, respDnsOffset, respDnsLen);
+
+            respPacket[respDnsOffset + 2] = (byte) (0x80 | (packet[dnsOffset + 2] & 0x01));
+            respPacket[respDnsOffset + 3] = (byte) 0x83; // NXDOMAIN
+            respPacket[respDnsOffset + 4] = 0x00;
+            respPacket[respDnsOffset + 5] = 0x01;
+            respPacket[respDnsOffset + 6] = 0x00;
+            respPacket[respDnsOffset + 7] = 0x00;
+            respPacket[respDnsOffset + 8] = 0x00;
+            respPacket[respDnsOffset + 9] = 0x00;
+            respPacket[respDnsOffset + 10] = 0x00;
+            respPacket[respDnsOffset + 11] = 0x00;
+
+            computeUdpV6Checksum(respPacket, udpOffset, udpLen);
+
+            if (out != null) {
+                synchronized (out) {
+                    out.write(respPacket, 0, totalLen);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending IPv6 sinkhole DNS response", e);
+        }
+    }
+
+    private void forwardDnsQueryUpstreamV6(byte[] packet, int length, int ipHdrLen, int dnsOffset, FileOutputStream out, String queryDomain) {
+        DatagramSocket socket = null;
+        try {
+            socket = new DatagramSocket();
+            protect(socket);
+            socket.setSoTimeout(1200);
+
+            int dnsLength = length - dnsOffset;
+            byte[] dnsQuery = new byte[dnsLength];
+            System.arraycopy(packet, dnsOffset, dnsQuery, 0, dnsLength);
+
+            InetAddress upstreamAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[0]);
+            DatagramPacket outPacket = new DatagramPacket(dnsQuery, dnsLength, upstreamAddress, 53);
+            socket.send(outPacket);
+
+            byte[] respBuf = new byte[1500];
+            DatagramPacket inPacket = new DatagramPacket(respBuf, respBuf.length);
+            try {
+                socket.receive(inPacket);
+            } catch (java.net.SocketTimeoutException ste) {
+                InetAddress fallbackAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[2]);
+                outPacket.setAddress(fallbackAddress);
+                socket.send(outPacket);
+                socket.receive(inPacket);
+            }
+
+            int respDnsLen = inPacket.getLength();
+            int udpLen = 8 + respDnsLen;
+            int totalLen = ipHdrLen + udpLen;
+            byte[] respPacket = new byte[totalLen];
+
+            System.arraycopy(packet, 0, respPacket, 0, ipHdrLen);
+            respPacket[4] = (byte) ((udpLen >> 8) & 0xFF);
+            respPacket[5] = (byte) (udpLen & 0xFF);
+
+            System.arraycopy(packet, 8, respPacket, 24, 16);
+            System.arraycopy(packet, 24, respPacket, 8, 16);
+
+            int udpOffset = ipHdrLen;
+            respPacket[udpOffset] = packet[udpOffset + 2];
+            respPacket[udpOffset + 1] = packet[udpOffset + 3];
+            respPacket[udpOffset + 2] = packet[udpOffset];
+            respPacket[udpOffset + 3] = packet[udpOffset + 1];
+
+            respPacket[udpOffset + 4] = (byte) ((udpLen >> 8) & 0xFF);
+            respPacket[udpOffset + 5] = (byte) (udpLen & 0xFF);
+            respPacket[udpOffset + 6] = 0;
+            respPacket[udpOffset + 7] = 0;
+
+            System.arraycopy(inPacket.getData(), 0, respPacket, ipHdrLen + 8, respDnsLen);
+
+            computeUdpV6Checksum(respPacket, udpOffset, udpLen);
+
+            if (out != null) {
+                synchronized (out) {
+                    out.write(respPacket, 0, totalLen);
+                }
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (socket != null) {
+                try {
+                    socket.close();
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    private static void computeUdpV6Checksum(byte[] packet, int udpOffset, int udpLen) {
+        long sum = 0;
+        for (int i = 8; i < 24; i += 2) {
+            sum += ((packet[i] & 0xFF) << 8) | (packet[i + 1] & 0xFF);
+        }
+        for (int i = 24; i < 40; i += 2) {
+            sum += ((packet[i] & 0xFF) << 8) | (packet[i + 1] & 0xFF);
+        }
+        sum += udpLen;
+        sum += 17; // UDP protocol
+
+        for (int i = 0; i < udpLen; i += 2) {
+            if (i + 1 < udpLen) {
+                sum += ((packet[udpOffset + i] & 0xFF) << 8) | (packet[udpOffset + i + 1] & 0xFF);
+            } else {
+                sum += (packet[udpOffset + i] & 0xFF) << 8;
+            }
+        }
+        while ((sum >> 16) > 0) {
+            sum = (sum & 0xFFFF) + (sum >> 16);
+        }
+        int checksum = (int) (~sum & 0xFFFF);
+        if (checksum == 0) checksum = 0xFFFF;
+        packet[udpOffset + 6] = (byte) ((checksum >> 8) & 0xFF);
+        packet[udpOffset + 7] = (byte) (checksum & 0xFF);
     }
 
     private String parseDnsQueryDomain(byte[] packet, int dnsOffset, int length) {

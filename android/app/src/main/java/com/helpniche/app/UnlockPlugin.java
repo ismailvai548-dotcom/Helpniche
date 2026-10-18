@@ -163,12 +163,18 @@ public class UnlockPlugin extends Plugin {
                 // ১. অ্যাক্সেসিবিলিটি প্রটেকশন আনলক করা
                 BlockerAccessibilityService.setUnlockDuration(getContext(), minutes);
 
-                // ২. VPN পরিষ্কারভাবে স্টপ করা
+                // ২. শুধুমাত্র যদি সিস্টেম-ওয়াইড অ্যাডব্লক এবং নেটওয়ার্ক ব্লক বন্ধ থাকে, তখনই VPN স্টপ করা হবে
                 try {
-                    LocalDnsVpnService.stopVpn(getContext());
-                    Log.i(TAG, "LocalDnsVpnService stopped cleanly during unlock.");
+                    SharedPreferences prefs = getContext().getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                    boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
+                    if (!isSystemWide && !LocalDnsVpnService.hasActiveNetworkBlocks(getContext())) {
+                        LocalDnsVpnService.stopVpn(getContext());
+                        Log.i(TAG, "LocalDnsVpnService stopped during unlock because ad block is disabled.");
+                    } else {
+                        Log.i(TAG, "LocalDnsVpnService kept active during unlock to ensure continuous Ad & Adult content filtering.");
+                    }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error stopping LocalDnsVpnService", e);
+                    Log.e(TAG, "Error checking LocalDnsVpnService during unlock", e);
                 }
 
                 // ৩. আনলক সময় শেষ হলে পুনরায় চালু করার অ্যালার্ম

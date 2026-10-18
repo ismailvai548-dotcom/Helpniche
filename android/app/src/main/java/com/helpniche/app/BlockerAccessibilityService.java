@@ -957,9 +957,15 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return;
         }
 
-        // পার্মানেন্ট আনলক মোড সক্রিয় থাকলে কোনো ফিল্টার বা ভিপিএন চলবে না
+        // পার্মানেন্ট আনলক মোড সক্রিয় থাকলে অ্যাপ ব্লকার নিষ্ক্রিয় থাকবে, কিন্তু সিস্টেম-ওয়াইড অ্যাড/অ্যাডাল্ট ব্লকার সচল থাকবে
         if (isPermanentUnlocked(this)) {
-            LocalDnsVpnService.stopVpn(this);
+            SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
+            if (!isSystemWide && !LocalDnsVpnService.hasActiveNetworkBlocks(this)) {
+                LocalDnsVpnService.stopVpn(this);
+            } else if (!LocalDnsVpnService.isVpnRunning()) {
+                LocalDnsVpnService.startVpn(this);
+            }
             return;
         }
 
@@ -1023,7 +1029,14 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 }
             }
         } else {
-            LocalDnsVpnService.stopVpn(this);
+            // টেম্পোরারি আনলক থাকা অবস্থায় অ্যাপ ব্লক হবে না, কিন্তু সিস্টেম-ওয়াইড অ্যাড/অ্যাডাল্ট ফিল্টারিং চালু থাকবে
+            SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            boolean isSystemWideEnabled = prefs.getBoolean("system_wide_adblock_enabled", true);
+            if (!isSystemWideEnabled && !LocalDnsVpnService.hasActiveNetworkBlocks(this)) {
+                LocalDnsVpnService.stopVpn(this);
+            } else if (!LocalDnsVpnService.isVpnRunning()) {
+                LocalDnsVpnService.startVpn(this);
+            }
         }
 
         // Strict App Blocker Check
