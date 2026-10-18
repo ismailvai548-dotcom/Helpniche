@@ -121,7 +121,7 @@ BEGIN
     WHERE lower(c.device_id) = lower(p_device_id)
       AND c.code_hash = p_code_hash
       AND c.status = 'unused'
-      AND c.expires_at > v_now
+      AND (c.expires_at IS NULL OR c.expires_at > v_now)
     FOR UPDATE OF c;
 
     IF NOT FOUND THEN
@@ -133,7 +133,8 @@ BEGIN
 
     UPDATE public.unlock_codes
     SET status = 'used',
-        used_at = v_now
+        used_at = v_now,
+        is_used = true
     WHERE id = v_code_rec.id;
 
     IF v_code_rec.request_id IS NOT NULL THEN
@@ -153,3 +154,29 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.consume_unlock_code(TEXT, TEXT) TO anon, authenticated, service_role;
+
+-- 7. Backward-compatible Plaintext Unlock Verification Function
+CREATE OR REPLACE FUNCTION public.verify_unlock_code(
+    p_device_id TEXT,
+    p_code TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_clean_device TEXT;
+    v_clean_code TEXT;
+    v_code_hash TEXT;
+BEGIN
+    v_clean_device := lower(trim(p_device_id));
+    v_clean_code := replace(trim(p_code), ' ', '');
+    v_code_hash := encode(digest(v_clean_code, 'sha256'), 'hex');
+
+    RETURN public.consume_unlock_code(v_clean_device, v_code_hash);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.verify_unlock_code(TEXT, TEXT) TO anon, authenticated, service_role;
+
