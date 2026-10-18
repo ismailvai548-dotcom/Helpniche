@@ -74,10 +74,10 @@ public class LocalDnsVpnService extends VpnService {
 
     // আপস্ট্রিম সেফ ফ্যামিলি ও পর্নোগ্রাফিক ফিল্টারিং ডিএনএস সার্ভারসমূহ
     private static final String[] UPSTREAM_DNS_SERVERS = {
-            "94.140.14.15", // AdGuard Family Protection (Adult Content Blocking)
-            "94.140.15.16",
-            "1.1.1.3",     // Cloudflare Family
-            "1.0.0.3",
+            "1.1.1.3",        // Cloudflare Family (Adult Content & Malware Blocking - Anycast Dhaka/Ctg)
+            "1.0.0.3",        // Cloudflare Family Secondary
+            "94.140.14.15",   // AdGuard Family Protection (Adult Content Blocking)
+            "94.140.15.16",   // AdGuard Family Secondary
             "185.228.168.168" // CleanBrowsing Family
     };
 
@@ -186,7 +186,7 @@ public class LocalDnsVpnService extends VpnService {
     public void onCreate() {
         super.onCreate();
         instance = this;
-        dnsThreadPool = Executors.newFixedThreadPool(3);
+        dnsThreadPool = Executors.newCachedThreadPool();
         loadBlocklistFromAssets();
         registerNetworkCallback();
     }
@@ -287,26 +287,12 @@ public class LocalDnsVpnService extends VpnService {
                 networkCallback = new ConnectivityManager.NetworkCallback() {
                     @Override
                     public void onAvailable(Network network) {
-                        if (ScreenUnlockReceiver.isScreenInteractiveAndUnlocked(LocalDnsVpnService.this)) {
-                            evaluateAndRebuildVpn();
-                        } else {
-                            Log.i(TAG, "Network available but screen is locked: Stopping VPN.");
-                            stopVpn(LocalDnsVpnService.this);
-                        }
+                        evaluateAndRebuildVpn();
                     }
 
                     @Override
                     public void onLost(Network network) {
-                        if (!ScreenUnlockReceiver.isNetworkAvailable(LocalDnsVpnService.this)) {
-                            Log.i(TAG, "All networks lost: Stopping VPN to save battery and data.");
-                            stopVpn(LocalDnsVpnService.this);
-                        } else {
-                            if (ScreenUnlockReceiver.isScreenInteractiveAndUnlocked(LocalDnsVpnService.this)) {
-                                evaluateAndRebuildVpn();
-                            } else {
-                                stopVpn(LocalDnsVpnService.this);
-                            }
-                        }
+                        // Keep VPN running to handle reconnection smoothly without background restart failures
                     }
 
                     @Override
@@ -506,15 +492,8 @@ public class LocalDnsVpnService extends VpnService {
             return START_NOT_STICKY;
         }
 
-        if (!ScreenUnlockReceiver.isScreenInteractiveAndUnlocked(this) || !ScreenUnlockReceiver.isNetworkAvailable(this)) {
-            Log.i(TAG, "Screen locked or no active internet in onStartCommand. Stopping VPN to save battery.");
-            stopVpn(this);
-            isStarting = false;
-            return START_NOT_STICKY;
-        }
-
         if (dnsThreadPool == null || dnsThreadPool.isShutdown()) {
-            dnsThreadPool = Executors.newFixedThreadPool(3);
+            dnsThreadPool = Executors.newCachedThreadPool();
         }
 
         loadBlocklistFromAssets();
@@ -629,10 +608,9 @@ public class LocalDnsVpnService extends VpnService {
             builder.addAddress("fd00:1::2", 64);
 
             // ১. সেফ ও ফ্যামিলি ডিএনএস সার্ভিস যুক্ত করা
-            builder.addDnsServer("94.140.14.15");
-            builder.addDnsServer("94.140.15.16");
-            builder.addDnsServer("1.1.1.3");
-            builder.addDnsServer("1.0.0.3");
+            builder.addDnsServer("10.0.0.2"); // Local TUN DNS - ensures all port 53 traffic routes directly into VPN
+            builder.addDnsServer("1.1.1.3");   // Cloudflare Family
+            builder.addDnsServer("94.140.14.15"); // AdGuard Family
 
             // ২. রাউট যুক্ত করা
             builder.addRoute("10.0.0.0", 24);
@@ -856,24 +834,33 @@ public class LocalDnsVpnService extends VpnService {
     }
 
     /**
-     * ব্লকলিস্টভুক্ত ডোমেইনের জন্য লোকালভাবে 0.0.0.0 সিংকহোল রেসপন্স পাঠানো
+     * ব্লকলিস্টভুক্ত ডোমেইনের জন্য লোকালভাবে RFC-compliant NXDOMAIN (Name Error) রেসপন্স পাঠানো
      */
     private void sendSinkholeDnsResponse(byte[] packet, int length, int ihl, int dnsOffset, FileOutputStream out) {
         try {
             int dnsQueryLen = length - dnsOffset;
             if (dnsQueryLen < 12) return;
 
-            // DNS Answer RR for A record (0.0.0.0)
-            byte[] answerRr = new byte[] {
-                    (byte) 0xC0, 0x0C,       // Pointer to domain name at offset 12 in DNS header
-                    0x00, 0x01,             // Type: A
-                    0x00, 0x01,             // Class: IN
-                    0x00, 0x00, 0x00, 0x3C, // TTL: 60s
-                    0x00, 0x04,             // RDLENGTH: 4
-                    0x00, 0x00, 0x00, 0x00  // RDATA: 0.0.0.0
-            };
+            // Compute length of Question section (12-byte header + QNAME + 2-byte QTYPE + 2-byte QCLASS)
+            int qPos = dnsOffset + 12;
+            while (qPos < length) {
+                int labelLen = packet[qPos] & 0xFF;
+                if (labelLen == 0) {
+                    qPos++; // Past zero terminator
+                    break;
+                }
+                if ((labelLen & 0xC0) == 0xC0) {
+                    qPos += 2; // Pointer
+                    break;
+                }
+                qPos += 1 + labelLen;
+            }
+            int qLen = (qPos + 4) - dnsOffset;
+            if (qLen <= 12 || dnsOffset + qLen > length) {
+                qLen = length - dnsOffset;
+            }
 
-            int respDnsLen = dnsQueryLen + answerRr.length;
+            int respDnsLen = qLen;
             byte[] respPacket = new byte[ihl + 8 + respDnsLen];
 
             // 1. Copy IPv4 header
@@ -906,20 +893,29 @@ public class LocalDnsVpnService extends VpnService {
             // 7. Compute IP Header Checksum
             computeIpHeaderChecksum(respPacket, ihl);
 
-            // 8. Construct DNS Response Header and Body
+            // 8. Construct DNS Response (Header + Question only, RCODE 3 = NXDOMAIN)
             int respDnsOffset = ihl + 8;
-            System.arraycopy(packet, dnsOffset, respPacket, respDnsOffset, dnsQueryLen);
+            System.arraycopy(packet, dnsOffset, respPacket, respDnsOffset, respDnsLen);
 
-            // Modify DNS Header Flags to Response (0x8180)
-            respPacket[respDnsOffset + 2] = (byte) 0x81;
-            respPacket[respDnsOffset + 3] = (byte) 0x80;
+            // Modify DNS Header Flags to Response with NXDOMAIN
+            respPacket[respDnsOffset + 2] = (byte) (0x80 | (packet[dnsOffset + 2] & 0x01)); // QR=1, preserve RD
+            respPacket[respDnsOffset + 3] = (byte) 0x83; // RA=1, RCODE=3 (NXDOMAIN)
 
-            // Answer Count = 1
+            // QDCOUNT = 1
+            respPacket[respDnsOffset + 4] = 0x00;
+            respPacket[respDnsOffset + 5] = 0x01;
+
+            // ANCOUNT = 0
             respPacket[respDnsOffset + 6] = 0x00;
-            respPacket[respDnsOffset + 7] = 0x01;
+            respPacket[respDnsOffset + 7] = 0x00;
 
-            // Append Answer RR
-            System.arraycopy(answerRr, 0, respPacket, respDnsOffset + dnsQueryLen, answerRr.length);
+            // NSCOUNT = 0
+            respPacket[respDnsOffset + 8] = 0x00;
+            respPacket[respDnsOffset + 9] = 0x00;
+
+            // ARCOUNT = 0
+            respPacket[respDnsOffset + 10] = 0x00;
+            respPacket[respDnsOffset + 11] = 0x00;
 
             if (out != null) {
                 synchronized (out) {
@@ -936,7 +932,7 @@ public class LocalDnsVpnService extends VpnService {
         try {
             socket = new DatagramSocket();
             protect(socket);
-            socket.setSoTimeout(2500);
+            socket.setSoTimeout(1200);
 
             int dnsLength = length - dnsOffset;
             byte[] dnsQuery = new byte[dnsLength];
@@ -951,7 +947,7 @@ public class LocalDnsVpnService extends VpnService {
             try {
                 socket.receive(inPacket);
             } catch (java.net.SocketTimeoutException ste) {
-                // Secondary fallback: Cloudflare Family (1.1.1.3)
+                // Secondary fallback: AdGuard Family (94.140.14.15)
                 InetAddress fallbackAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[2]);
                 outPacket.setAddress(fallbackAddress);
                 socket.send(outPacket);

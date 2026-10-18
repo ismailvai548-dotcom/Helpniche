@@ -41,24 +41,16 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
         } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
             handleScreenLocked(context);
         } else if (ConnectivityManager.CONNECTIVITY_ACTION.equals(action)) {
-            if (isScreenInteractiveAndUnlocked(context) && isNetworkAvailable(context)) {
+            if (isNetworkAvailable(context)) {
                 handleScreenUnlocked(context);
-            } else {
-                handleScreenLocked(context);
             }
         }
     }
 
     public static void handleScreenLocked(Context context) {
-        if (context == null) return;
-        try {
-            if (LocalDnsVpnService.isVpnRunning()) {
-                Log.i(TAG, "Screen locked/off or network down: Stopping VPN to save battery and data.");
-                LocalDnsVpnService.stopVpn(context);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error handling screen locked event", e);
-        }
+        // Do not stop VPN when screen is locked. A local DNS VPN consumes negligible battery when idle,
+        // and stopping it causes ForegroundServiceStartNotAllowedException on Android 12+
+        // when attempting to restart it later from background.
     }
 
     public static void handleScreenUnlocked(Context context) {
@@ -72,18 +64,13 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
                 return;
             }
 
-            if (!isScreenInteractiveAndUnlocked(context)) {
-                Log.i(TAG, "Screen not interactive or still locked. Keeping VPN off.");
-                return;
-            }
-
             if (isNetworkAvailable(context)) {
                 if (!LocalDnsVpnService.isVpnRunning()) {
                     Log.i(TAG, "Screen unlocked and internet available: Resuming VPN for ad-blocking.");
                     LocalDnsVpnService.startVpn(context);
                 }
             } else {
-                Log.i(TAG, "Screen unlocked but no active internet: Keeping VPN off to save battery.");
+                Log.i(TAG, "Screen unlocked but no active internet.");
             }
         } catch (Exception e) {
             Log.e(TAG, "Error handling screen unlocked event", e);
