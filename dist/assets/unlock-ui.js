@@ -304,8 +304,19 @@
                         } catch (e) {}
                     }
 
-                    // ৩. Supabase ভেরিফিকেশন কল
-                    const response = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/rpc/verify_unlock_code`, {
+                    const cleanCode = code.trim().replace(/\s+/g, '');
+                    let codeHash = '';
+                    try {
+                        const msgUint8 = new TextEncoder().encode(cleanCode);
+                        const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+                        codeHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    } catch (hashErr) {
+                        console.error('SHA256 error:', hashErr);
+                    }
+
+                    // ৩. Supabase ক্যানোনিকাল ভেরিফিকেশন কল (consume_unlock_code)
+                    const cleanDevId = (currentDeviceId || '').trim().toLowerCase();
+                    let response = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/rpc/consume_unlock_code`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -313,10 +324,28 @@
                             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                         },
                         body: JSON.stringify({
-                            p_device_id: currentDeviceId,
-                            p_code: code
+                            p_device_id: cleanDevId,
+                            p_code_hash: codeHash
                         })
                     });
+
+                    // ফলব্যাক: যদি consume_unlock_code 404 দেয়
+                    if (!response.ok && response.status === 404) {
+                        try {
+                            response = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/rpc/verify_unlock_code`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'apikey': SUPABASE_ANON_KEY,
+                                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                                },
+                                body: JSON.stringify({
+                                    p_device_id: cleanDevId,
+                                    p_code: cleanCode
+                                })
+                            });
+                        } catch (ignored) {}
+                    }
 
                     const result = await response.json();
 
