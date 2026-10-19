@@ -72,13 +72,13 @@ public class LocalDnsVpnService extends VpnService {
     private static final Map<String, DnsCacheEntry> DNS_CACHE = new ConcurrentHashMap<>();
     private static int lastKnownTransport = -1;
 
-    // আপস্ট্রিম সেফ ফ্যামিলি ও পর্নোগ্রাফিক ফিল্টারিং ডিএনএস সার্ভারসমূহ
+    // আপস্ট্রিম সেফ ফ্যামিলি, অ্যাডব্লকিং ও পর্নোগ্রাফিক ফিল্টারিং ডিএনএস সার্ভারসমূহ
     private static final String[] UPSTREAM_DNS_SERVERS = {
-            "1.1.1.3",        // Cloudflare Family (Adult Content & Malware Blocking - Anycast Dhaka/Ctg)
-            "1.0.0.3",        // Cloudflare Family Secondary
-            "94.140.14.15",   // AdGuard Family Protection (Adult Content Blocking)
+            "94.140.14.15",   // AdGuard Family Protection (Ad Blocking + Adult Content Blocking)
             "94.140.15.16",   // AdGuard Family Secondary
-            "185.228.168.168" // CleanBrowsing Family
+            "185.228.168.168", // CleanBrowsing Family
+            "1.1.1.3",        // Cloudflare Family
+            "1.0.0.3"         // Cloudflare Family Secondary
     };
 
     // মেমরি-অপ্টিমাইজড ডোমেইন ব্লকলিস্ট সেট
@@ -95,13 +95,13 @@ public class LocalDnsVpnService extends VpnService {
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
-            boolean loaded = tryLoadBlocklist("blocklist.txt.gz", true);
+            boolean loaded = tryLoadBlocklist("blocklist.txt", false);
             if (!loaded) {
-                Log.w(TAG, "blocklist.txt.gz not found, falling back to plain blocklist.txt");
-                loaded = tryLoadBlocklist("blocklist.txt", false);
+                Log.w(TAG, "plain blocklist.txt not found, falling back to blocklist.txt.gz");
+                loaded = tryLoadBlocklist("blocklist.txt.gz", true);
             }
             if (!loaded) {
-                Log.e(TAG, "CRITICAL: No blocklist asset found (tried .gz and .txt). AdBlock DNS sinkhole is DISABLED.");
+                Log.e(TAG, "CRITICAL: No blocklist asset found (tried .txt and .gz). AdBlock DNS sinkhole is DISABLED.");
             }
             executor.shutdown();
         });
@@ -621,11 +621,11 @@ public class LocalDnsVpnService extends VpnService {
             builder.addAddress("10.0.0.2", 24);
             builder.addAddress("fd00:1::2", 64);
 
-            // ১. সেফ ও ফ্যামিলি ডিএনএস সার্ভিস যুক্ত করা
-            builder.addDnsServer("10.0.0.2"); // Local TUN DNS - ensures all port 53 traffic routes directly into VPN
-            builder.addDnsServer("fd00:1::2"); // Local TUN IPv6 DNS
-            builder.addDnsServer("1.1.1.3");   // Cloudflare Family
-            builder.addDnsServer("94.140.14.15"); // AdGuard Family
+            // ১. সেফ, অ্যাডব্লকিং ও ফ্যামিলি ডিএনএস সার্ভিস যুক্ত করা
+            builder.addDnsServer("94.140.14.15"); // AdGuard Family Protection (Primary - Ad & Adult Blocking)
+            builder.addDnsServer("94.140.15.16"); // AdGuard Family Secondary
+            builder.addDnsServer("10.0.0.2");     // Local TUN DNS - ensures all port 53 traffic routes directly into VPN
+            builder.addDnsServer("fd00:1::2");    // Local TUN IPv6 DNS
 
             // ২. রাউট যুক্ত করা
             builder.addRoute("10.0.0.0", 24);
@@ -1084,8 +1084,8 @@ public class LocalDnsVpnService extends VpnService {
             try {
                 socket.receive(inPacket);
             } catch (java.net.SocketTimeoutException ste) {
-                // Secondary fallback: AdGuard Family (94.140.14.15)
-                InetAddress fallbackAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[2]);
+                // Secondary fallback: AdGuard Family Secondary (94.140.15.16)
+                InetAddress fallbackAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[1]);
                 outPacket.setAddress(fallbackAddress);
                 socket.send(outPacket);
                 socket.receive(inPacket);
@@ -1429,7 +1429,8 @@ public class LocalDnsVpnService extends VpnService {
             try {
                 socket.receive(inPacket);
             } catch (java.net.SocketTimeoutException ste) {
-                InetAddress fallbackAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[2]);
+                // Secondary fallback: AdGuard Family Secondary (94.140.15.16)
+                InetAddress fallbackAddress = InetAddress.getByName(UPSTREAM_DNS_SERVERS[1]);
                 outPacket.setAddress(fallbackAddress);
                 socket.send(outPacket);
                 socket.receive(inPacket);
