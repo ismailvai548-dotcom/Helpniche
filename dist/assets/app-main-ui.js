@@ -158,10 +158,6 @@ function applyTheme(theme) {
 }
 
 function switchTab(tabName) {
-    if (tabName === 'browser') {
-        handleBrowserClick();
-        return;
-    }
     if (tabName === 'tasks') {
         tabName = 'focus-tasks';
     }
@@ -227,10 +223,6 @@ function renderBottomNav() {
                 <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 13 6.5z"/></svg>
                 <span>${currentLang === 'bn' ? 'রুটিন' : 'Routine'}</span>
             </div>
-            <div class="app-nav-item" data-tab="browser">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                <span>${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}</span>
-            </div>
             <div class="app-nav-item" data-tab="settings">
                 <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
                 <span>${currentLang === 'bn' ? 'সেটিংস' : 'Settings'}</span>
@@ -241,6 +233,47 @@ function renderBottomNav() {
 
 function renderModalsAndOverlays() {
     return `
+        <!-- Helpniche Browser Install Modal -->
+        <div class="modal-overlay" id="browser-install-modal" style="display:none;">
+            <div class="modal-card" style="border-color: #0ea5e9; text-align: center; max-width: 380px;">
+                <div style="width: 52px; height: 52px; border-radius: 50%; background: rgba(14, 165, 233, 0.15); border: 1px solid rgba(14, 165, 233, 0.3); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px auto;">
+                    <svg viewBox="0 0 24 24" style="width: 28px; height: 28px; fill: #38bdf8;">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                    </svg>
+                </div>
+                <div style="font-family:'Kalpurush', sans-serif; font-size: 18px; font-weight: 800; color: #ffffff; margin-bottom: 8px;">
+                    Helpniche ব্রাউজার
+                </div>
+                <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5; margin-bottom: 16px; text-align: left;">
+                    বিজ্ঞাপনমুক্ত ও নিরাপদ ইন্টারনেট ব্যবহারের জন্য Helpniche ব্রাউজার ইনস্টল করুন। এতে রয়েছে নিজস্ব শক্তিশালী অ্যাড-ব্লকার ও ক্ষতিকর কন্টেন্ট প্রতিরোধ ব্যবস্থা।
+                </p>
+
+                <!-- Progress area -->
+                <div id="browser-download-progress-box" style="display:none; width: 100%; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 12px; color: #38bdf8; font-weight: 700; margin-bottom: 6px;">
+                        <span>ডাউনলোড হচ্ছে...</span>
+                        <span id="browser-download-percent">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden;">
+                        <div id="browser-download-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%); transition: width 0.2s ease;"></div>
+                    </div>
+                    <p style="font-size: 11px; color: #64748b; margin-top: 6px;">ডাউনলোড সম্পন্ন হলে স্বয়ংক্রিয়ভাবে ইনস্টলেশন শুরু হবে</p>
+                </div>
+
+                <div id="browser-download-error-box" style="display:none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 10px; color: #f87171; font-size: 12px; margin-bottom: 14px; line-height: 1.4; text-align: left;">
+                </div>
+
+                <div id="browser-modal-action-buttons" style="display: flex; gap: 10px; width: 100%;">
+                    <button class="btn-primary-focus" id="btn-close-browser-modal" style="flex: 1; background: #1e293b; border: 1px solid #334155; color: #94a3b8; margin-bottom: 0;">
+                        পরে করব
+                    </button>
+                    <button class="btn-primary-focus" id="btn-start-browser-download" style="flex: 1.5; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #ffffff; margin-bottom: 0; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);">
+                        ডাউনলোড ও ইনস্টল
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Panic SOS Modal -->
         <div class="modal-overlay" id="panic-modal">
             <div class="modal-card" style="border-color: #EF5350;">

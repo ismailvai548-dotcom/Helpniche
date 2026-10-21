@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.List;
 
 @CapacitorPlugin(name = "UnlockPlugin")
 public class UnlockPlugin extends Plugin {
@@ -1156,6 +1157,8 @@ public class UnlockPlugin extends Plugin {
                 out.flush();
 
                 // APK ইন্সটলার ট্রিগার
+                destFile.setReadable(true, false);
+
                 Uri apkUri = androidx.core.content.FileProvider.getUriForFile(
                         context,
                         context.getPackageName() + ".fileprovider",
@@ -1166,7 +1169,37 @@ public class UnlockPlugin extends Plugin {
                 installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
                 installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(installIntent);
+                installIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+                // অ্যান্ড্রয়েড ৮+ অজানা উৎস পারমিশন যাচাই
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (!context.getPackageManager().canRequestPackageInstalls()) {
+                        try {
+                            Intent settingsIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                            settingsIntent.setData(Uri.parse("package:" + context.getPackageName()));
+                            settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            context.startActivity(settingsIntent);
+                        } catch (Exception ignored) {}
+                    }
+                }
+
+                // প্যাকেজ ইনস্টলারকে স্পষ্ট রিড পারমিশন প্রদান
+                try {
+                    List<android.content.pm.ResolveInfo> resolveInfoList = context.getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
+                    for (android.content.pm.ResolveInfo resolveInfo : resolveInfoList) {
+                        String packageName = resolveInfo.activityInfo.packageName;
+                        context.grantUriPermission(packageName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    }
+                } catch (Exception ignored) {}
+
+                try {
+                    context.startActivity(installIntent);
+                } catch (Exception ex) {
+                    Log.e(TAG, "Install intent failed, opening fallback download URL", ex);
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(downloadUrl));
+                    browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    context.startActivity(browserIntent);
+                }
 
                 JSObject ret = new JSObject();
                 ret.put("success", true);
