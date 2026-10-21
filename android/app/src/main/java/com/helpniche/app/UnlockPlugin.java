@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import java.io.InputStream;
 import java.io.OutputStream;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -1031,9 +1032,40 @@ public class UnlockPlugin extends Plugin {
     public void openBrowser(PluginCall call) {
         try {
             Context context = getContext();
-            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage("com.helpniche.browser");
+            PackageManager pm = context.getPackageManager();
+            Intent launchIntent = null;
+
+            // ১. কাস্টম অ্যাকশন ইনটেন্ট দিয়ে হিডেন ব্রাউজার ওপেন
+            try {
+                Intent actionIntent = new Intent("com.helpniche.browser.OPEN");
+                actionIntent.setPackage("com.helpniche.browser");
+                actionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                if (actionIntent.resolveActivity(pm) != null) {
+                    launchIntent = actionIntent;
+                }
+            } catch (Exception ignored) {}
+
+            // ২. ডিরেক্ট কম্পোনেন্ট নাম দিয়ে ওপেন (হিডেন হলেও সরাসরি চালু হবে)
+            if (launchIntent == null) {
+                try {
+                    Intent compIntent = new Intent();
+                    compIntent.setComponent(new ComponentName("com.helpniche.browser", "com.helpniche.browser.MainActivity"));
+                    compIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if (compIntent.resolveActivity(pm) != null) {
+                        launchIntent = compIntent;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // ৩. সাধারণ গেট-লঞ্চ-ইনটেন্ট ফলব্যাক
+            if (launchIntent == null) {
+                launchIntent = pm.getLaunchIntentForPackage("com.helpniche.browser");
+                if (launchIntent != null) {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                }
+            }
+
             if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 context.startActivity(launchIntent);
                 JSObject ret = new JSObject();
                 ret.put("success", true);
@@ -1041,7 +1073,7 @@ public class UnlockPlugin extends Plugin {
             } else {
                 JSObject ret = new JSObject();
                 ret.put("success", false);
-                ret.put("error", "Launch intent not found");
+                ret.put("error", "ব্রাউজার লঞ্চ ইনটেন্ট পাওয়া যায়নি");
                 call.resolve(ret);
             }
         } catch (Exception e) {
