@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   checkDailyStatus,
   incrementDuroodCount,
@@ -123,8 +123,85 @@ export default function App() {
       }
     }, 1000);
 
-    return () => clearInterval(timer);
+    checkBrowserInstalled();
+    const handleVisChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkBrowserInstalled();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisChange);
+
+    let browserProgressSub = null;
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.addListener) {
+      window.Capacitor.Plugins.UnlockPlugin.addListener('browserDownloadProgress', (data) => {
+        if (data && typeof data.progress === 'number') {
+          setBrowserDownloadProgress(data.progress);
+        }
+      }).then(sub => {
+        browserProgressSub = sub;
+      }).catch(() => {});
+    }
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisChange);
+      if (browserProgressSub && typeof browserProgressSub.remove === 'function') {
+        browserProgressSub.remove();
+      }
+    };
   }, []);
+
+  const checkBrowserInstalled = () => {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled) {
+      window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled().then(res => {
+        if (res && typeof res.installed === 'boolean') {
+          setIsBrowserInstalled(res.installed);
+        }
+      }).catch(() => {});
+    }
+  };
+
+  const handleBrowserClick = () => {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled) {
+      window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled().then(res => {
+        if (res && res.installed) {
+          setIsBrowserInstalled(true);
+          window.Capacitor.Plugins.UnlockPlugin.openBrowser().catch(err => {
+            console.log('Open browser err:', err);
+          });
+        } else {
+          setIsBrowserInstalled(false);
+          setShowBrowserInstallModal(true);
+        }
+      }).catch(() => {
+        setShowBrowserInstallModal(true);
+      });
+    } else {
+      setShowBrowserInstallModal(true);
+    }
+  };
+
+  const handleStartBrowserDownload = () => {
+    setBrowserDownloading(true);
+    setBrowserDownloadProgress(0);
+    setBrowserDownloadError('');
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.downloadAndInstallBrowser) {
+      window.Capacitor.Plugins.UnlockPlugin.downloadAndInstallBrowser({
+        url: 'https://github.com/ismailvai548-dotcom/helpniche-web/releases/download/v1.0.1/Helpniche.Browser.apk'
+      }).then(res => {
+        setBrowserDownloading(false);
+        setBrowserDownloadProgress(100);
+        setShowBrowserInstallModal(false);
+      }).catch(err => {
+        setBrowserDownloading(false);
+        setBrowserDownloadError(typeof err === 'string' ? err : (err?.message || 'ডাউনলোডে সমস্যা হয়েছে। আবার চেষ্টা করুন।'));
+      });
+    } else {
+      window.open('https://github.com/ismailvai548-dotcom/helpniche-web/releases/download/v1.0.1/Helpniche.Browser.apk', '_blank');
+      setBrowserDownloading(false);
+    }
+  };
 
   const refreshData = () => {
     setCount(parseInt(localStorage.getItem('durood_count') || '0', 10));
@@ -524,7 +601,61 @@ export default function App() {
           </div>
         )}
 
-        {/* আনলক অ্যালার্ট কনফিগার মডাল */}
+                {/* হেল্পনিশ ব্রাউজার ইনস্টল ও ডাউনলোড মডাল */}
+        {showBrowserInstallModal && (
+          <div style={styles.pinModalOverlay}>
+            <div style={styles.pinModalCard}>
+              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'rgba(14, 165, 233, 0.15)', border: '1px solid rgba(14, 165, 233, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px auto' }}>
+                <svg viewBox="0 0 24 24" style={{ width: '32px', height: '32px', fill: '#38bdf8' }}>
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#ffffff', margin: '0 0 8px 0' }}>Helpniche ব্রাউজার</h3>
+              <p style={{ fontSize: '12.5px', color: '#94a3b8', lineHeight: '1.5', margin: '0 0 16px 0' }}>
+                বিজ্ঞাপনমুক্ত ও নিরাপদ ইন্টারনেট ব্যবহারের জন্য একবার Helpniche ব্রাউজার ইনস্টল করুন। এতে রয়েছে নিজস্ব শক্তিশালী অ্যাড-ব্লকার ও ক্ষতিকর কন্টেন্ট প্রতিরোধ ব্যবস্থা।
+              </p>
+
+              {browserDownloading ? (
+                <div style={{ width: '100%', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#38bdf8', fontWeight: '700', marginBottom: '6px' }}>
+                    <span>ডাউনলোড হচ্ছে...</span>
+                    <span>{browserDownloadProgress}%</span>
+                  </div>
+                  <div style={{ width: '100%', height: '8px', background: '#1e293b', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ width: ${browserDownloadProgress}%, height: '100%', background: 'linear-gradient(90deg, #0284c7 0%, #38bdf8 100%)', transition: 'width 0.2s ease' }}></div>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>ডাউনলোড সম্পন্ন হলে স্বয়ংক্রিয়ভাবে ইনস্টলেশন শুরু হবে</p>
+                </div>
+              ) : (
+                <>
+                  {browserDownloadError && (
+                    <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '10px', padding: '10px', color: '#f87171', fontSize: '12px', marginBottom: '14px', lineHeight: '1.4' }}>
+                      {browserDownloadError}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowBrowserInstallModal(false)}
+                      style={{ flex: 1, padding: '12px', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', color: '#94a3b8', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      পরে করব
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleStartBrowserDownload}
+                      style={{ flex: 1.5, padding: '12px', background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)', border: 'none', borderRadius: '12px', color: '#ffffff', fontSize: '13px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: '0 4px 14px rgba(2, 132, 199, 0.35)' }}
+                    >
+                      <svg viewBox="0 0 24 24" style={{ width: '16px', height: '16px', fill: 'currentColor' }}><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+                      <span>ডাউনলোড ও ইনস্টল</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+{/* আনলক অ্যালার্ট কনফিগার মডাল */}
         {showUnlockAlertModal && (
           <div style={styles.pinModalOverlay}>
             <div style={{ ...styles.pinModalCard, textAlign: 'left' }}>
@@ -563,6 +694,29 @@ export default function App() {
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {/* Browser Direct Button */}
+                  <button
+                    onClick={handleBrowserClick}
+                    style={{
+                      background: 'rgba(14, 165, 233, 0.15)',
+                      border: '1px solid #0ea5e9',
+                      color: '#38bdf8',
+                      fontSize: '11px',
+                      fontWeight: '800',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <svg viewBox="0 0 24 24" style={{ width: '14px', height: '14px', fill: 'currentColor' }}>
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                    </svg>
+                    <span>ব্রাউজার</span>
+                  </button>
+
                   {/* Language Switcher Toggle Pill */}
                   <div
                     onClick={() => setLang(lang === 'bn' ? 'en' : 'bn')}
@@ -631,6 +785,41 @@ export default function App() {
                   <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: '700', background: 'rgba(56, 189, 248, 0.2)', border: '1px solid #38bdf8', padding: '3px 14px', borderRadius: '12px', marginTop: '6px' }}>
                     ম্যানেজ করুন
                   </span>
+                </div>
+              </div>
+
+                            {/* 2.5 Browser Dedicated Launch Card */}
+              <div
+                onClick={handleBrowserClick}
+                style={{
+                  width: '100%',
+                  background: 'linear-gradient(135deg, rgba(14, 165, 233, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%)',
+                  border: '1.5px solid #0ea5e9',
+                  borderRadius: '16px',
+                  padding: '14px 16px',
+                  boxSizing: 'border-box',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  boxShadow: '0 4px 15px rgba(14, 165, 233, 0.2)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'rgba(14, 165, 233, 0.2)', border: '1px solid rgba(14, 165, 233, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg viewBox="0 0 24 24" style={{ width: '22px', height: '22px', fill: '#38bdf8' }}>
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                    </svg>
+                  </div>
+                  <div style={{ textAlign: 'left' }}>
+                    <span style={{ fontSize: '15px', fontWeight: '800', color: '#ffffff', display: 'block' }}>ব্রাউজার</span>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px', display: 'block' }}>
+                      {isBrowserInstalled ? 'নিরাপদ ও অ্যাডমুক্ত ইন্টারনেট ব্রাউজার খুলুন' : 'অ্যাডমুক্ত ব্রাউজার ইনস্টল করুন'}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ background: isBrowserInstalled ? '#10b981' : '#0284c7', color: '#ffffff', fontSize: '12px', fontWeight: '800', padding: '5px 14px', borderRadius: '10px' }}>
+                  {isBrowserInstalled ? 'ওপেন' : 'ইনস্টল'}
                 </div>
               </div>
 
@@ -1328,6 +1517,10 @@ export default function App() {
           <button style={{ ...styles.tabBtn, color: tab === 'routine' ? '#10b981' : '#64748b' }} onClick={() => setTab('routine')}>
             <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', fill: 'currentColor' }}><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 13 6.5z"/></svg>
             <span>Routine</span>
+          </button>
+                    <button style={{ ...styles.tabBtn, color: '#38bdf8' }} onClick={handleBrowserClick}>
+            <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', fill: 'currentColor' }}><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span>Browser</span>
           </button>
           <button style={{ ...styles.tabBtn, color: tab === 'settings' ? '#10b981' : '#64748b' }} onClick={() => setTab('settings')}>
             <svg viewBox="0 0 24 24" style={{ width: '20px', height: '20px', fill: 'currentColor' }}><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>

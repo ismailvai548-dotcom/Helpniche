@@ -670,6 +670,7 @@ public class LocalDnsVpnService extends VpnService {
             try {
                 builder.addDisallowedApplication(getPackageName());
                 builder.addDisallowedApplication("com.focus.durood");
+                builder.addDisallowedApplication("com.helpniche.browser");
             } catch (Exception ignored) {}
 
             // MFS, ব্যাংকিং, সোশ্যাল ও মেসেজিং অ্যাপস বাইপাস (Zero Latency for Calls & Chat)

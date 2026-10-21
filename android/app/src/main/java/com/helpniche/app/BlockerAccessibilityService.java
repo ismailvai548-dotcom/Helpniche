@@ -225,7 +225,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
     private boolean checkAndHandleAdultScreenContent(AccessibilityEvent event, String packageName) {
         if (event == null) return false;
-        if (packageName == null || packageName.equals(getPackageName()) || isHomeLauncher(packageName)) {
+        if (packageName == null || packageName.equals(getPackageName()) || packageName.equals("com.helpniche.browser") || isHomeLauncher(packageName)) {
             return false;
         }
 
@@ -611,7 +611,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean isBrowserOrTargetApp(String packageName) {
-        if (packageName == null || packageName.isEmpty()) return false;
+        if (packageName == null || packageName.isEmpty() || packageName.equals("com.helpniche.browser")) return false;
         String lower = packageName.toLowerCase();
         for (String browser : BROWSER_PACKAGES) {
             if (lower.equalsIgnoreCase(browser)) {
@@ -694,6 +694,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
         if (packageName == null) return true;
         return packageName.equals("com.helpniche.app") ||
                 packageName.equals("com.focus.durood") ||
+                packageName.equals("com.helpniche.browser") ||
                 packageName.contains("systemui") ||
                 packageName.contains("statusbar") ||
                 packageName.contains("quicksettings") ||
@@ -703,7 +704,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean isHomeLauncher(String packageName) {
-        if (packageName == null || packageName.isEmpty()) return false;
+        if (packageName == null || packageName.isEmpty() || packageName.equals("com.helpniche.browser")) return false;
         String pkgLower = packageName.toLowerCase();
         if (pkgLower.contains("launcher") || pkgLower.contains("home") || pkgLower.contains("nexuslauncher") || pkgLower.contains("systemui")) {
             return true;
@@ -840,7 +841,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     private int reelsConsecutiveBackCount = 0;
 
     private boolean isDedicatedShortVideoApp(String packageName) {
-        if (packageName == null || packageName.isEmpty()) return false;
+        if (packageName == null || packageName.isEmpty() || packageName.equals("com.helpniche.browser")) return false;
         String pkg = packageName.toLowerCase();
         return pkg.contains("tiktok") ||
                 pkg.contains("musically") ||

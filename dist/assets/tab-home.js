@@ -22,6 +22,11 @@ function renderHomeDashboard() {
                 </div>
 
                 <div style="display:flex; align-items:center; gap:8px;">
+                    <!-- Direct Browser Button -->
+                    <button id="btn-top-browser" style="background:rgba(14, 165, 233, 0.15); border:1px solid #0ea5e9; border-radius:20px; padding:3px 10px; display:flex; align-items:center; gap:5px; cursor:pointer; outline:none; color:#38bdf8; font-size:11px; font-weight:800;" title="ব্রাউজার">
+                        <svg viewBox="0 0 24 24" style="width:14px; height:14px; fill:currentColor;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                        <span>${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}</span>
+                    </button>
                     <!-- Premium Rounded Language Toggle Switch -->
                     <button id="btn-language-toggle" style="background:#0f172a; border:1px solid #1e293b; border-radius:20px; padding:3px 5px; display:flex; align-items:center; gap:3px; cursor:pointer; outline:none; transition:all 0.2s; box-shadow:0 2px 6px rgba(0,0,0,0.3);" title="Change Language / ভাষা পরিবর্তন">
                         <span style="font-size:10px; font-weight:800; padding:3px 8px; border-radius:14px; background:${isBn ? '#10b981' : 'transparent'}; color:${isBn ? '#000000' : '#94a3b8'}; transition:all 0.2s;">
@@ -48,6 +53,28 @@ function renderHomeDashboard() {
                 <div class="streak-mini-action">
                     <span>${t('details')}</span>
                     <svg class="svg-icon" viewBox="0 0 24 24" style="width:14px; height:14px;"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
+
+            <!-- Browser Launch Card -->
+            <div class="dash-card home-browser-card" id="btn-home-browser-launch" style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(15, 23, 42, 0.9) 100%); border: 1.5px solid #0ea5e9; border-radius: 16px; padding: 14px 16px; margin: 0 0 14px 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 16px rgba(14, 165, 233, 0.18); transition: transform 0.2s;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="width: 42px; height: 42px; border-radius: 12px; background: rgba(14, 165, 233, 0.2); border: 1px solid rgba(14, 165, 233, 0.4); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 22px; height: 22px; color: #38bdf8;">
+                            <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                        </svg>
+                    </div>
+                    <div style="text-align: left;">
+                        <span style="font-size: 14.5px; font-weight: 800; color: #ffffff; display: block; letter-spacing: 0.2px;">
+                            ${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}
+                        </span>
+                        <span id="home-browser-desc" style="font-size: 11.5px; color: #38bdf8; font-weight: 600; display: block; margin-top: 2px;">
+                            ${isBrowserInstalled ? (currentLang === 'bn' ? 'ব্রাউজার ওপেন করুন' : 'Open Browser') : (currentLang === 'bn' ? 'অ্যাডমুক্ত ব্রাউজার ইনস্টল করুন' : 'Install Safe Browser')}
+                        </span>
+                    </div>
+                </div>
+                <div id="home-browser-badge" style="background: ${isBrowserInstalled ? '#10b981' : '#0284c7'}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 8px; flex-shrink: 0;">
+                    ${isBrowserInstalled ? (currentLang === 'bn' ? 'ওপেন' : 'Open') : (currentLang === 'bn' ? 'ইনস্টল' : 'Install')}
                 </div>
             </div>
 
@@ -209,6 +236,13 @@ function renderHomeDashboard() {
 }
 
 function bindHomeEvents() {
+    const btnTopBrowser = document.getElementById('btn-top-browser');
+    if (btnTopBrowser) btnTopBrowser.onclick = handleBrowserClick;
+
+    const btnHomeBrowser = document.getElementById('btn-home-browser-launch');
+    if (btnHomeBrowser) btnHomeBrowser.onclick = handleBrowserClick;
+
+    if (typeof checkBrowserStatus === 'function') checkBrowserStatus();
     const btnLangToggle = document.getElementById('btn-language-toggle');
     if (btnLangToggle) {
         btnLangToggle.onclick = () => {

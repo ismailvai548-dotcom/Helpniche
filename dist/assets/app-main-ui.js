@@ -3,6 +3,103 @@
    ========================================================================== */
 document.addEventListener('DOMContentLoaded', initMainUI);
 
+
+let isBrowserInstalled = false;
+let isBrowserDownloading = false;
+
+function checkBrowserStatus() {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled) {
+        window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled().then(function(res) {
+            if (res && typeof res.installed === 'boolean') {
+                isBrowserInstalled = res.installed;
+                updateBrowserUI();
+            }
+        }).catch(function() {});
+    }
+}
+
+function updateBrowserUI() {
+    const desc = document.getElementById('home-browser-desc');
+    const badge = document.getElementById('home-browser-badge');
+    if (desc) {
+        desc.innerText = isBrowserInstalled ? (currentLang === 'bn' ? 'ব্রাউজার ওপেন করুন' : 'Open Browser') : (currentLang === 'bn' ? 'অ্যাডমুক্ত ব্রাউজার ইনস্টল করুন' : 'Install Safe Browser');
+    }
+    if (badge) {
+        badge.innerText = isBrowserInstalled ? (currentLang === 'bn' ? 'ওপেন' : 'Open') : (currentLang === 'bn' ? 'ইনস্টল' : 'Install');
+        badge.style.background = isBrowserInstalled ? '#10b981' : '#0284c7';
+    }
+}
+
+function handleBrowserClick() {
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled) {
+        window.Capacitor.Plugins.UnlockPlugin.isBrowserInstalled().then(function(res) {
+            if (res && res.installed) {
+                isBrowserInstalled = true;
+                updateBrowserUI();
+                window.Capacitor.Plugins.UnlockPlugin.openBrowser().catch(function(err) {
+                    console.error('Failed to open browser:', err);
+                });
+            } else {
+                isBrowserInstalled = false;
+                updateBrowserUI();
+                showBrowserModal();
+            }
+        }).catch(function() {
+            showBrowserModal();
+        });
+    } else {
+        showBrowserModal();
+    }
+}
+
+function showBrowserModal() {
+    const modal = document.getElementById('browser-install-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function hideBrowserModal() {
+    const modal = document.getElementById('browser-install-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+function startBrowserDownloadAndInstall() {
+    if (isBrowserDownloading) return;
+    isBrowserDownloading = true;
+
+    const progressBox = document.getElementById('browser-download-progress-box');
+    const actionButtons = document.getElementById('browser-modal-action-buttons');
+    const errorBox = document.getElementById('browser-download-error-box');
+    const percentEl = document.getElementById('browser-download-percent');
+    const barEl = document.getElementById('browser-download-bar');
+
+    if (errorBox) errorBox.style.display = 'none';
+    if (progressBox) progressBox.style.display = 'block';
+    if (actionButtons) actionButtons.style.display = 'none';
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.downloadAndInstallBrowser) {
+        window.Capacitor.Plugins.UnlockPlugin.downloadAndInstallBrowser({
+            url: 'https://github.com/ismailvai548-dotcom/helpniche-web/releases/download/v1.0.1/Helpniche.Browser.apk'
+        }).then(function(res) {
+            isBrowserDownloading = false;
+            hideBrowserModal();
+            if (progressBox) progressBox.style.display = 'none';
+            if (actionButtons) actionButtons.style.display = 'flex';
+        }).catch(function(err) {
+            isBrowserDownloading = false;
+            if (progressBox) progressBox.style.display = 'none';
+            if (actionButtons) actionButtons.style.display = 'flex';
+            if (errorBox) {
+                errorBox.innerText = typeof err === 'string' ? err : (err && err.message ? err.message : 'ডাউনলোডে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+                errorBox.style.display = 'block';
+            }
+        });
+    } else {
+        window.open('https://github.com/ismailvai548-dotcom/helpniche-web/releases/download/v1.0.1/Helpniche.Browser.apk', '_blank');
+        isBrowserDownloading = false;
+        hideBrowserModal();
+    }
+}
+
 function initMainUI() {
     injectGlobalStyles();
     applyTheme(currentTheme);
@@ -31,6 +128,23 @@ function initMainUI() {
 
     setInterval(updateStreakDisplays, 1000);
     fetchOnboardingStatusFromNative();
+    checkBrowserStatus();
+
+    window.addEventListener('focus', checkBrowserStatus);
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') checkBrowserStatus();
+    });
+
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.addListener) {
+        window.Capacitor.Plugins.UnlockPlugin.addListener('browserDownloadProgress', function(data) {
+            if (data && typeof data.progress === 'number') {
+                const percentEl = document.getElementById('browser-download-percent');
+                const barEl = document.getElementById('browser-download-bar');
+                if (percentEl) percentEl.innerText = data.progress + '%';
+                if (barEl) barEl.style.width = data.progress + '%';
+            }
+        });
+    }
 }
 
 function applyTheme(theme) {
@@ -44,6 +158,10 @@ function applyTheme(theme) {
 }
 
 function switchTab(tabName) {
+    if (tabName === 'browser') {
+        handleBrowserClick();
+        return;
+    }
     if (tabName === 'tasks') {
         tabName = 'focus-tasks';
     }
@@ -108,6 +226,10 @@ function renderBottomNav() {
             <div class="app-nav-item" data-tab="routine">
                 <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.5a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5 1.5 1.5 0 0 1-1.5 1.5zm0-4a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 13 6.5z"/></svg>
                 <span>${currentLang === 'bn' ? 'রুটিন' : 'Routine'}</span>
+            </div>
+            <div class="app-nav-item" data-tab="browser">
+                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                <span>${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}</span>
             </div>
             <div class="app-nav-item" data-tab="settings">
                 <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
@@ -558,6 +680,10 @@ function renderModalsAndOverlays() {
 }
 
 function bindGlobalEvents() {
+    const btnCloseBrowser = document.getElementById('btn-close-browser-modal');
+    if (btnCloseBrowser) btnCloseBrowser.onclick = hideBrowserModal;
+    const btnStartBrowser = document.getElementById('btn-start-browser-download');
+    if (btnStartBrowser) btnStartBrowser.onclick = startBrowserDownloadAndInstall;
     document.querySelectorAll('.app-nav-item').forEach(el => {
         el.onclick = () => switchTab(el.dataset.tab);
     });

@@ -4,6 +4,9 @@ import android.app.AlarmManager;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
+import android.content.pm.PackageManager;
+import java.io.InputStream;
+import java.io.OutputStream;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.net.Uri;
@@ -997,5 +1000,188 @@ public class UnlockPlugin extends Plugin {
             Log.e(TAG, "Error cancelling task notification", e);
             call.reject("Failed: " + e.getMessage());
         }
+    }
+
+    // ==========================================
+    // ব্রাউজার ইন্টিগ্রেশন মেথডসমূহ (Helpniche Browser)
+    // ==========================================
+    private static volatile boolean isDownloadingBrowser = false;
+
+    @PluginMethod
+    public void isBrowserInstalled(PluginCall call) {
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            pm.getPackageInfo("com.helpniche.browser", 0);
+            JSObject ret = new JSObject();
+            ret.put("installed", true);
+            call.resolve(ret);
+        } catch (PackageManager.NameNotFoundException e) {
+            JSObject ret = new JSObject();
+            ret.put("installed", false);
+            call.resolve(ret);
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("installed", false);
+            call.resolve(ret);
+        }
+    }
+
+    @PluginMethod
+    public void openBrowser(PluginCall call) {
+        try {
+            Context context = getContext();
+            Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage("com.helpniche.browser");
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(launchIntent);
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } else {
+                JSObject ret = new JSObject();
+                ret.put("success", false);
+                ret.put("error", "Launch intent not found");
+                call.resolve(ret);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to open browser", e);
+            call.reject("Failed to open browser: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void canRequestPackageInstalls(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ret.put("granted", getContext().getPackageManager().canRequestPackageInstalls());
+        } else {
+            ret.put("granted", true);
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openInstallPermissionSettings(PluginCall call) {
+        try {
+            Context context = getContext();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                intent.setData(Uri.parse("package:" + context.getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+            }
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("Failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void downloadAndInstallBrowser(PluginCall call) {
+        if (isDownloadingBrowser) {
+            call.reject("ডাউনলোড ইতিমধ্যে চলছে...");
+            return;
+        }
+
+        String downloadUrl = call.getString("url", "https://github.com/ismailvai548-dotcom/helpniche-web/releases/download/v1.0.1/Helpniche.Browser.apk");
+        Context context = getContext();
+
+        new Thread(() -> {
+            isDownloadingBrowser = true;
+            HttpURLConnection conn = null;
+            InputStream in = null;
+            OutputStream out = null;
+            try {
+                URL url = new URL(downloadUrl);
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setInstanceFollowRedirects(true);
+                conn.setConnectTimeout(20000);
+                conn.setReadTimeout(30000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 HelpnicheApp");
+
+                int status = conn.getResponseCode();
+                int redirectCount = 0;
+                while ((status == HttpURLConnection.HTTP_MOVED_TEMP ||
+                        status == HttpURLConnection.HTTP_MOVED_PERM ||
+                        status == HttpURLConnection.HTTP_SEE_OTHER ||
+                        status == 307 || status == 308) && redirectCount < 5) {
+                    String newUrl = conn.getHeaderField("Location");
+                    conn.disconnect();
+                    url = new URL(newUrl);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setInstanceFollowRedirects(true);
+                    conn.setConnectTimeout(20000);
+                    conn.setReadTimeout(30000);
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 HelpnicheApp");
+                    status = conn.getResponseCode();
+                    redirectCount++;
+                }
+
+                if (status != HttpURLConnection.HTTP_OK) {
+                    throw new Exception("সার্ভার রেসপন্স কোড: " + status);
+                }
+
+                long fileLength = conn.getContentLength();
+                in = conn.getInputStream();
+
+                File cacheDir = context.getExternalCacheDir() != null ? context.getExternalCacheDir() : context.getCacheDir();
+                File destFile = new File(cacheDir, "HelpnicheBrowser.apk");
+                if (destFile.exists()) {
+                    destFile.delete();
+                }
+
+                out = new FileOutputStream(destFile);
+                byte[] buffer = new byte[8192];
+                long total = 0;
+                int count;
+                int lastProgress = -1;
+
+                while ((count = in.read(buffer)) != -1) {
+                    total += count;
+                    out.write(buffer, 0, count);
+                    if (fileLength > 0) {
+                        int progress = (int) (total * 100 / fileLength);
+                        if (progress != lastProgress) {
+                            lastProgress = progress;
+                            JSObject progressObj = new JSObject();
+                            progressObj.put("progress", progress);
+                            progressObj.put("total", fileLength);
+                            progressObj.put("loaded", total);
+                            notifyListeners("browserDownloadProgress", progressObj);
+                        }
+                    }
+                }
+                out.flush();
+
+                // APK ইন্সটলার ট্রিগার
+                Uri apkUri = androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        context.getPackageName() + ".fileprovider",
+                        destFile
+                );
+
+                Intent installIntent = new Intent(Intent.ACTION_VIEW);
+                installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                installIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(installIntent);
+
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("message", "ডাউনলোড সম্পন্ন হয়েছে এবং ইনস্টলেশন চালু হয়েছে");
+                call.resolve(ret);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error downloading browser", e);
+                call.reject("ডাউনলোড ব্যর্থ হয়েছে: " + e.getMessage());
+            } finally {
+                isDownloadingBrowser = false;
+                try { if (in != null) in.close(); } catch (Exception ignored) {}
+                try { if (out != null) out.close(); } catch (Exception ignored) {}
+                try { if (conn != null) conn.disconnect(); } catch (Exception ignored) {}
+            }
+        }).start();
     }
 }
