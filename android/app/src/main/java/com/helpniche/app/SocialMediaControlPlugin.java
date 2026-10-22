@@ -394,30 +394,4 @@ public class SocialMediaControlPlugin extends Plugin {
             call.reject("Failed to disable reels block: " + e.getMessage());
         }
     }
-
-    @PluginMethod
-    public void getReelsAnalytics(PluginCall call) {
-        try {
-            Context context = getContext();
-            JSObject data = ReelsTrackerManager.getAnalytics(context);
-            call.resolve(data);
-        } catch (Exception e) {
-            call.reject("Failed to get reels analytics: " + e.getMessage());
-        }
-    }
-
-    @PluginMethod
-    public void setReelsDailyLimit(PluginCall call) {
-        try {
-            int limit = call.getInt("limit", 0);
-            Context context = getContext();
-            ReelsTrackerManager.setDailyLimit(context, limit);
-            JSObject ret = new JSObject();
-            ret.put("success", true);
-            ret.put("limit", Math.max(0, Math.min(limit, ReelsTrackerManager.MAX_HARD_CAP_LIMIT)));
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject("Failed to set reels limit: " + e.getMessage());
-        }
-    }
 }
