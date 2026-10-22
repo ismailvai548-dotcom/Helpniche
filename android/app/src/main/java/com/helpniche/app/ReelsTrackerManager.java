@@ -132,22 +132,25 @@ public class ReelsTrackerManager {
 
         boolean isNewReel = false;
 
-        // ১. প্রাইমারি ইঞ্জিন: ইউনিক রিলস ক্রিয়েটর নাম বা ক্যাপশন সিগনেচার পরিবর্তন
-        if (signature != null && !signature.trim().isEmpty()) {
+        // ১. যদি ইউজার স্ক্রল করে (YouTube Shorts, Instagram Lite, FB Lite, TikTok ইত্যাদি)
+        if (isScrollEvent) {
+            if (now - lastReelChangeTime >= 400) {
+                lastReelChangeTime = now;
+                if (signature != null && !signature.trim().isEmpty()) {
+                    currentReelSignature = signature.trim();
+                }
+                isNewReel = true;
+            }
+        }
+        // ২. যদি স্ক্রোল ইভেন্ট না আসে কিন্তু স্ক্রিনে নতুন রিলসের সিগনেচার আসে (Facebook Katana কাস্টম পেজার)
+        else if (signature != null && !signature.trim().isEmpty()) {
             String sig = signature.trim();
             if (!sig.equalsIgnoreCase(currentReelSignature)) {
-                // অন্তত ৩৫০ মিলি-সেকেন্ডের ব্যবধান বা সেশনের প্রথম রিলস
-                if (now - lastReelChangeTime >= 350 || currentReelSignature.isEmpty()) {
+                if (now - lastReelChangeTime >= 400 || currentReelSignature.isEmpty()) {
                     currentReelSignature = sig;
                     lastReelChangeTime = now;
                     isNewReel = true;
                 }
-            }
-        } else if (isScrollEvent) {
-            // ২. সেকেন্ডারি ইঞ্জিন: যদি স্ক্রিনে টেক্সট না থাকে কিন্তু ইউজার স্ক্রল করেছে
-            if (now - lastReelChangeTime >= 650) {
-                lastReelChangeTime = now;
-                isNewReel = true;
             }
         }
 
