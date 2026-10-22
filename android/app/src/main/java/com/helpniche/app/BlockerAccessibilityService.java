@@ -1168,18 +1168,23 @@ public class BlockerAccessibilityService extends AccessibilityService {
     private boolean isFacebookLiteReels(AccessibilityNodeInfo rootNode, AccessibilityEvent event) {
         if (rootNode == null && event == null) return false;
 
-        // ১. যদি ফেসবুক লাইটের হোম ফিড কম্পোজার দৃশ্যমান থাকে, তবে এটি রিলস নয়
-        if (isVisibleFeedComposer(rootNode)) {
-            return false;
+        // ১. ফেসবুক লাইট ভিডিও প্লেয়ার ভিউ আইডি (লাইভ ডাম্পে নিশ্চিত: com.facebook.lite:id/video_view)
+        if (rootNode != null && scanNodeTreeForIds(rootNode, "video_view", "com.facebook.lite:id/video_view")) {
+            return true;
         }
 
-        // ২. স্ক্রিনশট ২: ফুলস্ক্রিন রিলস প্লেয়ার (উপরে বড় করে "Reels" বা "রিলস" লেখা থাকে)
+        // ২. ফেসবুক লাইট রিলসের SeekBar (ভিডিও টাইমিং স্ক্রাবার) চেক
+        if (hasNodeWithClass(rootNode, "android.widget.SeekBar")) {
+            return true;
+        }
+
+        // ৩. স্ক্রিনশট ২: ফুলস্ক্রিন রিলস প্লেয়ার (উপরে বড় করে "Reels" বা "রিলস" লেখা থাকে)
         if (hasNodeWithExactText(rootNode, "reels", "রিলস", "facebook reels", "ফেসবুক রিলস") ||
                 scanNodeTreeForText(rootNode, "reels", "রিলস")) {
             return true;
         }
 
-        // ৩. স্ক্রিনশট ১: ভিডিও/রিলস ট্যাব সিলেক্টেড অথবা "Fullscreen" বাটন ও "Follow" বাটন উপস্থিত
+        // ৪. স্ক্রিনশট ১: ভিডিও/রিলস ট্যাব সিলেক্টেড অথবা "Fullscreen" বাটন ও "Follow" বাটন উপস্থিত
         if (isShortsTabSelected(rootNode)) {
             return true;
         }
@@ -1189,13 +1194,35 @@ public class BlockerAccessibilityService extends AccessibilityService {
             return true;
         }
 
-        // ৪. রিলস অ্যাকশন টার্মস চেক
+        // ৫. রিলস অ্যাকশন টার্মস চেক
         if (scanNodeTreeForText(rootNode,
                 "remix", "রিমিক্স", "original audio", "মূল অডিও",
                 "watch more reels", "আরও রিল দেখুন", "fb_shorts", "reel by", "এর রিল")) {
             return true;
         }
 
+        return false;
+    }
+
+    private boolean hasNodeWithClass(AccessibilityNodeInfo node, String className) {
+        if (node == null) return false;
+        try {
+            CharSequence cls = node.getClassName();
+            if (cls != null && cls.toString().equals(className)) {
+                return true;
+            }
+            int childCount = node.getChildCount();
+            for (int i = 0; i < childCount; i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    try {
+                        if (hasNodeWithClass(child, className)) return true;
+                    } finally {
+                        child.recycle();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
         return false;
     }
 
