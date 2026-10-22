@@ -341,8 +341,9 @@ public class LocalDnsVpnService extends VpnService {
 
         SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
         boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
-        if (!isSystemWide && BlockerAccessibilityService.isUnlocked(context) && !hasActiveNetworkBlocks(context)) {
-            Log.i(TAG, "Ad block disabled, protection is unlocked and no network blocks. Skipping VPN start.");
+        boolean inBrowser = BlockerAccessibilityService.isCurrentlyInBrowser();
+        if (!isSystemWide && !inBrowser && BlockerAccessibilityService.isUnlocked(context) && !hasActiveNetworkBlocks(context)) {
+            Log.i(TAG, "Ad block disabled, not in browser, protection is unlocked and no network blocks. Skipping VPN start.");
             return;
         }
 
@@ -492,8 +493,9 @@ public class LocalDnsVpnService extends VpnService {
 
         SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
         boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
-        if (!isSystemWide && BlockerAccessibilityService.isUnlocked(this) && !hasActiveNetworkBlocks(this)) {
-            Log.i(TAG, "Ad block disabled, protection is unlocked and no network blocks. Stopping VPN.");
+        boolean inBrowser = BlockerAccessibilityService.isCurrentlyInBrowser();
+        if (!isSystemWide && !inBrowser && BlockerAccessibilityService.isUnlocked(this) && !hasActiveNetworkBlocks(this)) {
+            Log.i(TAG, "Ad block disabled, not in browser, protection is unlocked and no network blocks. Stopping VPN.");
             stopVpn(this);
             isStarting = false;
             return START_NOT_STICKY;

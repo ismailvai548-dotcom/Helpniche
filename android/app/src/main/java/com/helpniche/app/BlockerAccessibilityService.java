@@ -20,8 +20,12 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import android.content.pm.ResolveInfo;
+import android.net.Uri;
 
 public class BlockerAccessibilityService extends AccessibilityService {
 
@@ -55,6 +59,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
     private Runnable stopVpnRunnable = null;
 
     // পরিচিত সকল জনপ্রিয় ব্রাউজার প্যাকেজের তালিকা
+    // পরিচিত সকল জনপ্রিয় ব্রাউজার প্যাকেজের তালিকা
     private static final String[] BROWSER_PACKAGES = {
             "com.android.chrome",
             "org.mozilla.firefox",
@@ -73,8 +78,89 @@ public class BlockerAccessibilityService extends AccessibilityService {
             "com.mi.globalbrowser",
             "com.vivo.browser",
             "com.kiwibrowser.browser",
-            "com.vivaldi.browser"
+            "com.vivaldi.browser",
+            "mark.via.gp",
+            "com.cloudmosa.puffinfree",
+            "com.cloudmosa.puffinp",
+            "com.ucturbo",
+            "com.ksmobile.cb",
+            "chimbori.hermitcrab",
+            "com.jio.web",
+            "org.bromite.bromite",
+            "org.cromite.cromite",
+            "com.transsion.phoenix",
+            "com.lemurbrowser.exts",
+            "com.mycompany.app.soulbrowser",
+            "org.torproject.torbrowser",
+            "com.pure.browser",
+            "com.fulldive.browser",
+            "com.brave.browser_beta",
+            "com.brave.browser_nightly",
+            "com.chrome.beta",
+            "com.chrome.dev",
+            "com.chrome.canary"
     };
+
+    // ইউনিভার্সাল ব্রাউজার ডিটেকশন ক্যাশ ও ডাইনামিক সেট
+    private static final Set<String> DYNAMIC_BROWSER_PACKAGES = Collections.synchronizedSet(new HashSet<>());
+    private static long lastBrowserScanTime = 0;
+
+    public void refreshInstalledBrowsersList() {
+        long now = SystemClock.elapsedRealtime();
+        if (!DYNAMIC_BROWSER_PACKAGES.isEmpty() && (now - lastBrowserScanTime < 300000)) {
+            return;
+        }
+        try {
+            PackageManager pm = getPackageManager();
+            if (pm != null) {
+                Set<String> discovered = new HashSet<>();
+
+                Intent httpsIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"));
+                httpsIntent.addCategory(Intent.CATEGORY_BROWSABLE);
+                List<ResolveInfo> httpsList = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) ?
+                        pm.queryIntentActivities(httpsIntent, PackageManager.MATCH_ALL) :
+                        pm.queryIntentActivities(httpsIntent, 0);
+
+                if (httpsList != null) {
+                    for (ResolveInfo ri : httpsList) {
+                        if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                            discovered.add(ri.activityInfo.packageName.toLowerCase());
+                        }
+                    }
+                }
+
+                Intent httpIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.google.com"));
+                httpIntent.addCategory(Intent.CATEGORY_BROWSABLE);
+                List<ResolveInfo> httpList = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) ?
+                        pm.queryIntentActivities(httpIntent, PackageManager.MATCH_ALL) :
+                        pm.queryIntentActivities(httpIntent, 0);
+
+                if (httpList != null) {
+                    for (ResolveInfo ri : httpList) {
+                        if (ri.activityInfo != null && ri.activityInfo.packageName != null) {
+                            discovered.add(ri.activityInfo.packageName.toLowerCase());
+                        }
+                    }
+                }
+
+                discovered.remove("com.helpniche.browser");
+                discovered.remove("com.helpniche.app");
+                discovered.remove(getPackageName().toLowerCase());
+                discovered.remove("android");
+                discovered.remove("com.android.settings");
+                discovered.remove("com.google.android.packageinstaller");
+                discovered.remove("com.android.packageinstaller");
+                discovered.remove("com.android.vending");
+
+                DYNAMIC_BROWSER_PACKAGES.clear();
+                DYNAMIC_BROWSER_PACKAGES.addAll(discovered);
+                lastBrowserScanTime = now;
+                Log.d(TAG, "Dynamic browsers discovered: " + DYNAMIC_BROWSER_PACKAGES.size());
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error refreshing browser packages", e);
+        }
+    }
 
     // অ্যাডাল্ট / পর্ন সাইটের সুনির্দিষ্ট নাম ও ডোমেইনসমূহ
     private static final String[] ADULT_SITE_DOMAINS = {
@@ -611,13 +697,24 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean isBrowserOrTargetApp(String packageName) {
-        if (packageName == null || packageName.isEmpty() || packageName.equals("com.helpniche.browser")) return false;
+        if (packageName == null || packageName.isEmpty()) return false;
+        if (packageName.equals("com.helpniche.browser") || packageName.equals(getPackageName())) return false;
+        if (isHomeLauncher(packageName)) return false;
+
+        refreshInstalledBrowsersList();
+
         String lower = packageName.toLowerCase();
+
+        if (DYNAMIC_BROWSER_PACKAGES.contains(lower)) {
+            return true;
+        }
+
         for (String browser : BROWSER_PACKAGES) {
             if (lower.equalsIgnoreCase(browser)) {
                 return true;
             }
         }
+
         return lower.contains("browser") ||
                 (lower.contains("chrome") && !lower.contains("chromecast")) ||
                 lower.contains("firefox") ||
@@ -627,7 +724,17 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 lower.contains("ucmobile") ||
                 lower.contains("phoenix") ||
                 lower.contains("heytap") ||
-                lower.contains("coloros");
+                lower.contains("coloros") ||
+                lower.contains("puffin") ||
+                lower.contains("dolphin") ||
+                lower.contains("aloha") ||
+                lower.contains("soulbrowser") ||
+                lower.contains("lemur") ||
+                lower.contains("bromite") ||
+                lower.contains("cromite") ||
+                lower.contains("torproject") ||
+                lower.contains("via.gp") ||
+                lower.contains("ucturbo");
     }
 
     public static boolean isThirdPartyVpnActive(Context context) {
