@@ -17,8 +17,19 @@ android {
             noCompress 'gz'
         }
     }
+    signingConfigs {
+        release {
+            storeFile file('helpniche-release-key.jks')
+            storePassword 'helpniche2026'
+            keyAlias 'helpniche'
+            keyPassword 'helpniche2026'
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
