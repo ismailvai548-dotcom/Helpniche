@@ -57,6 +57,16 @@ public class ReelsTrackerManager {
     private static long lastIncrementTime = 0;
     private static int lastAlertedMilestone = 0;
     private static boolean isOverlayVisible = false;
+    private static String lastReelSignature = "";
+
+    private static final Runnable hideRunnable = () -> {
+        try {
+            if (floatingPillView != null) {
+                floatingPillView.setVisibility(View.GONE);
+            }
+            isOverlayVisible = false;
+        } catch (Exception ignored) {}
+    };
 
     // --- ১. লোকাল ডাটা ও ক্যালকুলেশন ইঞ্জিন ---
 
@@ -118,8 +128,8 @@ public class ReelsTrackerManager {
     public static synchronized int incrementCount(Context context, AccessibilityService service) {
         if (context == null) return 0;
         long now = SystemClock.elapsedRealtime();
-        // ২.৫ সেকেন্ডের স্মার্ট ডিবউন্স যাতে দ্রুত ফ্লিকিংয়ে ডাবল কাউন্ট না হয়
-        if (now - lastIncrementTime < 2500) {
+        // ৪০০ মিলিসেকেন্ডের রেসপন্সিভ ডিবউন্স যাতে একই জেসচারের মাঝে বাউন্স না করে কিন্তু প্রতিটি স্ক্রোলে তাৎক্ষণিক কাউন্ট হয়
+        if (now - lastIncrementTime < 400) {
             return getTodayCount(context);
         }
         lastIncrementTime = now;
@@ -155,6 +165,30 @@ public class ReelsTrackerManager {
         }
 
         return today;
+    }
+
+    public static synchronized void checkAndIncrementOnContentChange(Context context, AccessibilityService service, android.view.accessibility.AccessibilityEvent event) {
+        if (context == null || event == null) return;
+        long now = SystemClock.elapsedRealtime();
+        if (now - lastIncrementTime < 400) return;
+
+        CharSequence textSeq = null;
+        if (event.getText() != null && !event.getText().isEmpty()) {
+            textSeq = event.getText().get(0);
+        }
+        if (textSeq == null) {
+            textSeq = event.getContentDescription();
+        }
+        if (textSeq != null) {
+            String sig = textSeq.toString().trim();
+            // কিছু সাধারণ সংখ্যা, টাইম বা খুব ছোট টেক্সট এড়িয়ে যাওয়া
+            if (sig.length() > 3 && !sig.matches("^[0-9:\\s]+$")) {
+                if (!sig.equalsIgnoreCase(lastReelSignature)) {
+                    lastReelSignature = sig;
+                    incrementCount(context, service);
+                }
+            }
+        }
     }
 
     public static JSObject getAnalytics(Context context) {
@@ -222,6 +256,7 @@ public class ReelsTrackerManager {
 
     public static void showFloatingPill(AccessibilityService service) {
         if (service == null) return;
+        mainHandler.removeCallbacks(hideRunnable);
         mainHandler.post(() -> {
             try {
                 if (windowManager == null) {
@@ -318,14 +353,13 @@ public class ReelsTrackerManager {
     }
 
     public static void hideFloatingPill() {
-        mainHandler.post(() -> {
-            try {
-                if (floatingPillView != null) {
-                    floatingPillView.setVisibility(View.GONE);
-                }
-                isOverlayVisible = false;
-            } catch (Exception ignored) {}
-        });
+        mainHandler.removeCallbacks(hideRunnable);
+        mainHandler.post(hideRunnable);
+    }
+
+    public static void scheduleHideFloatingPill() {
+        mainHandler.removeCallbacks(hideRunnable);
+        mainHandler.postDelayed(hideRunnable, 800);
     }
 
     private static void updateFloatingPillCount(int count) {

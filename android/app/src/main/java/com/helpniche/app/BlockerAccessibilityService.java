@@ -986,25 +986,26 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 }
                 return true;
             } else {
-                // ব্লক সক্রিয় না থাকলে: স্ক্রিনের ওপরে লাইভ ভাসমান কাউন্টার ও স্ক্রোল ট্র্যাকিং
+                // ব্লক সক্রিয় না থাকলে: স্ক্রিনের ওপরে লাইভ ভাসমান কাউন্টার ও রিয়েল-টাইম স্ক্রোল ট্র্যাকিং
                 ReelsTrackerManager.showFloatingPill(this);
-                if (event != null && (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
-                        event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)) {
+                int evtType = event != null ? event.getEventType() : 0;
+                if (evtType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+                        evtType == AccessibilityEvent.TYPE_VIEW_SELECTED) {
                     ReelsTrackerManager.incrementCount(this, this);
+                } else if (evtType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                    ReelsTrackerManager.checkAndIncrementOnContentChange(this, this, event);
                 }
                 return false;
             }
         }
 
-        // ২. হাইব্রিড অ্যাপস: YouTube, Facebook (Regular & Lite), Instagram
+        // ২. হাইব্রিড অ্যাপস: YouTube, Facebook (Regular & Lite), Instagram (Regular & Lite)
         boolean isYouTube = packageName.contains("youtube");
-        boolean isFacebook = packageName.contains("facebook") || packageName.contains("katana") || packageName.contains("lite");
+        boolean isFacebook = packageName.contains("facebook") || packageName.contains("katana") || packageName.equals("com.facebook.lite") || packageName.contains("facebook.lite");
         boolean isInstagram = packageName.contains("instagram");
 
         if (!isYouTube && !isFacebook && !isInstagram) {
-            if (isHomeLauncher(packageName)) {
-                ReelsTrackerManager.hideFloatingPill();
-            }
+            ReelsTrackerManager.hideFloatingPill();
             return false;
         }
 
@@ -1044,23 +1045,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 }
             } else if (isFacebook) {
                 isReelsDetected = isFacebookReelsDetected(rootNode, event, packageName);
-            } else if (isInstagram && rootNode != null) {
-                if (className.contains("clipsvieweractivity") || className.contains("reelsvieweractivity")) {
-                    isReelsDetected = true;
-                } else if (isShortsTabSelected(rootNode)) {
-                    isReelsDetected = true;
-                } else if (scanNodeTreeForText(rootNode,
-                        "original audio", "use audio", "remix this reel",
-                        "reels audio", "clips_viewer")) {
-                    isReelsDetected = true;
-                } else if (scanNodeTreeForIds(rootNode,
-                        "clips_viewer",
-                        "reel_viewer",
-                        "clips_video_container",
-                        "reel_video_view",
-                        "clips_media_item")) {
-                    isReelsDetected = true;
-                }
+            } else if (isInstagram) {
+                isReelsDetected = isInstagramReelsDetected(rootNode, event, packageName);
             }
 
             if (isReelsDetected) {
@@ -1107,22 +1093,25 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
                     if (now - lastReelsToastTime > 2500) {
                         lastReelsToastTime = now;
-                        String targetName = isYouTube ? "ইউটিউব শর্টস" : (isFacebook ? (packageName.contains("lite") ? "ফেসবুক লাইট রিলস" : "ফেসবুক রিলস") : "ইনস্টাগ্রাম রিলস");
+                        String targetName = isYouTube ? "ইউটিউব শর্টস" : (isFacebook ? (packageName.contains("lite") ? "ফেসবুক লাইট রিলস" : "ফেসবুক রিলস") : (isInstagram ? (packageName.contains("lite") ? "ইনস্টাগ্রাম লাইট রিলস" : "ইনস্টাগ্রাম রিলস") : "শর্ট ভিডিও"));
                         Toast.makeText(this, targetName + " ব্লক করা রয়েছে!", Toast.LENGTH_SHORT).show();
                     }
                     return true;
                 } else {
-                    // ব্লক না থাকলে: ভাসমান কাউন্টার প্রদর্শন এবং স্ক্রোল ট্র্যাকিং
+                    // ব্লক না থাকলে: ভাসমান কাউন্টার প্রদর্শন এবং রিয়েল-টাইম স্ক্রোল ট্র্যাকিং
                     ReelsTrackerManager.showFloatingPill(this);
-                    if (event != null && (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
-                            event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)) {
+                    int evtType = event != null ? event.getEventType() : 0;
+                    if (evtType == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+                            evtType == AccessibilityEvent.TYPE_VIEW_SELECTED) {
                         ReelsTrackerManager.incrementCount(this, this);
+                    } else if (evtType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                        ReelsTrackerManager.checkAndIncrementOnContentChange(this, this, event);
                     }
                     return false;
                 }
             } else {
                 // রিলসে নেই (সাধারণ পোস্ট / সার্চ ফিড)
-                ReelsTrackerManager.hideFloatingPill();
+                ReelsTrackerManager.scheduleHideFloatingPill();
             }
         } finally {
             if (rootNode != null) {
@@ -1136,45 +1125,61 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean isFacebookReelsDetected(AccessibilityNodeInfo rootNode, AccessibilityEvent event, String packageName) {
+        if (rootNode == null && event == null) return false;
+
+        // ১. সাধারণ ফেসবুক ফিড (News Feed) চেক: যদি পোস্ট কম্পোজার দৃশ্যমান থাকে, তবে এটি কখনোই রিলস নয়
+        if (hasFacebookFeedComposer(rootNode)) {
+            return false;
+        }
+
         String className = "";
         if (event != null && event.getClassName() != null) {
             className = event.getClassName().toString().toLowerCase();
         }
 
-        // ১. ফেসবুক অফিশিয়াল (Katana) রিলস অ্যাক্টিভিটি চেক (ফিডে থাকাকালীন এটি কখনো ট্রিগার হবে না)
-        if (className.contains("reelsvieweractivity") ||
-                className.contains("fbshortsvieweractivity") ||
+        // ২. ফেসবুক অফিশিয়াল (Katana) রিলস অ্যাক্টিভিটি / ক্লাস চেক
+        if (className.contains("reels") ||
+                className.contains("fbshorts") ||
+                className.contains("clipsviewer") ||
+                className.contains("reelsviewer") ||
                 className.contains("reelsmediaviewer") ||
-                className.contains("fbshortsplayerviewer")) {
+                className.contains("warion")) {
             return true;
         }
 
-        // ২. ফেসবুক অফিশিয়াল রিলস প্লেয়ার কন্টেইনার ভিউ আইডি (ফিডের ট্রের আইডি এখানে রাখা হয়নি)
-        if (rootNode != null && scanNodeTreeForIds(rootNode,
-                "reels_viewer_container", "fb_shorts_viewer_container", "fb_shorts_bottom_sheet")) {
-            return true;
-        }
-
-        // ৩. শর্টস/রিলস ট্যাব সিলেক্টেড আছে কিনা চেক
+        // ৩. শর্টস / রিলস ট্যাব সিলেক্টেড আছে কিনা চেক
         if (rootNode != null && isShortsTabSelected(rootNode)) {
             return true;
         }
 
-        // ৪. শতভাগ নিশ্চিত রিলস-অনলি অ্যাকশন টার্মস (সাধারণ পোস্ট বা ফিডে এগুলো কখনোই থাকে না)
+        // ৪. ফেসবুক অফিশিয়াল ও লাইট রিলস আইডি চেক
+        if (rootNode != null && scanNodeTreeForIds(rootNode,
+                "reels_viewer_container", "fb_shorts_viewer_container", "fb_shorts_bottom_sheet",
+                "reel_viewer", "fbshorts", "warion_reels", "unified_video_player", "video_reels")) {
+            return true;
+        }
+
+        // ৫. ফেসবুক রিলসের ১০০% নিশ্চিত টেক্সট ও কন্টেন্ট ডেসক্রিপশন
         if (rootNode != null && scanNodeTreeForText(rootNode,
                 "original audio", "মূল অডিও", "অরিজিনাল অডিও",
-                "remix this reel", "remix with reel", "রিল রিমিক্স",
+                "remix this reel", "remix with reel", "রিল রিমিক্স", "remix", "রিমিক্স",
                 "watch more reels", "আরও রিল দেখুন", "আরও রিলস দেখুন",
-                "create a reel", "reels audio", "fb_shorts", "fbshorts")) {
+                "create a reel", "reels audio", "fb_shorts", "fbshorts",
+                "reel by", "এর রিল", "reels video", "রিল ভিডিও",
+                "facebook reels", "ফেসবুক রিলস")) {
             return true;
         }
 
-        // ৫. ফেসবুক লাইট (FB Lite): শুধুমাত্র ফুলস্ক্রিন রিলস প্লেয়ার ডিটেকশন
-        if (isFbLiteReelsPlayer(rootNode)) {
-            return true;
+        // ৬. ফেসবুক লাইট (FB Lite) স্পেসিফিক রিলস ডিটেকশন
+        boolean isFbLite = packageName.contains("lite") || packageName.equals("com.facebook.lite");
+        if (isFbLite && rootNode != null) {
+            if (hasNodeWithExactText(rootNode, "reels", "রিলস") ||
+                    scanNodeTreeForText(rootNode, "reels", "রিলস")) {
+                return true;
+            }
         }
 
-        // ৬. ইভেন্ট সোর্স নোড চেক (শুধুমাত্র সুনির্দিষ্ট রিলস টার্মের জন্য)
+        // ৭. ইভেন্ট সোর্স নোড চেক
         if (event != null) {
             AccessibilityNodeInfo sourceNode = null;
             try {
@@ -1185,7 +1190,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
                     if (scanNodeTreeForText(sourceNode,
                             "original audio", "মূল অডিও", "অরিজিনাল অডিও",
                             "remix this reel", "remix with reel", "রিল রিমিক্স",
-                            "watch more reels", "আরও রিল দেখুন", "fb_shorts")) {
+                            "watch more reels", "আরও রিল দেখুন", "fb_shorts", "reels", "রিলস")) {
                         return true;
                     }
                 } finally {
@@ -1197,24 +1202,66 @@ public class BlockerAccessibilityService extends AccessibilityService {
         return false;
     }
 
-    private boolean isFbLiteReelsPlayer(AccessibilityNodeInfo rootNode) {
+    private boolean hasFacebookFeedComposer(AccessibilityNodeInfo rootNode) {
         if (rootNode == null) return false;
-
-        // ফেসবুক লাইট রিলস স্ক্রিনের এক্সাক্ট টাইটেল "Reels" বা "রিলস" আছে কিনা
-        boolean hasExactTitle = hasNodeWithExactText(rootNode, "reels", "রিলস");
-        if (!hasExactTitle) return false;
-
-        // এক্সাক্ট টাইটেল পাওয়ার পর নিশ্চিত হওয়া যে এটি রিলস প্লেয়ার (অডিও বা রিমিক্স বা সাউন্ড এলিমেন্ট উপস্থিত)
-        boolean hasAudioOrReelsControl = scanNodeTreeForText(rootNode,
-                "original audio", "মূল অডিও", "অরিজিনাল অডিও",
-                "remix", "রিমিক্স", "audio", "অডিও", "sound", "শব্দ");
-
-        // সাধারণ ফিডের পোস্ট বক্স থাকলে কখনো ব্লক করা যাবে না
-        boolean hasFeedComposer = scanNodeTreeForText(rootNode,
+        return scanNodeTreeForText(rootNode,
                 "what's on your mind", "whats on your mind", "আপনার মনে কী আছে",
-                "create a post", "পোস্ট তৈরি করুন", "কিছু লিখুন");
+                "create a post", "পোস্ট তৈরি করুন", "write something", "কিছু লিখুন");
+    }
 
-        return hasAudioOrReelsControl && !hasFeedComposer;
+    private boolean isInstagramReelsDetected(AccessibilityNodeInfo rootNode, AccessibilityEvent event, String packageName) {
+        if (rootNode == null && event == null) return false;
+
+        String className = "";
+        if (event != null && event.getClassName() != null) {
+            className = event.getClassName().toString().toLowerCase();
+        }
+
+        // ১. ইনস্টাগ্রাম অফিশিয়াল ও লাইট ক্লাস চেক
+        if (className.contains("clipsvieweractivity") ||
+                className.contains("reelsvieweractivity") ||
+                className.contains("clipsviewer") ||
+                className.contains("reelviewer")) {
+            return true;
+        }
+
+        // ২. শর্টস / রিলস ট্যাব সিলেক্টেড আছে কিনা চেক
+        if (rootNode != null && isShortsTabSelected(rootNode)) {
+            return true;
+        }
+
+        // ৩. ভিউ আইডি চেক
+        if (rootNode != null && scanNodeTreeForIds(rootNode,
+                "clips_viewer",
+                "reel_viewer",
+                "clips_video_container",
+                "reel_video_view",
+                "clips_media_item",
+                "clips_swipe_refresh_layout")) {
+            return true;
+        }
+
+        // ৪. টেক্সট ও কন্টেন্ট ডেসক্রিপশন চেক
+        if (rootNode != null && scanNodeTreeForText(rootNode,
+                "original audio", "use audio", "remix this reel",
+                "reels audio", "clips_viewer", "remix", "রিল রিমিক্স",
+                "watch more reels", "আরও রিল দেখুন", "reels video")) {
+            return true;
+        }
+
+        // ৫. ইনস্টাগ্রাম লাইট (Instagram Lite) স্পেসিফিক চেক
+        boolean isInstaLite = packageName.contains("lite") || packageName.equals("com.instagram.lite");
+        if (isInstaLite && rootNode != null) {
+            if (hasNodeWithExactText(rootNode, "reels", "রিলস") ||
+                    scanNodeTreeForText(rootNode, "reels", "রিলস")) {
+                boolean hasFeedHeader = scanNodeTreeForText(rootNode, "your story", "আপনার স্টোরি", "direct message", "messages");
+                if (!hasFeedHeader) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private boolean hasNodeWithExactText(AccessibilityNodeInfo node, String... targets) {
@@ -1254,14 +1301,16 @@ public class BlockerAccessibilityService extends AccessibilityService {
         try {
             CharSequence descSeq = node.getContentDescription();
             CharSequence textSeq = node.getText();
-            String desc = descSeq != null ? descSeq.toString().toLowerCase() : "";
-            String text = textSeq != null ? textSeq.toString().toLowerCase() : "";
+            String desc = descSeq != null ? descSeq.toString().toLowerCase().trim() : "";
+            String text = textSeq != null ? textSeq.toString().toLowerCase().trim() : "";
             boolean isMatch = desc.equals("shorts") || text.equals("shorts") ||
                     desc.equals("শর্টস") || text.equals("শর্টস") ||
                     desc.equals("reels") || text.equals("reels") ||
                     desc.equals("রিলস") || text.equals("রিলস") ||
-                    desc.contains("reels tab") || text.contains("reels tab");
-            if (isMatch && node.isSelected()) {
+                    desc.contains("reels") || text.contains("reels") ||
+                    desc.contains("রিলস") || text.contains("রিলস") ||
+                    desc.contains("shorts") || text.contains("shorts");
+            if (isMatch && (node.isSelected() || isNodeOrParentSelected(node))) {
                 return true;
             }
             int childCount = node.getChildCount();
@@ -1273,6 +1322,22 @@ public class BlockerAccessibilityService extends AccessibilityService {
                     } finally {
                         child.recycle();
                     }
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
+    private boolean isNodeOrParentSelected(AccessibilityNodeInfo node) {
+        if (node == null) return false;
+        try {
+            if (node.isSelected()) return true;
+            AccessibilityNodeInfo parent = node.getParent();
+            if (parent != null) {
+                try {
+                    return parent.isSelected();
+                } finally {
+                    parent.recycle();
                 }
             }
         } catch (Exception ignored) {}
