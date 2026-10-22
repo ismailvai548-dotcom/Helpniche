@@ -88,8 +88,8 @@ function renderHomeDashboard() {
                         ${t('socialControl')}
                     </span>
 
-                    <span style="font-size: 9.5px; color: #34d399; font-weight: 700; margin-top: 6px; background: rgba(52, 211, 153, 0.15); padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(52, 211, 153, 0.3);">
-                        ${t('manage')}
+                    <span id="home-reels-today-badge" style="font-size: 9.5px; color: #34d399; font-weight: 700; margin-top: 6px; background: rgba(52, 211, 153, 0.15); padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(52, 211, 153, 0.3);">
+                        রিলস আজ: ০টি
                     </span>
                 </button>
 
@@ -260,6 +260,17 @@ function bindHomeEvents() {
 
     const btnSocial = document.getElementById('btn-enter-social-control');
     if (btnSocial) btnSocial.onclick = () => switchTab('social-control');
+
+    // Fetch and update Home Reels badge
+    if (window.Capacitor?.Plugins?.SocialMediaControlPlugin?.getReelsAnalytics) {
+        window.Capacitor.Plugins.SocialMediaControlPlugin.getReelsAnalytics()
+            .then(res => {
+                const b = document.getElementById('home-reels-today-badge');
+                if (b && res) {
+                    b.innerText = `রিলস আজ: ${res.today || 0}টি`;
+                }
+            }).catch(() => {});
+    }
 
     const btnNetwork = document.getElementById('btn-enter-network-control');
     if (btnNetwork) btnNetwork.onclick = () => switchTab('network-control');

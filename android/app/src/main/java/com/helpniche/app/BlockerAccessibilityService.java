@@ -961,24 +961,39 @@ public class BlockerAccessibilityService extends AccessibilityService {
     }
 
     private boolean checkAndHandleReelsShorts(AccessibilityEvent event, String packageName) {
-        if (!isReelsBlockActive(this)) return false;
+        if (packageName == null || packageName.isEmpty()) {
+            return false;
+        }
 
-        // ১. ডেডিকেটেড শর্ট ভিডিও অ্যাপস (TikTok, Likee, Kwai ইত্যাদি) সম্পূর্ণ বন্ধ করা
+        boolean isBlocked = isReelsBlockActive(this);
+
+        // ১. ডেডিকেটেড শর্ট ভিডিও অ্যাপস (TikTok, Likee, Kwai ইত্যাদি)
         if (isDedicatedShortVideoApp(packageName)) {
-            performGlobalAction(GLOBAL_ACTION_HOME);
-            try {
-                Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                homeIntent.addCategory(Intent.CATEGORY_HOME);
-                homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(homeIntent);
-            } catch (Exception ignored) {}
+            if (isBlocked) {
+                ReelsTrackerManager.hideFloatingPill();
+                performGlobalAction(GLOBAL_ACTION_HOME);
+                try {
+                    Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                    homeIntent.addCategory(Intent.CATEGORY_HOME);
+                    homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    startActivity(homeIntent);
+                } catch (Exception ignored) {}
 
-            long now = SystemClock.elapsedRealtime();
-            if (now - lastReelsToastTime > 2500) {
-                lastReelsToastTime = now;
-                Toast.makeText(this, "শর্ট ভিডিও ব্লক করা রয়েছে! কাজে মনোযোগ বজায় রাখুন।", Toast.LENGTH_SHORT).show();
+                long now = SystemClock.elapsedRealtime();
+                if (now - lastReelsToastTime > 2500) {
+                    lastReelsToastTime = now;
+                    Toast.makeText(this, "শর্ট ভিডিও ব্লক করা রয়েছে! কাজে মনোযোগ বজায় রাখুন।", Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            } else {
+                // ব্লক সক্রিয় না থাকলে: স্ক্রিনের ওপরে লাইভ ভাসমান কাউন্টার ও স্ক্রোল ট্র্যাকিং
+                ReelsTrackerManager.showFloatingPill(this);
+                if (event != null && (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+                        event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)) {
+                    ReelsTrackerManager.incrementCount(this, this);
+                }
+                return false;
             }
-            return true;
         }
 
         // ২. হাইব্রিড অ্যাপস: YouTube, Facebook (Regular & Lite), Instagram
@@ -987,11 +1002,9 @@ public class BlockerAccessibilityService extends AccessibilityService {
         boolean isInstagram = packageName.contains("instagram");
 
         if (!isYouTube && !isFacebook && !isInstagram) {
-            return false;
-        }
-
-        long now = SystemClock.elapsedRealtime();
-        if (now - lastReelsBlockedActionTime < 350) {
+            if (isHomeLauncher(packageName)) {
+                ReelsTrackerManager.hideFloatingPill();
+            }
             return false;
         }
 
@@ -1008,11 +1021,10 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
         if (rootNode == null && event == null) return false;
 
+        boolean isReelsDetected = false;
         try {
             CharSequence classNameSeq = event != null ? event.getClassName() : null;
             String className = classNameSeq != null ? classNameSeq.toString().toLowerCase() : "";
-
-            boolean isReelsDetected = false;
 
             if (isYouTube && rootNode != null) {
                 if (className.contains("reelwatchfragment") || className.contains("shorts")) {
@@ -1052,46 +1064,65 @@ public class BlockerAccessibilityService extends AccessibilityService {
             }
 
             if (isReelsDetected) {
-                if (now - lastReelsBlockedActionTime < 1800) {
-                    reelsConsecutiveBackCount++;
-                } else {
-                    reelsConsecutiveBackCount = 1;
-                }
-                lastReelsBlockedActionTime = now;
+                if (isBlocked) {
+                    ReelsTrackerManager.hideFloatingPill();
+                    long now = SystemClock.elapsedRealtime();
+                    if (now - lastReelsBlockedActionTime < 350) {
+                        return true;
+                    }
 
-                if (reelsConsecutiveBackCount >= 2) {
-                    performGlobalAction(GLOBAL_ACTION_HOME);
-                    try {
-                        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
-                        homeIntent.addCategory(Intent.CATEGORY_HOME);
-                        homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                        startActivity(homeIntent);
-                    } catch (Exception ignored) {}
-                    reelsConsecutiveBackCount = 0;
-                } else {
-                    performGlobalAction(GLOBAL_ACTION_BACK);
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (now - lastReelsBlockedActionTime < 1800) {
+                        reelsConsecutiveBackCount++;
+                    } else {
+                        reelsConsecutiveBackCount = 1;
+                    }
+                    lastReelsBlockedActionTime = now;
+
+                    if (reelsConsecutiveBackCount >= 2) {
+                        performGlobalAction(GLOBAL_ACTION_HOME);
                         try {
-                            AccessibilityNodeInfo checkNode = getRootInActiveWindow();
-                            if (checkNode != null) {
-                                try {
-                                    if (isFacebook && isFacebookReelsDetected(checkNode, null, packageName)) {
-                                        performGlobalAction(GLOBAL_ACTION_BACK);
-                                    }
-                                } finally {
-                                    checkNode.recycle();
-                                }
-                            }
+                            Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+                            homeIntent.addCategory(Intent.CATEGORY_HOME);
+                            homeIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                            startActivity(homeIntent);
                         } catch (Exception ignored) {}
-                    }, 140);
-                }
+                        reelsConsecutiveBackCount = 0;
+                    } else {
+                        performGlobalAction(GLOBAL_ACTION_BACK);
+                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                            try {
+                                AccessibilityNodeInfo checkNode = getRootInActiveWindow();
+                                if (checkNode != null) {
+                                    try {
+                                        if (isFacebook && isFacebookReelsDetected(checkNode, null, packageName)) {
+                                            performGlobalAction(GLOBAL_ACTION_BACK);
+                                        }
+                                    } finally {
+                                        checkNode.recycle();
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }, 140);
+                    }
 
-                if (now - lastReelsToastTime > 2500) {
-                    lastReelsToastTime = now;
-                    String targetName = isYouTube ? "ইউটিউব শর্টস" : (isFacebook ? (packageName.contains("lite") ? "ফেসবুক লাইট রিলস" : "ফেসবুক রিলস") : "ইনস্টাগ্রাম রিলস");
-                    Toast.makeText(this, targetName + " ব্লক করা রয়েছে!", Toast.LENGTH_SHORT).show();
+                    if (now - lastReelsToastTime > 2500) {
+                        lastReelsToastTime = now;
+                        String targetName = isYouTube ? "ইউটিউব শর্টস" : (isFacebook ? (packageName.contains("lite") ? "ফেসবুক লাইট রিলস" : "ফেসবুক রিলস") : "ইনস্টাগ্রাম রিলস");
+                        Toast.makeText(this, targetName + " ব্লক করা রয়েছে!", Toast.LENGTH_SHORT).show();
+                    }
+                    return true;
+                } else {
+                    // ব্লক না থাকলে: ভাসমান কাউন্টার প্রদর্শন এবং স্ক্রোল ট্র্যাকিং
+                    ReelsTrackerManager.showFloatingPill(this);
+                    if (event != null && (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED ||
+                            event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED)) {
+                        ReelsTrackerManager.incrementCount(this, this);
+                    }
+                    return false;
                 }
-                return true;
+            } else {
+                // রিলসে নেই (সাধারণ পোস্ট / সার্চ ফিড)
+                ReelsTrackerManager.hideFloatingPill();
             }
         } finally {
             if (rootNode != null) {
@@ -1516,6 +1547,8 @@ public class BlockerAccessibilityService extends AccessibilityService {
             } catch (Exception ignored) {}
             unlockReceiver = null;
         }
+        ReelsTrackerManager.hideFloatingPill();
+        ReelsTrackerManager.dismissAlertOverlayDialog();
         super.onDestroy();
     }
 

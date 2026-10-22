@@ -91,6 +91,27 @@ function renderReelsBlockerCardContent() {
                     </span>
                 </div>
             `}
+
+            <!-- DAILY REELS & ANALYTICS BUTTON -->
+            <div id="btn-open-reels-analytics" style="margin-top: 14px; padding: 12px 14px; background: rgba(15, 23, 42, 0.7); border: 1.5px solid #00E676; border-radius: 14px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(0, 230, 118, 0.12);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 34px; height: 34px; border-radius: 10px; background: rgba(0, 230, 118, 0.15); border: 1px solid #00E676; display: flex; align-items: center; justify-content: center; color: #00E676;">
+                        <svg viewBox="0 0 24 24" style="width: 18px; height: 18px; fill: currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                    </div>
+                    <div>
+                        <div style="font-size: 13.5px; font-weight: 800; color: #ffffff; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            ডেইলি রিলস ও পরিসংখ্যান
+                        </div>
+                        <div id="reels-card-subtext" style="font-size: 11px; color: #34d399; margin-top: 2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                            আজকের দেখা: ০টি | লিমিট: বন্ধ
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; color: #00E676; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
+                    <span>হিসেব ও লিমিট</span>
+                    <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                </div>
+            </div>
         </div>
     `;
 }
@@ -292,6 +313,97 @@ function renderSocialControlTab() {
                 </div>
             </div>
         </div>
+
+        <!-- DAILY REELS ANALYTICS & LIMIT MODAL -->
+        <div class="modal-overlay" id="modal-reels-analytics" style="display: none; align-items: center; justify-content: center; z-index: 999999; backdrop-filter: blur(8px); background: rgba(2, 6, 23, 0.85); padding: 16px; box-sizing: border-box;">
+            <div class="modal-card" style="max-width: 420px; width: 100%; max-height: 85vh; overflow-y: auto; background: #0f172a; border: 1.5px solid #1e293b; border-radius: 20px; padding: 20px; box-shadow: 0 20px 45px rgba(0,0,0,0.7); color: #fff; box-sizing: border-box;">
+                <!-- Header -->
+                <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #1e293b; padding-bottom: 12px; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 28px; height: 28px; border-radius: 8px; background: rgba(0, 230, 118, 0.2); border: 1px solid #00E676; display: flex; align-items: center; justify-content: center; color: #00E676;">
+                            <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; fill: currentColor;"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg>
+                        </div>
+                        <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #00E676; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">ডেইলি রিলস অ্যানালিটিক্স</h3>
+                    </div>
+                    <button id="btn-close-reels-analytics" style="background: transparent; border: none; color: #94a3b8; font-size: 24px; cursor: pointer; line-height: 1;">&times;</button>
+                </div>
+
+                <!-- Today Highlight Box -->
+                <div style="background: linear-gradient(135deg, rgba(0, 230, 118, 0.12) 0%, rgba(15, 23, 42, 0.9) 100%); border: 1.5px solid #00E676; border-radius: 16px; padding: 16px; margin-bottom: 16px; text-align: center;">
+                    <div style="font-size: 12px; color: #94a3b8; font-weight: 700;">আজকের দেখা রিলস</div>
+                    <div id="analytics-today-count" style="font-size: 38px; font-weight: 900; color: #00E676; margin: 4px 0; font-family: monospace;">০</div>
+                    <div id="analytics-today-time" style="font-size: 11.5px; color: #cbd5e1;">আনুমানিক অপচয়কৃত সময়: ০ মিনিট</div>
+
+                    <!-- Progress Bar -->
+                    <div id="analytics-progress-container" style="margin-top: 12px; display: none;">
+                        <div style="display: flex; justify-content: space-between; font-size: 10.5px; color: #94a3b8; margin-bottom: 4px;">
+                            <span>দৈনিক লিমিট অগ্রগতি</span>
+                            <span id="analytics-progress-label">০ / ৫০</span>
+                        </div>
+                        <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 6px; overflow: hidden;">
+                            <div id="analytics-progress-bar" style="width: 0%; height: 100%; background: #00E676; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2x2 Stats Grid -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px;">
+                    <!-- 7 Days -->
+                    <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">গত ৭ দিনে</div>
+                        <div id="analytics-7days" style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 2px;">০টি</div>
+                    </div>
+
+                    <!-- 30 Days -->
+                    <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">গত এক মাসে</div>
+                        <div id="analytics-30days" style="font-size: 20px; font-weight: 800; color: #a78bfa; margin-top: 2px;">০টি</div>
+                    </div>
+
+                    <!-- Lifetime -->
+                    <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">লাইফটাইম মোট</div>
+                        <div id="analytics-lifetime" style="font-size: 20px; font-weight: 800; color: #34d399; margin-top: 2px;">০টি</div>
+                    </div>
+
+                    <!-- Peak Record -->
+                    <div style="background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 12px; text-align: center;">
+                        <div style="font-size: 11px; color: #94a3b8; font-weight: 700;">একদিনে সর্বোচ্চ রেকর্ড</div>
+                        <div id="analytics-peak" style="font-size: 20px; font-weight: 800; color: #f43f5e; margin-top: 2px;">০টি</div>
+                        <div id="analytics-peak-date" style="font-size: 9.5px; color: #94a3b8; margin-top: 2px;">-</div>
+                    </div>
+                </div>
+
+                <!-- Daily Limit Controller -->
+                <div style="background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 14px;">
+                    <div style="font-size: 13px; font-weight: 800; color: #fff; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between;">
+                        <span>দৈনিক রিলস লিমিট</span>
+                        <span id="analytics-current-limit-tag" style="font-size: 10.5px; color: #00E676; background: rgba(0, 230, 118, 0.15); border: 1px solid rgba(0, 230, 118, 0.3); padding: 2px 8px; border-radius: 6px;">সীমা নেই</span>
+                    </div>
+                    <p style="font-size: 11px; color: #94a3b8; margin: 0 0 10px 0; line-height: 1.4;">
+                        দিনে সর্বোচ্চ কয়টি রিলস দেখতে চান তা নির্ধারণ করুন। লিমিট শেষ হলে রিলস স্বয়ংক্রিয়ভাবে বন্ধ হয়ে যাবে (সর্বোচ্চ ১০০০টি)।
+                    </p>
+
+                    <!-- Presets -->
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;">
+                        <button class="btn-reels-preset" data-val="10" style="padding: 5px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer;">১০টি</button>
+                        <button class="btn-reels-preset" data-val="25" style="padding: 5px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer;">২৫টি</button>
+                        <button class="btn-reels-preset" data-val="50" style="padding: 5px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer;">৫০টি</button>
+                        <button class="btn-reels-preset" data-val="100" style="padding: 5px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer;">১০০টি</button>
+                        <button class="btn-reels-preset" data-val="200" style="padding: 5px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer;">২০০টি</button>
+                        <button class="btn-reels-preset" data-val="1000" style="padding: 5px 10px; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 11px; cursor: pointer;">১০০০ (সর্বোচ্চ)</button>
+                    </div>
+
+                    <!-- Custom input -->
+                    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                        <input type="number" id="input-custom-reels-limit" min="1" max="1000" placeholder="কাস্টম সংখ্যা লিখুন (১ - ১০০০)" style="flex: 1; padding: 10px 12px; background: #020617; border: 1px solid #334155; border-radius: 8px; color: #fff; font-size: 12.5px; outline: none; box-sizing: border-box;">
+                        <button id="btn-save-reels-limit" style="padding: 10px 16px; background: #00E676; color: #042f2e; border: none; border-radius: 8px; font-size: 12.5px; font-weight: 800; cursor: pointer;">সেভ</button>
+                    </div>
+
+                    <button id="btn-clear-reels-limit" style="width: 100%; padding: 8px; background: #020617; color: #94a3b8; border: 1px solid #334155; border-radius: 8px; font-size: 11.5px; cursor: pointer;">লিমিট তুলে নিন (আনলিমিটেড)</button>
+                </div>
+            </div>
+        </div>
     `;
 }
 
@@ -441,6 +553,48 @@ function renderAppItem(app, isSocial) {
  */
 function bindSocialControlEvents() {
     bindReelsBlockerEvents();
+
+    // Reels Analytics Button
+    const btnOpenAnalytics = document.getElementById('btn-open-reels-analytics');
+    if (btnOpenAnalytics) {
+        btnOpenAnalytics.onclick = openReelsAnalyticsModal;
+    }
+
+    const btnCloseAnalytics = document.getElementById('btn-close-reels-analytics');
+    if (btnCloseAnalytics) {
+        btnCloseAnalytics.onclick = closeReelsAnalyticsModal;
+    }
+
+    document.querySelectorAll('.btn-reels-preset').forEach(btn => {
+        btn.onclick = () => {
+            const v = btn.getAttribute('data-val');
+            const inp = document.getElementById('input-custom-reels-limit');
+            if (inp) inp.value = v;
+        };
+    });
+
+    const btnSaveLimit = document.getElementById('btn-save-reels-limit');
+    if (btnSaveLimit) {
+        btnSaveLimit.onclick = () => {
+            const inp = document.getElementById('input-custom-reels-limit');
+            if (inp && inp.value) {
+                saveReelsDailyLimit(inp.value);
+            } else {
+                alert('অনুগ্রহ করে ১ থেকে ১০০০ এর মধ্যে একটি সংখ্যা লিখুন।');
+            }
+        };
+    }
+
+    const btnClearLimit = document.getElementById('btn-clear-reels-limit');
+    if (btnClearLimit) {
+        btnClearLimit.onclick = () => {
+            const inp = document.getElementById('input-custom-reels-limit');
+            if (inp) inp.value = '';
+            saveReelsDailyLimit(0);
+        };
+    }
+
+    fetchReelsAnalyticsData();
 
     // Back to home
     const btnBack = document.getElementById('btn-back-to-home');
@@ -882,4 +1036,129 @@ function escapeHtml(str) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
+}
+
+
+let currentReelsAnalytics = {
+    today: 0,
+    dailyLimit: 0,
+    last7Days: 0,
+    last30Days: 0,
+    lifetime: 0,
+    peakCount: 0,
+    peakDate: '-'
+};
+
+function fetchReelsAnalyticsData() {
+    if (window.Capacitor?.Plugins?.SocialMediaControlPlugin?.getReelsAnalytics) {
+        window.Capacitor.Plugins.SocialMediaControlPlugin.getReelsAnalytics()
+            .then(res => {
+                if (res) {
+                    currentReelsAnalytics = {
+                        today: Number(res.today || 0),
+                        dailyLimit: Number(res.dailyLimit || 0),
+                        last7Days: Number(res.last7Days || 0),
+                        last30Days: Number(res.last30Days || 0),
+                        lifetime: Number(res.lifetime || 0),
+                        peakCount: Number(res.peakCount || 0),
+                        peakDate: res.peakDate || '-'
+                    };
+                    updateReelsAnalyticsUI();
+                }
+            })
+            .catch(() => updateReelsAnalyticsUI());
+    } else {
+        updateReelsAnalyticsUI();
+    }
+}
+
+function updateReelsAnalyticsUI() {
+    const subText = document.getElementById('reels-card-subtext');
+    if (subText) {
+        const limStr = currentReelsAnalytics.dailyLimit > 0 ? (currentReelsAnalytics.dailyLimit + 'টি') : 'বন্ধ';
+        subText.innerText = `আজকের দেখা: ${currentReelsAnalytics.today}টি | লিমিট: ${limStr}`;
+    }
+
+    const todayCountEl = document.getElementById('analytics-today-count');
+    const todayTimeEl = document.getElementById('analytics-today-time');
+    const days7El = document.getElementById('analytics-7days');
+    const days30El = document.getElementById('analytics-30days');
+    const lifetimeEl = document.getElementById('analytics-lifetime');
+    const peakEl = document.getElementById('analytics-peak');
+    const peakDateEl = document.getElementById('analytics-peak-date');
+    const limitTag = document.getElementById('analytics-current-limit-tag');
+    const progContainer = document.getElementById('analytics-progress-container');
+    const progBar = document.getElementById('analytics-progress-bar');
+    const progLabel = document.getElementById('analytics-progress-label');
+
+    if (todayCountEl) todayCountEl.innerText = String(currentReelsAnalytics.today);
+    if (todayTimeEl) {
+        const approxMin = Math.round(currentReelsAnalytics.today * 0.8);
+        todayTimeEl.innerText = `আনুমানিক অপচয়কৃত সময়: ${approxMin} মিনিট`;
+    }
+    if (days7El) days7El.innerText = `${currentReelsAnalytics.last7Days}টি`;
+    if (days30El) days30El.innerText = `${currentReelsAnalytics.last30Days}টি`;
+    if (lifetimeEl) lifetimeEl.innerText = `${currentReelsAnalytics.lifetime}টি`;
+    if (peakEl) peakEl.innerText = `${currentReelsAnalytics.peakCount}টি`;
+    if (peakDateEl) peakDateEl.innerText = currentReelsAnalytics.peakDate && currentReelsAnalytics.peakDate !== '-' ? `তারিখ: ${currentReelsAnalytics.peakDate}` : 'রেকর্ড হয়নি';
+
+    if (limitTag) {
+        if (currentReelsAnalytics.dailyLimit > 0) {
+            limitTag.innerText = `দৈনিক সীমা: ${currentReelsAnalytics.dailyLimit}টি`;
+            limitTag.style.color = '#00E676';
+        } else {
+            limitTag.innerText = 'সীমা নেই';
+            limitTag.style.color = '#94a3b8';
+        }
+    }
+
+    if (progContainer && progBar && progLabel) {
+        if (currentReelsAnalytics.dailyLimit > 0) {
+            progContainer.style.display = 'block';
+            const pct = Math.min(100, Math.round((currentReelsAnalytics.today / currentReelsAnalytics.dailyLimit) * 100));
+            progBar.style.width = `${pct}%`;
+            progBar.style.background = pct >= 90 ? '#ef4444' : '#00E676';
+            progLabel.innerText = `${currentReelsAnalytics.today} / ${currentReelsAnalytics.dailyLimit} (${pct}%)`;
+        } else {
+            progContainer.style.display = 'none';
+        }
+    }
+
+    // Update Home page badge if available
+    const homeBadge = document.getElementById('home-reels-today-badge');
+    if (homeBadge) {
+        homeBadge.innerText = `রিলস আজ: ${currentReelsAnalytics.today}টি`;
+    }
+}
+
+function openReelsAnalyticsModal() {
+    const modal = document.getElementById('modal-reels-analytics');
+    if (modal) {
+        modal.style.display = 'flex';
+        fetchReelsAnalyticsData();
+    }
+}
+
+function closeReelsAnalyticsModal() {
+    const modal = document.getElementById('modal-reels-analytics');
+    if (modal) modal.style.display = 'none';
+}
+
+function saveReelsDailyLimit(limitVal) {
+    let lim = parseInt(limitVal, 10);
+    if (isNaN(lim) || lim < 0) lim = 0;
+    if (lim > 1000) lim = 1000;
+
+    if (window.Capacitor?.Plugins?.SocialMediaControlPlugin?.setReelsDailyLimit) {
+        window.Capacitor.Plugins.SocialMediaControlPlugin.setReelsDailyLimit({ limit: lim })
+            .then(() => {
+                currentReelsAnalytics.dailyLimit = lim;
+                updateReelsAnalyticsUI();
+                alert(lim > 0 ? `দৈনিক রিলস লিমিট ${lim}টি সফলভাবে সেভ করা হয়েছে!` : 'দৈনিক রিলস লিমিট বন্ধ করা হয়েছে।');
+            })
+            .catch(err => alert('লিমিট সেভ করা যায়নি: ' + err));
+    } else {
+        currentReelsAnalytics.dailyLimit = lim;
+        updateReelsAnalyticsUI();
+    }
 }
