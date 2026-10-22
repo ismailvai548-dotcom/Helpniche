@@ -57,7 +57,8 @@ public class ReelsTrackerManager {
     private static long lastIncrementTime = 0;
     private static int lastAlertedMilestone = 0;
     private static boolean isOverlayVisible = false;
-    private static String lastReelSignature = "";
+    private static String currentReelSignature = "";
+    private static long lastReelChangeTime = 0;
 
     private static final Runnable hideRunnable = () -> {
         try {
@@ -125,15 +126,42 @@ public class ReelsTrackerManager {
         prefs.edit().putInt(PREF_REELS_DAILY_LIMIT, clamped).apply();
     }
 
-    public static synchronized int incrementCount(Context context, AccessibilityService service) {
-        if (context == null) return 0;
+    public static synchronized void handleReelImpression(Context context, AccessibilityService service, String signature, boolean isScrollEvent) {
+        if (context == null) return;
         long now = SystemClock.elapsedRealtime();
-        // ৪০০ মিলিসেকেন্ডের রেসপন্সিভ ডিবউন্স যাতে একই জেসচারের মাঝে বাউন্স না করে কিন্তু প্রতিটি স্ক্রোলে তাৎক্ষণিক কাউন্ট হয়
-        if (now - lastIncrementTime < 400) {
-            return getTodayCount(context);
-        }
-        lastIncrementTime = now;
 
+        boolean isNewReel = false;
+
+        // ১. প্রাইমারি ইঞ্জিন: ইউনিক রিলস ক্রিয়েটর নাম বা ক্যাপশন সিগনেচার পরিবর্তন
+        if (signature != null && !signature.trim().isEmpty()) {
+            String sig = signature.trim();
+            if (!sig.equalsIgnoreCase(currentReelSignature)) {
+                // অন্তত ৩৫০ মিলি-সেকেন্ডের ব্যবধান বা সেশনের প্রথম রিলস
+                if (now - lastReelChangeTime >= 350 || currentReelSignature.isEmpty()) {
+                    currentReelSignature = sig;
+                    lastReelChangeTime = now;
+                    isNewReel = true;
+                }
+            }
+        } else if (isScrollEvent) {
+            // ২. সেকেন্ডারি ইঞ্জিন: যদি স্ক্রিনে টেক্সট না থাকে কিন্তু ইউজার স্ক্রল করেছে
+            if (now - lastReelChangeTime >= 650) {
+                lastReelChangeTime = now;
+                isNewReel = true;
+            }
+        }
+
+        if (isNewReel) {
+            recordReelCount(context, service);
+        }
+    }
+
+    public static synchronized int incrementCount(Context context, AccessibilityService service) {
+        handleReelImpression(context, service, null, true);
+        return getTodayCount(context);
+    }
+
+    public static synchronized void recordReelCount(Context context, AccessibilityService service) {
         checkAndResetNewDay(context);
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
         int today = prefs.getInt(PREF_REELS_TODAY_COUNT, 0) + 1;
@@ -147,14 +175,14 @@ public class ReelsTrackerManager {
         }
         editor.apply();
 
-        // লাইভ ভাসমান ক্যাপসুল টেক্সট আপডেট
+        // লাইভ ভাসমান ক্যাপসুল টেক্সট তাৎক্ষণিক আপডেট
         updateFloatingPillCount(today);
 
         // ২. লিমিট চেক (যদি কাস্টম লিমিট সেট করা থাকে)
         int limit = prefs.getInt(PREF_REELS_DAILY_LIMIT, 0);
         if (limit > 0 && today >= limit) {
             triggerLimitExceededAction(service, today, limit);
-            return today;
+            return;
         }
 
         // ৩. প্রোগ্রেসিভ মাইলস্টোন অ্যালার্ট (৫০, ১০০, ১৫০, ২০০...)
@@ -162,32 +190,6 @@ public class ReelsTrackerManager {
         if (milestone >= 50 && milestone != lastAlertedMilestone && today % 50 == 0) {
             lastAlertedMilestone = milestone;
             triggerProgressiveAlert(service, milestone);
-        }
-
-        return today;
-    }
-
-    public static synchronized void checkAndIncrementOnContentChange(Context context, AccessibilityService service, android.view.accessibility.AccessibilityEvent event) {
-        if (context == null || event == null) return;
-        long now = SystemClock.elapsedRealtime();
-        if (now - lastIncrementTime < 400) return;
-
-        CharSequence textSeq = null;
-        if (event.getText() != null && !event.getText().isEmpty()) {
-            textSeq = event.getText().get(0);
-        }
-        if (textSeq == null) {
-            textSeq = event.getContentDescription();
-        }
-        if (textSeq != null) {
-            String sig = textSeq.toString().trim();
-            // কিছু সাধারণ সংখ্যা, টাইম বা খুব ছোট টেক্সট এড়িয়ে যাওয়া
-            if (sig.length() > 3 && !sig.matches("^[0-9:\\s]+$")) {
-                if (!sig.equalsIgnoreCase(lastReelSignature)) {
-                    lastReelSignature = sig;
-                    incrementCount(context, service);
-                }
-            }
         }
     }
 
@@ -353,6 +355,7 @@ public class ReelsTrackerManager {
     }
 
     public static void hideFloatingPill() {
+        currentReelSignature = "";
         mainHandler.removeCallbacks(hideRunnable);
         mainHandler.post(hideRunnable);
     }
