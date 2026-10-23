@@ -1008,6 +1008,76 @@ public class UnlockPlugin extends Plugin {
     // ব্রাউজার ইন্টিগ্রেশন মেথডসমূহ (Helpniche Browser)
     // ==========================================
     private static volatile boolean isDownloadingBrowser = false;
+    public static final String KEY_BROWSER_SESSION_ACTIVE = "browser_session_active";
+    public static final String KEY_BROWSER_LEFT_TO_EXTERNAL = "browser_left_to_external";
+    public static final String KEY_BROWSER_LAUNCH_ELAPSED = "browser_launch_elapsed";
+
+    public static boolean launchBrowserApp(Context context, boolean noAnimation) {
+        if (context == null) return false;
+        try {
+            PackageManager pm = context.getPackageManager();
+            Intent launchIntent = null;
+            int flags = Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT;
+            if (noAnimation) {
+                flags |= Intent.FLAG_ACTIVITY_NO_ANIMATION;
+            }
+
+            // ১. কাস্টম অ্যাকশন ইনটেন্ট দিয়ে হিডেন ব্রাউজার ওপেন
+            try {
+                Intent actionIntent = new Intent("com.helpniche.browser.OPEN");
+                actionIntent.setPackage("com.helpniche.browser");
+                actionIntent.addFlags(flags);
+                if (actionIntent.resolveActivity(pm) != null) {
+                    launchIntent = actionIntent;
+                }
+            } catch (Exception ignored) {}
+
+            // ২. ডিরেক্ট কম্পোনেন্ট নাম দিয়ে ওপেন (হিডেন হলেও সরাসরি চালু হবে)
+            if (launchIntent == null) {
+                try {
+                    Intent compIntent = new Intent();
+                    compIntent.setComponent(new ComponentName("com.helpniche.browser", "com.niche.browser.MainActivity"));
+                    compIntent.addFlags(flags);
+                    if (compIntent.resolveActivity(pm) != null) {
+                        launchIntent = compIntent;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            if (launchIntent == null) {
+                try {
+                    Intent compIntent = new Intent();
+                    compIntent.setComponent(new ComponentName("com.helpniche.browser", "com.helpniche.browser.MainActivity"));
+                    compIntent.addFlags(flags);
+                    if (compIntent.resolveActivity(pm) != null) {
+                        launchIntent = compIntent;
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // ৩. সাধারণ গেট-লঞ্চ-ইনটেন্ট ফলব্যাক
+            if (launchIntent == null) {
+                launchIntent = pm.getLaunchIntentForPackage("com.helpniche.browser");
+                if (launchIntent != null) {
+                    launchIntent.addFlags(flags);
+                }
+            }
+
+            if (launchIntent != null) {
+                SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                prefs.edit()
+                        .putBoolean(KEY_BROWSER_SESSION_ACTIVE, true)
+                        .putBoolean(KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                        .putLong(KEY_BROWSER_LAUNCH_ELAPSED, android.os.SystemClock.elapsedRealtime())
+                        .apply();
+                context.startActivity(launchIntent);
+                return true;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch browser app", e);
+        }
+        return false;
+    }
 
     @PluginMethod
     public void isBrowserInstalled(PluginCall call) {
@@ -1031,42 +1101,8 @@ public class UnlockPlugin extends Plugin {
     @PluginMethod
     public void openBrowser(PluginCall call) {
         try {
-            Context context = getContext();
-            PackageManager pm = context.getPackageManager();
-            Intent launchIntent = null;
-
-            // ১. কাস্টম অ্যাকশন ইনটেন্ট দিয়ে হিডেন ব্রাউজার ওপেন
-            try {
-                Intent actionIntent = new Intent("com.helpniche.browser.OPEN");
-                actionIntent.setPackage("com.helpniche.browser");
-                actionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                if (actionIntent.resolveActivity(pm) != null) {
-                    launchIntent = actionIntent;
-                }
-            } catch (Exception ignored) {}
-
-            // ২. ডিরেক্ট কম্পোনেন্ট নাম দিয়ে ওপেন (হিডেন হলেও সরাসরি চালু হবে)
-            if (launchIntent == null) {
-                try {
-                    Intent compIntent = new Intent();
-                    compIntent.setComponent(new ComponentName("com.helpniche.browser", "com.helpniche.browser.MainActivity"));
-                    compIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    if (compIntent.resolveActivity(pm) != null) {
-                        launchIntent = compIntent;
-                    }
-                } catch (Exception ignored) {}
-            }
-
-            // ৩. সাধারণ গেট-লঞ্চ-ইনটেন্ট ফলব্যাক
-            if (launchIntent == null) {
-                launchIntent = pm.getLaunchIntentForPackage("com.helpniche.browser");
-                if (launchIntent != null) {
-                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                }
-            }
-
-            if (launchIntent != null) {
-                context.startActivity(launchIntent);
+            boolean launched = launchBrowserApp(getContext(), false);
+            if (launched) {
                 JSObject ret = new JSObject();
                 ret.put("success", true);
                 call.resolve(ret);

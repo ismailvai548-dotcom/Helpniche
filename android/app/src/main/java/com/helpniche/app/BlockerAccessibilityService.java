@@ -1860,8 +1860,51 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
 
 
-    @Override
-
+    private void updateBrowserSessionState(AccessibilityEvent event, String packageName) {
+        if (packageName == null || packageName.isEmpty()) return;
+        try {
+            if (packageName.contains("inputmethod") ||
+                    packageName.contains("keyboard") ||
+                    packageName.contains("ime") ||
+                    packageName.contains("systemui") ||
+                    packageName.contains("statusbar") ||
+                    packageName.contains("quicksettings") ||
+                    packageName.contains("permissioncontroller") ||
+                    packageName.contains("permissionmanager") ||
+                    packageName.contains("packageinstaller") ||
+                    packageName.equals("android")) {
+                return;
+            }
+
+            if (packageName.equals("com.helpniche.browser")) {
+                SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                prefs.edit()
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, true)
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                        .apply();
+                return;
+            }
+
+            if (!packageName.equals("com.helpniche.app") && !packageName.equals("com.focus.durood")) {
+                CharSequence clsSeq = event.getClassName();
+                String clsName = clsSeq != null ? clsSeq.toString().toLowerCase() : "";
+                if (clsName.contains("recents") || clsName.contains("overview")) {
+                    return;
+                }
+
+                SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                if (prefs.getBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)) {
+                    long launchElapsed = prefs.getLong(UnlockPlugin.KEY_BROWSER_LAUNCH_ELAPSED, 0);
+                    long nowElapsed = SystemClock.elapsedRealtime();
+                    if (nowElapsed < launchElapsed || (nowElapsed - launchElapsed > 1200)) {
+                        prefs.edit().putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, true).apply();
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
 
         if (event == null) return;
@@ -1884,7 +1927,10 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
         if (pkgNameSeq == null) return;
 
-        String packageName = pkgNameSeq.toString().toLowerCase();
+        String packageName = pkgNameSeq.toString().toLowerCase();
+        if (evtType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            updateBrowserSessionState(event, packageName);
+        }
 
 
 

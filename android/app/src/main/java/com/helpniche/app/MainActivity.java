@@ -47,6 +47,98 @@ public class MainActivity extends BridgeActivity {
 
     private ScreenUnlockReceiver unlockReceiver = null;
     private android.net.ConnectivityManager.NetworkCallback mainNetworkCallback = null;
+    private boolean pendingLauncherIconTap = false;
+    private boolean pendingExplicitReturnFromBrowser = false;
+
+    private void inspectIncomingBrowserSessionIntent(Intent intent, boolean isFromNewIntent) {
+        if (intent == null) return;
+        if (intent.getBooleanExtra("show_blocked_app_overlay", false)) {
+            pendingLauncherIconTap = false;
+            pendingExplicitReturnFromBrowser = false;
+            return;
+        }
+        String action = intent.getAction();
+        if (Intent.ACTION_MAIN.equals(action) && intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            int flags = intent.getFlags();
+            if ((flags & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0) {
+                return;
+            }
+            if ((flags & Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED) != 0 || intent.getSourceBounds() != null) {
+                pendingLauncherIconTap = true;
+                pendingExplicitReturnFromBrowser = false;
+            } else if (isFromNewIntent && (flags & Intent.FLAG_ACTIVITY_SINGLE_TOP) == 0) {
+                pendingExplicitReturnFromBrowser = true;
+                pendingLauncherIconTap = false;
+            }
+        }
+    }
+
+    private boolean handleBrowserSessionContinuity() {
+        try {
+            Intent currentIntent = getIntent();
+            if (currentIntent != null && currentIntent.getBooleanExtra("show_blocked_app_overlay", false)) {
+                return false;
+            }
+
+            SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            boolean sessionActive = prefs.getBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false);
+            boolean leftToExternal = prefs.getBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false);
+            long launchElapsed = prefs.getLong(UnlockPlugin.KEY_BROWSER_LAUNCH_ELAPSED, 0);
+            long nowElapsed = android.os.SystemClock.elapsedRealtime();
+
+            if (nowElapsed < launchElapsed) {
+                prefs.edit()
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                        .apply();
+                pendingLauncherIconTap = false;
+                pendingExplicitReturnFromBrowser = false;
+                return false;
+            }
+
+            if (!sessionActive) {
+                pendingLauncherIconTap = false;
+                pendingExplicitReturnFromBrowser = false;
+                return false;
+            }
+
+            if (pendingExplicitReturnFromBrowser) {
+                pendingExplicitReturnFromBrowser = false;
+                pendingLauncherIconTap = false;
+                prefs.edit()
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                        .apply();
+                return false;
+            }
+
+            if (pendingLauncherIconTap || leftToExternal) {
+                pendingLauncherIconTap = false;
+                pendingExplicitReturnFromBrowser = false;
+                boolean launched = UnlockPlugin.launchBrowserApp(this, true);
+                if (launched) {
+                    overridePendingTransition(0, 0);
+                    return true;
+                } else {
+                    prefs.edit()
+                            .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)
+                            .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                            .apply();
+                    return false;
+                }
+            }
+
+            if (nowElapsed - launchElapsed > 1200) {
+                prefs.edit()
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)
+                        .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                        .apply();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling browser session continuity", e);
+        }
+        return false;
+    }
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -58,6 +150,7 @@ public class MainActivity extends BridgeActivity {
 
         // অ্যাপ ফ্রেশ ইনস্টল বা প্রথম ওপেন হলে পার্মানেন্ট আনলক ও সকল লক স্টেট রিসেট নিশ্চিত করা
         checkAndResetFirstRun();
+        inspectIncomingBrowserSessionIntent(getIntent(), false);
 
         // স্বাধীন আনলক অ্যালার্ট ব্যাকগ্রাউন্ড সার্ভিস সক্রিয় থাকলে চালু করা
         try {
@@ -117,6 +210,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        inspectIncomingBrowserSessionIntent(intent, true);
         setIntent(intent);
         handleBlockedAppOverlayIntent(intent);
     }
@@ -497,6 +591,9 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        if (handleBrowserSessionContinuity()) {
+            return;
+        }
 
         // ইউজার সেটিংস থেকে ফিরে আসলে ফ্ল্যাগ রিসেট করা
         if (!isVpnPermissionGranted()) {
