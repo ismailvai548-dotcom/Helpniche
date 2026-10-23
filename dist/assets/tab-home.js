@@ -68,8 +68,14 @@ function renderHomeDashboard() {
                         </span>
                     </div>
                 </div>
-                <div id="home-browser-badge" style="background: ${isBrowserInstalled ? '#10b981' : '#0284c7'}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 8px; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                    <div id="btn-home-browser-shortcut" style="display: ${isBrowserInstalled ? 'inline-flex' : 'none'}; align-items: center; gap: 4px; background: rgba(14, 165, 233, 0.2); border: 1px solid #38bdf8; color: #38bdf8; font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 8px; flex-shrink: 0;">
+                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 13px; height: 13px;"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                        <span id="home-browser-shortcut-label">${currentLang === 'bn' ? 'শর্টকাট' : 'Shortcut'}</span>
+                    </div>
+                    <div id="home-browser-badge" style="background: ${isBrowserInstalled ? '#10b981' : '#0284c7'}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 8px; flex-shrink: 0;">
                     ${isBrowserInstalled ? (currentLang === 'bn' ? 'ওপেন' : 'Open') : (currentLang === 'bn' ? 'ইনস্টল' : 'Install')}
+                    </div>
                 </div>
             </div>
 
@@ -233,6 +239,10 @@ function renderHomeDashboard() {
 function bindHomeEvents() {
     const btnHomeBrowser = document.getElementById('btn-home-browser-launch');
     if (btnHomeBrowser) btnHomeBrowser.onclick = handleBrowserClick;
+    const btnHomeBrowserShortcut = document.getElementById('btn-home-browser-shortcut');
+    if (btnHomeBrowserShortcut && typeof handleBrowserShortcutClick === 'function') {
+        btnHomeBrowserShortcut.onclick = handleBrowserShortcutClick;
+    }
 
     if (typeof checkBrowserStatus === 'function') checkBrowserStatus();
     const btnLangToggle = document.getElementById('btn-language-toggle');

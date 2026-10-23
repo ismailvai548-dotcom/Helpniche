@@ -26,7 +26,27 @@ function updateBrowserUI() {
     }
     if (badge) {
         badge.innerText = isBrowserInstalled ? (currentLang === 'bn' ? 'ওপেন' : 'Open') : (currentLang === 'bn' ? 'ইনস্টল' : 'Install');
-        badge.style.background = isBrowserInstalled ? '#10b981' : '#0284c7';
+        badge.style.background = isBrowserInstalled ? '#10b981' : '#0284c7';
+    }
+    const shortcutBtn = document.getElementById('btn-home-browser-shortcut');
+    const shortcutLabel = document.getElementById('home-browser-shortcut-label');
+    if (shortcutBtn) {
+        shortcutBtn.style.display = isBrowserInstalled ? 'inline-flex' : 'none';
+    }
+    if (shortcutLabel) {
+        shortcutLabel.innerText = currentLang === 'bn' ? 'শর্টকাট' : 'Shortcut';
+    }
+}
+
+function handleBrowserShortcutClick(e) {
+    if (e && e.stopPropagation) {
+        e.stopPropagation();
+    }
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.createBrowserShortcut) {
+        window.Capacitor.Plugins.UnlockPlugin.createBrowserShortcut().catch(function(err) {
+            console.error('Failed to create browser shortcut:', err);
+        });
+    }
     }
 }
 

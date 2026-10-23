@@ -1118,6 +1118,92 @@ public class UnlockPlugin extends Plugin {
         }
     }
 
+    private android.graphics.Bitmap getBrowserShortcutIconBitmap(Context context) {
+        try {
+            PackageManager pm = context.getPackageManager();
+            android.graphics.drawable.Drawable drawable = null;
+            try {
+                drawable = pm.getApplicationIcon("com.helpniche.browser");
+            } catch (Exception ignored) {}
+            if (drawable == null) {
+                drawable = context.getApplicationInfo().loadIcon(pm);
+            }
+            if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
+                android.graphics.Bitmap bmp = ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+                if (bmp != null) return bmp;
+            }
+            int width = drawable.getIntrinsicWidth() > 0 ? drawable.getIntrinsicWidth() : 192;
+            int height = drawable.getIntrinsicHeight() > 0 ? drawable.getIntrinsicHeight() : 192;
+            android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+            drawable.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+            drawable.draw(canvas);
+            return bitmap;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create browser icon bitmap", e);
+            return null;
+        }
+    }
+
+    @PluginMethod
+    public void createBrowserShortcut(PluginCall call) {
+        try {
+            Context context = getContext();
+            Intent shortcutIntent = new Intent(context, BrowserShortcutActivity.class);
+            shortcutIntent.setAction(Intent.ACTION_VIEW);
+            shortcutIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+
+            android.graphics.Bitmap iconBitmap = getBrowserShortcutIconBitmap(context);
+            boolean requested = false;
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                android.content.pm.ShortcutManager shortcutManager = context.getSystemService(android.content.pm.ShortcutManager.class);
+                if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported()) {
+                    android.content.pm.ShortcutInfo.Builder builder = new android.content.pm.ShortcutInfo.Builder(context, "helpniche_browser_shortcut")
+                            .setShortLabel("Helpniche Browser")
+                            .setLongLabel("Helpniche Browser")
+                            .setIntent(shortcutIntent);
+                    if (iconBitmap != null) {
+                        builder.setIcon(android.graphics.drawable.Icon.createWithBitmap(iconBitmap));
+                    } else {
+                        builder.setIcon(android.graphics.drawable.Icon.createWithResource(context, context.getApplicationInfo().icon));
+                    }
+                    android.content.pm.ShortcutInfo pinShortcutInfo = builder.build();
+                    try {
+                        shortcutManager.updateShortcuts(java.util.Collections.singletonList(pinShortcutInfo));
+                    } catch (Exception ignored) {}
+                    requested = shortcutManager.requestPinShortcut(pinShortcutInfo, null);
+                }
+            } else {
+                Intent addIntent = new Intent("com.android.launcher.action.INSTALL_SHORTCUT");
+                addIntent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
+                addIntent.putExtra(Intent.EXTRA_SHORTCUT_NAME, "Helpniche Browser");
+                addIntent.putExtra("duplicate", false);
+                if (iconBitmap != null) {
+                    addIntent.putExtra(Intent.EXTRA_SHORTCUT_ICON, iconBitmap);
+                }
+                context.sendBroadcast(addIntent);
+                requested = true;
+            }
+
+            final boolean finalRequested = requested;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                if (finalRequested) {
+                    android.widget.Toast.makeText(context, "হোম স্ক্রিনে ব্রাউজার শর্টকাট যোগ করার পপ-আপে 'Add' চাপুন", android.widget.Toast.LENGTH_LONG).show();
+                } else {
+                    android.widget.Toast.makeText(context, "হোম স্ক্রিন শর্টকাট অপশনটি আপনার ফোনের লঞ্চার সেটিংস থেকে চালু করুন", android.widget.Toast.LENGTH_LONG).show();
+                }
+            });
+
+            JSObject ret = new JSObject();
+            ret.put("success", requested);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create browser shortcut", e);
+            call.reject("Failed to create shortcut: " + e.getMessage());
+        }
+    }
+
     @PluginMethod
     public void canRequestPackageInstalls(PluginCall call) {
         JSObject ret = new JSObject();

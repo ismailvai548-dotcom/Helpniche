@@ -26,6 +26,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
 
     <!-- Android 11+ App Visibility Queries -->
     <queries>
@@ -65,6 +66,13 @@
         </activity>
 
         <!-- ২. ফুল-স্ক্রিন ফোন অ্যালার্ম অ্যাক্টিভিটি -->
+        <activity
+            android:name=".BrowserShortcutActivity"
+            android:exported="true"
+            android:label="Helpniche Browser"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
         <activity
             android:name=".AlarmAlertActivity"
             android:exported="false"
