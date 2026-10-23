@@ -51,7 +51,11 @@ public class MainActivity extends BridgeActivity {
     private boolean pendingExplicitReturnFromBrowser = false;
 
     private void inspectIncomingBrowserSessionIntent(Intent intent, boolean isFromNewIntent) {
-        if (intent == null) return;
+        if (!isFromNewIntent || intent == null) {
+            pendingLauncherIconTap = false;
+            pendingExplicitReturnFromBrowser = false;
+            return;
+        }
         if (intent.getBooleanExtra("show_blocked_app_overlay", false)) {
             pendingLauncherIconTap = false;
             pendingExplicitReturnFromBrowser = false;
@@ -66,7 +70,7 @@ public class MainActivity extends BridgeActivity {
             if ((flags & Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED) != 0 || intent.getSourceBounds() != null) {
                 pendingLauncherIconTap = true;
                 pendingExplicitReturnFromBrowser = false;
-            } else if (isFromNewIntent && (flags & Intent.FLAG_ACTIVITY_SINGLE_TOP) == 0) {
+            } else if ((flags & Intent.FLAG_ACTIVITY_SINGLE_TOP) == 0) {
                 pendingExplicitReturnFromBrowser = true;
                 pendingLauncherIconTap = false;
             }
@@ -86,7 +90,7 @@ public class MainActivity extends BridgeActivity {
             long launchElapsed = prefs.getLong(UnlockPlugin.KEY_BROWSER_LAUNCH_ELAPSED, 0);
             long nowElapsed = android.os.SystemClock.elapsedRealtime();
 
-            if (nowElapsed < launchElapsed) {
+            if (nowElapsed < launchElapsed || (nowElapsed - launchElapsed > 5 * 60 * 1000L)) {
                 prefs.edit()
                         .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)
                         .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
@@ -150,7 +154,10 @@ public class MainActivity extends BridgeActivity {
 
         // অ্যাপ ফ্রেশ ইনস্টল বা প্রথম ওপেন হলে পার্মানেন্ট আনলক ও সকল লক স্টেট রিসেট নিশ্চিত করা
         checkAndResetFirstRun();
-        inspectIncomingBrowserSessionIntent(getIntent(), false);
+        getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE).edit()
+                .putBoolean(UnlockPlugin.KEY_BROWSER_SESSION_ACTIVE, false)
+                .putBoolean(UnlockPlugin.KEY_BROWSER_LEFT_TO_EXTERNAL, false)
+                .apply();
 
         // স্বাধীন আনলক অ্যালার্ট ব্যাকগ্রাউন্ড সার্ভিস সক্রিয় থাকলে চালু করা
         try {
