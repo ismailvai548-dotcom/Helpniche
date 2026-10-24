@@ -57,12 +57,8 @@ function updateBrowserUI() {
         badge.style.background = isBrowserInstalled ? '#10b981' : '#0284c7';
     }
     const shortcutBtn = document.getElementById('btn-home-browser-shortcut');
-    const shortcutLabel = document.getElementById('home-browser-shortcut-label');
     if (shortcutBtn) {
         shortcutBtn.style.display = isBrowserInstalled ? 'inline-flex' : 'none';
-    }
-    if (shortcutLabel) {
-        shortcutLabel.innerText = currentLang === 'bn' ? 'শর্টকাট' : 'Shortcut';
     }
 }
 

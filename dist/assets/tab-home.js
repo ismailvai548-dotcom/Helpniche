@@ -62,23 +62,21 @@ function renderHomeDashboard() {
                         </svg>
                     </div>
                     <div style="text-align: left;">
-                        <span style="font-size: 14.5px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 6px; letter-spacing: 0.2px;">
-                            ${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}
-                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
-                        </span>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 14.5px; font-weight: 800; color: #ffffff; letter-spacing: 0.2px;">
+                                ${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}
+                            </span>
+                            <div id="btn-home-browser-shortcut" style="display: ${isBrowserInstalled ? 'inline-flex' : 'none'}; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; background: rgba(14, 165, 233, 0.2); border: 1.5px solid #38bdf8; color: #38bdf8; cursor: pointer; transition: transform 0.15s, background 0.15s;" title="হোম স্ক্রিনে শর্টকাট যোগ করুন">
+                                <svg class="svg-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px;"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                            </div>
+                        </div>
                         <span id="home-browser-desc" style="font-size: 11.5px; color: #38bdf8; font-weight: 600; display: block; margin-top: 2px;">
                             ${isBrowserInstalled ? (currentLang === 'bn' ? 'ব্রাউজার ওপেন করুন' : 'Open Browser') : (currentLang === 'bn' ? 'অ্যাডমুক্ত ব্রাউজার ইনস্টল করুন' : 'Install Safe Browser')}
                         </span>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-                    <div id="btn-home-browser-shortcut" style="display: ${isBrowserInstalled ? 'inline-flex' : 'none'}; align-items: center; gap: 4px; background: rgba(14, 165, 233, 0.2); border: 1px solid #38bdf8; color: #38bdf8; font-size: 11px; font-weight: 800; padding: 5px 10px; border-radius: 8px; flex-shrink: 0;">
-                        <svg class="svg-icon" viewBox="0 0 24 24" style="width: 13px; height: 13px;"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                        <span id="home-browser-shortcut-label">${currentLang === 'bn' ? 'শর্টকাট' : 'Shortcut'}</span>
-                    </div>
-                    <div id="home-browser-badge" style="background: ${isBrowserInstalled ? '#10b981' : '#0284c7'}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 8px; flex-shrink: 0;">
+                <div id="home-browser-badge" style="background: ${isBrowserInstalled ? '#10b981' : '#0284c7'}; color: #ffffff; font-size: 11px; font-weight: 800; padding: 5px 14px; border-radius: 8px; flex-shrink: 0;">
                     ${isBrowserInstalled ? (currentLang === 'bn' ? 'ওপেন' : 'Open') : (currentLang === 'bn' ? 'ইনস্টল' : 'Install')}
-                    </div>
                 </div>
             </div>
 
