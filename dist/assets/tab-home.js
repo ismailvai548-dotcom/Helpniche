@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    TAB 1: HOME DASHBOARD (Minimal Circular UI & Focus Portal)
    ========================================================================== */
 function renderHomeDashboard() {
@@ -26,9 +26,11 @@ function renderHomeDashboard() {
                     <button id="btn-language-toggle" style="background:#0f172a; border:1px solid #1e293b; border-radius:20px; padding:3px 5px; display:flex; align-items:center; gap:3px; cursor:pointer; outline:none; transition:all 0.2s; box-shadow:0 2px 6px rgba(0,0,0,0.3);" title="Change Language / ভাষা পরিবর্তন">
                         <span style="font-size:10px; font-weight:800; padding:3px 8px; border-radius:14px; background:${isBn ? '#10b981' : 'transparent'}; color:${isBn ? '#000000' : '#94a3b8'}; transition:all 0.2s;">
                             বাংলা
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                         <span style="font-size:10px; font-weight:800; padding:3px 8px; border-radius:14px; background:${!isBn ? '#10b981' : 'transparent'}; color:${!isBn ? '#000000' : '#94a3b8'}; transition:all 0.2s;">
                             EN
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                     </button>
 
@@ -60,8 +62,9 @@ function renderHomeDashboard() {
                         </svg>
                     </div>
                     <div style="text-align: left;">
-                        <span style="font-size: 14.5px; font-weight: 800; color: #ffffff; display: block; letter-spacing: 0.2px;">
+                        <span style="font-size: 14.5px; font-weight: 800; color: #ffffff; display: flex; align-items: center; gap: 6px; letter-spacing: 0.2px;">
                             ${currentLang === 'bn' ? 'ব্রাউজার' : 'Browser'}
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                         <span id="home-browser-desc" style="font-size: 11.5px; color: #38bdf8; font-weight: 600; display: block; margin-top: 2px;">
                             ${isBrowserInstalled ? (currentLang === 'bn' ? 'ব্রাউজার ওপেন করুন' : 'Open Browser') : (currentLang === 'bn' ? 'অ্যাডমুক্ত ব্রাউজার ইনস্টল করুন' : 'Install Safe Browser')}
@@ -129,9 +132,11 @@ function renderHomeDashboard() {
                     <div>
                         <span id="home-vpn-title" style="font-size: 14.5px; font-weight: 800; color: #ffffff; display: block; letter-spacing: 0.2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
                             অ্যাড কন্ট্রোলার
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                         <span id="home-vpn-desc" style="font-size: 11.5px; color: #34d399; font-weight: 600; display: block; margin-top: 2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
                             সক্রিয় (অন)
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                     </div>
                 </div>
@@ -181,9 +186,11 @@ function renderHomeDashboard() {
                     <div>
                         <span style="font-size: 15px; font-weight: 800; color: #ffffff; display: block; letter-spacing: 0.2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
                             ${t('deepFocus')}
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                         <span style="font-size: 11px; color: #94a3b8; font-weight: 600; display: block; margin-top: 2px; font-family: 'Kalpurush', 'SolaimanLipi', sans-serif;">
                             ${isFocusSessionActive ? (currentLang === 'bn' ? 'সেশন চলমান...' : 'Session in progress...') : t('deepFocusSub')}
+                            <span style="display: inline-flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color: #ffffff; font-size: 11px; font-weight: 900; width: 17px; height: 17px; border-radius: 5px; box-shadow: 0 2px 6px rgba(14, 165, 233, 0.4); line-height: 1;">+</span>
                         </span>
                     </div>
                 </div>
