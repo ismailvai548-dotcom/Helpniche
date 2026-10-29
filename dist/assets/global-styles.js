@@ -312,41 +312,84 @@ function injectGlobalStyles() {
             transform: scale(0.98);
         }
 
-        /* Hypnotic Focus Simulation */
+        /* Hypnotic Focus Simulation - Cinematic Immersive */
         .hypnotic-focus-card {
-            text-align: center;
-            padding: 16px 14px;
-            background: linear-gradient(180deg, #090e1a 0%, #030712 100%);
-            color: #FFFFFF;
-            border-radius: 24px;
-            border: 1.5px solid rgba(56, 189, 248, 0.25);
+            position: relative;
+            width: 100%;
+            height: calc(100vh - 110px);
+            min-height: 520px;
+            max-height: 680px;
+            border-radius: 28px;
+            overflow: hidden;
+            background: #020617;
+            border: 1.5px solid rgba(56, 189, 248, 0.22);
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px;
+            box-sizing: border-box;
             margin: 0 auto;
-            max-width: 360px;
-            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
+            user-select: none;
         }
 
         .hypnotic-canvas-wrapper {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 10px;
-            position: relative;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            overflow: hidden;
         }
 
         #hypnotic-spiral-canvas {
-            border-radius: 18px;
-            background: #020617;
-            box-shadow: 0 6px 28px rgba(0, 0, 0, 0.7);
-            border: 1.5px solid rgba(255, 255, 255, 0.09);
+            width: 100%;
+            height: 100%;
             display: block;
             touch-action: none;
+            background: #020617;
+        }
+
+        .hypnotic-hud-top {
+            position: relative;
+            z-index: 5;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            padding: 6px 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .hypnotic-hud-bottom {
+            position: relative;
+            z-index: 5;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            padding: 12px 14px 10px 14px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
         }
 
         .hypnotic-subtext {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
-            color: #94a3b8;
-            margin-bottom: 6px;
+            color: #cbd5e1;
+            margin-bottom: 2px;
+            letter-spacing: 0.3px;
         }
 
         .focus-theme-chip {
