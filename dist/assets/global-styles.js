@@ -315,31 +315,58 @@ function injectGlobalStyles() {
         /* Hypnotic Focus Simulation */
         .hypnotic-focus-card {
             text-align: center;
-            padding: 20px 16px;
-            background: #0B3C2B;
+            padding: 16px 14px;
+            background: linear-gradient(180deg, #090e1a 0%, #030712 100%);
             color: #FFFFFF;
-            border-radius: 20px;
-            border: 1px solid #145941;
+            border-radius: 24px;
+            border: 1.5px solid rgba(56, 189, 248, 0.25);
             margin: 0 auto;
-            max-width: 340px;
+            max-width: 360px;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
         }
 
         .hypnotic-canvas-wrapper {
             display: flex;
             justify-content: center;
+            align-items: center;
             margin-bottom: 10px;
+            position: relative;
         }
 
         #hypnotic-spiral-canvas {
-            border-radius: 12px;
-            background: #0B3C2B;
+            border-radius: 18px;
+            background: #020617;
+            box-shadow: 0 6px 28px rgba(0, 0, 0, 0.7);
+            border: 1.5px solid rgba(255, 255, 255, 0.09);
+            display: block;
+            touch-action: none;
         }
 
         .hypnotic-subtext {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
-            color: #E6F4EA;
+            color: #94a3b8;
             margin-bottom: 6px;
+        }
+
+        .focus-theme-chip {
+            background: #0f172a;
+            color: #94a3b8;
+            border: 1px solid #1e293b;
+            padding: 6px 11px;
+            border-radius: 16px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        .focus-theme-chip.active {
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border-color: #38bdf8;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.25);
         }
 
         .hypnotic-timer-digits {
