@@ -73,6 +73,14 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
                 return;
             }
 
+            if (BlockerAccessibilityService.isUnlocked(context) || BlockerAccessibilityService.isPermanentUnlocked(context)) {
+                Log.i(TAG, "Screen unlocked but app is in unlocked mode: VPN remains stopped.");
+                if (LocalDnsVpnService.isVpnRunning()) {
+                    LocalDnsVpnService.stopVpn(context);
+                }
+                return;
+            }
+
             SharedPreferences prefs = context.getApplicationContext().getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
             boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
             boolean inBrowser = BlockerAccessibilityService.isCurrentlyInBrowser();

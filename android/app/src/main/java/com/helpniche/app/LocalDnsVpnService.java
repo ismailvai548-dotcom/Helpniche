@@ -339,11 +339,16 @@ public class LocalDnsVpnService extends VpnService {
             return;
         }
 
+        if (BlockerAccessibilityService.isUnlocked(context) || BlockerAccessibilityService.isPermanentUnlocked(context)) {
+            Log.i(TAG, "Protection is currently unlocked. Skipping VPN start.");
+            return;
+        }
+
         SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
         boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
         boolean inBrowser = BlockerAccessibilityService.isCurrentlyInBrowser();
-        if (!isSystemWide && !inBrowser && BlockerAccessibilityService.isUnlocked(context) && !hasActiveNetworkBlocks(context)) {
-            Log.i(TAG, "Ad block disabled, not in browser, protection is unlocked and no network blocks. Skipping VPN start.");
+        if (!isSystemWide && !inBrowser && !hasActiveNetworkBlocks(context)) {
+            Log.i(TAG, "Ad block disabled, not in browser and no network blocks. Skipping VPN start.");
             return;
         }
 
@@ -491,11 +496,18 @@ public class LocalDnsVpnService extends VpnService {
     public int onStartCommand(Intent intent, int flags, int startId) {
         startForegroundServiceNotification();
 
+        if (BlockerAccessibilityService.isUnlocked(this) || BlockerAccessibilityService.isPermanentUnlocked(this)) {
+            Log.i(TAG, "Protection is currently unlocked. Stopping VPN.");
+            stopVpn(this);
+            isStarting = false;
+            return START_NOT_STICKY;
+        }
+
         SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
         boolean isSystemWide = prefs.getBoolean("system_wide_adblock_enabled", true);
         boolean inBrowser = BlockerAccessibilityService.isCurrentlyInBrowser();
-        if (!isSystemWide && !inBrowser && BlockerAccessibilityService.isUnlocked(this) && !hasActiveNetworkBlocks(this)) {
-            Log.i(TAG, "Ad block disabled, not in browser, protection is unlocked and no network blocks. Stopping VPN.");
+        if (!isSystemWide && !inBrowser && !hasActiveNetworkBlocks(this)) {
+            Log.i(TAG, "Ad block disabled, not in browser and no network blocks. Stopping VPN.");
             stopVpn(this);
             isStarting = false;
             return START_NOT_STICKY;
