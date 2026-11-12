@@ -414,6 +414,10 @@
                     Validate & Unlock
                 </button>
 
+                <button class="unlock-btn unlock-btn-banking" id="unlock-banking-pause-btn" style="margin-top: 10px; background: linear-gradient(135deg, #E11D48, #9F1239); color: white;">
+                    ⚡ বিকাশ / নগদ সাময়িক বিরতি (৫ মিনিট)
+                </button>
+
                 <button class="unlock-btn unlock-btn-telegram" id="unlock-telegram-link-btn" style="margin-top: 10px;">
                     Contact Telegram Admin
                 </button>
@@ -428,6 +432,33 @@
         document.getElementById('unlock-close-btn').onclick = () => {
             overlay.style.display = 'none';
         };
+
+        // বিকাশ / নগদ সাময়িক বিরতি বাটন হ্যান্ডলার
+        const bankingBtn = document.getElementById('unlock-banking-pause-btn');
+        if (bankingBtn) {
+            bankingBtn.onclick = async () => {
+                const confirmed = confirm(
+                    "বিকাশ/নগদ ব্যবহারের জন্য ৫ মিনিটের সাময়িক বিরতি শুরু হবে।\n\n" +
+                    "• ৫ মিনিট স্ক্রিনে কাউন্টডাউন বাবল থাকবে।\n" +
+                    "• ৫ মিনিট শেষ হলে এক্সেসিবিলিটি অন করা বাধ্যতামূলক থাকবে।\n\n" +
+                    "আপনি কি বিরতি শুরু করতে চান?"
+                );
+                if (!confirmed) return;
+
+                const plugin = getPlugin();
+                if (plugin && plugin.startBankingPause) {
+                    try {
+                        overlay.style.display = 'none';
+                        await plugin.startBankingPause({ minutes: 5 });
+                        alert("✅ বিকাশ মোড চালু হয়েছে! ৫ মিনিটের জন্য লেনদেন করুন। ৫ মিনিট পর স্ক্রিনে অন করার অপশন আসবে।");
+                    } catch (e) {
+                        alert("ত্রুটি: " + (e?.message || e));
+                    }
+                } else {
+                    alert("ব্যাংকিং বিরতি প্লাগইন পাওয়া যায়নি।");
+                }
+            };
+        }
 
         // টেলিগ্রাম ওপেন করার সময় Device ID ডিপ-লিংকে পাস করা
         document.getElementById('unlock-telegram-link-btn').onclick = async () => {

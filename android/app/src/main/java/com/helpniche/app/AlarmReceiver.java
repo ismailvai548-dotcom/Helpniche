@@ -85,6 +85,30 @@ public class AlarmReceiver extends BroadcastReceiver {
             return;
         }
 
+        // Handle Banking Pause Expiration (Mandatory Accessibility Re-Lock)
+        if ("ACTION_BANKING_PAUSE_EXPIRED".equals(action)) {
+            Log.i(TAG, "Banking pause expired via exact alarm! Enforcing mandatory accessibility re-lock...");
+            SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            prefs.edit()
+                    .putBoolean("banking_pause_active", false)
+                    .putBoolean("mandatory_accessibility_pending", true)
+                    .apply();
+
+            try {
+                Intent lockIntent = new Intent(context, MandatoryReLockActivity.class);
+                lockIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                );
+                context.startActivity(lockIntent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error launching MandatoryReLockActivity from AlarmReceiver", e);
+            }
+            return;
+        }
+
         // Handle Focus Task Reminder Notification
         if ("ACTION_TASK_NOTIFICATION".equals(action)) {
             // ১. ওয়েক-লক দিয়ে স্ক্রিন ও প্রসেসর সাথে সাথে জাগিয়ে তোলা

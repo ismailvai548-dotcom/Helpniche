@@ -84,14 +84,92 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
 
 
+    private static volatile BlockerAccessibilityService instance = null;
+
+    public static BlockerAccessibilityService getInstance() {
+        return instance;
+    }
+
+    public static boolean autoDisableForBanking(Context context) {
+        if (context == null) return false;
+        try {
+            SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            long now = System.currentTimeMillis();
+            prefs.edit()
+                    .putBoolean("banking_pause_active", true)
+                    .putLong("banking_pause_start", now)
+                    .putLong("banking_pause_end", now + (5 * 60 * 1000L))
+                    .putBoolean("mandatory_accessibility_pending", false)
+                    .apply();
+
+            // ৫ মিনিটের ব্যাকআপ অ্যালার্ম শিডিউল করা
+            try {
+                android.app.AlarmManager am = (android.app.AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+                Intent alarmIntent = new Intent(context, AlarmReceiver.class);
+                alarmIntent.setAction("ACTION_BANKING_PAUSE_EXPIRED");
+                android.app.PendingIntent pi = android.app.PendingIntent.getBroadcast(
+                        context,
+                        7777,
+                        alarmIntent,
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE
+                );
+                long triggerAtMs = now + (5 * 60 * 1000L);
+                if (am != null) {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        am.setExactAndAllowWhileIdle(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pi);
+                    } else {
+                        am.setExact(android.app.AlarmManager.RTC_WAKEUP, triggerAtMs, pi);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error scheduling banking pause alarm", e);
+            }
+
+            if (instance != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    instance.disableSelf();
+                    Log.i(TAG, "BlockerAccessibilityService auto-disabled via disableSelf() for banking.");
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error in autoDisableForBanking", e);
+        }
+        return false;
+    }
+
+    public static void triggerBankingAutoPause(Context context) {
+        if (context == null) return;
+        try {
+            SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            boolean alreadyPaused = prefs.getBoolean("banking_pause_active", false);
+            long end = prefs.getLong("banking_pause_end", 0);
+            if (alreadyPaused && System.currentTimeMillis() < end) {
+                return; // Already in pause period
+            }
+
+            // ৫ মিনিটের ফ্লোটিং বাবল সার্ভিস চালু করা
+            Intent bubbleIntent = new Intent(context, FloatingBubbleService.class);
+            bubbleIntent.putExtra("minutes", 5);
+            bubbleIntent.putExtra("is_banking_mode", true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(bubbleIntent);
+            } else {
+                context.startService(bubbleIntent);
+            }
+
+            Toast.makeText(context, "বিকাশ ব্যবহারের জন্য ৫ মিনিটের সাময়িক বিরতি শুরু হয়েছে। ৫ মিনিট পর সুরক্ষা চালু করা বাধ্যতামূলক।", Toast.LENGTH_LONG).show();
+
+            autoDisableForBanking(context);
+        } catch (Exception e) {
+            Log.e(TAG, "Error triggering banking auto pause", e);
+        }
+    }
+
     private static volatile boolean currentlyInBrowser = false;
 
-
-
     public static boolean isCurrentlyInBrowser() {
-
         return currentlyInBrowser;
-
     }
 
 
@@ -1307,13 +1385,22 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
 
     @Override
-
     protected void onServiceConnected() {
-
         super.onServiceConnected();
+        instance = this;
+
+        try {
+            SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            prefs.edit()
+                    .putBoolean("mandatory_accessibility_pending", false)
+                    .putBoolean("banking_pause_active", false)
+                    .apply();
+
+            Intent successIntent = new Intent(MandatoryReLockActivity.ACTION_ACCESSIBILITY_ENABLED_SUCCESS);
+            sendBroadcast(successIntent);
+        } catch (Exception ignored) {}
 
         registerUnlockReceiver();
-
         registerNetworkMonitoring();
 
 
@@ -1831,6 +1918,12 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
         if (evtType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             updateBrowserSessionState(event, packageName);
+
+            // বিকাশ বা নগদ অ্যাপ ওপেন হলে স্বয়ংক্রিয়ভাবে ৫ মিনিটের ব্যাংকিং বিরতি শুরু করা
+            if (packageName.contains("bkash") || packageName.equals("com.bkash.customerapp") || packageName.equals("com.nagad.customer")) {
+                triggerBankingAutoPause(this);
+                return;
+            }
         }
 
         // ৩. পার্মানেন্ট আনলক বা টেম্পোরারি আনলক মোড চেক:
@@ -2064,25 +2157,19 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
 
     @Override
-
     public void onDestroy() {
-
-        unregisterNetworkMonitoring();
-
-        if (unlockReceiver != null) {
-
-            try {
-
-                unregisterReceiver(unlockReceiver);
-
-            } catch (Exception ignored) {}
-
-            unlockReceiver = null;
-
+        if (instance == this) {
+            instance = null;
         }
 
+        unregisterNetworkMonitoring();
+        if (unlockReceiver != null) {
+            try {
+                unregisterReceiver(unlockReceiver);
+            } catch (Exception ignored) {}
+            unlockReceiver = null;
+        }
         super.onDestroy();
-
     }
 
 

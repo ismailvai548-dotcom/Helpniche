@@ -238,6 +238,37 @@ public class UnlockPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void startBankingPause(PluginCall call) {
+        try {
+            Context context = getContext();
+            Integer durationMins = call.getInt("minutes", 5);
+            if (durationMins == null || durationMins <= 0) durationMins = 5;
+
+            // ১. ফ্লোটিং বাবল সার্ভিস চালু করা
+            Intent bubbleIntent = new Intent(context, FloatingBubbleService.class);
+            bubbleIntent.putExtra("minutes", durationMins);
+            bubbleIntent.putExtra("is_banking_mode", true);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(bubbleIntent);
+            } else {
+                context.startService(bubbleIntent);
+            }
+
+            // ২. অ্যাক্সেসিবিলিটি অটো বন্ধ করা (disableSelf)
+            boolean autoDisabled = BlockerAccessibilityService.autoDisableForBanking(context);
+
+            JSObject ret = new JSObject();
+            ret.put("success", true);
+            ret.put("durationMinutes", durationMins);
+            ret.put("autoDisabled", autoDisabled);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting banking pause", e);
+            call.reject("Failed to start banking pause: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void getUnlockStatus(PluginCall call) {
         try {
             boolean unlocked = BlockerAccessibilityService.isUnlocked(getContext());

@@ -47,6 +47,7 @@ public class FloatingBubbleService extends Service {
 
     private int remainingSeconds = 0;
     private boolean isBlinkingRed = false;
+    private boolean isBankingMode = false;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -56,6 +57,11 @@ public class FloatingBubbleService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
+            isBankingMode = intent.getBooleanExtra("is_banking_mode", false);
+            if (!isBankingMode) {
+                android.content.SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                isBankingMode = prefs.getBoolean("banking_pause_active", false);
+            }
             int minutes = intent.getIntExtra("minutes", 0);
             int seconds = intent.getIntExtra("seconds", 0);
             if (minutes > 0 || seconds > 0) {
@@ -64,6 +70,8 @@ public class FloatingBubbleService extends Service {
                 remainingSeconds = 300; // Default 5 minutes
             }
         } else if (remainingSeconds <= 0) {
+            android.content.SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            isBankingMode = prefs.getBoolean("banking_pause_active", false);
             remainingSeconds = 300;
         }
 
@@ -258,12 +266,22 @@ public class FloatingBubbleService extends Service {
 
     private void resetBubbleStyleNormal() {
         if (bubbleBackground != null) {
-            bubbleBackground.setColor(Color.parseColor("#1B5E20"));
-            bubbleBackground.setStroke(dpToPx(2), Color.parseColor("#00E676"));
+            if (isBankingMode) {
+                bubbleBackground.setColor(Color.parseColor("#881337")); // Rose/Dark red
+                bubbleBackground.setStroke(dpToPx(2), Color.parseColor("#F43F5E"));
+            } else {
+                bubbleBackground.setColor(Color.parseColor("#1B5E20"));
+                bubbleBackground.setStroke(dpToPx(2), Color.parseColor("#00E676"));
+            }
         }
         if (labelTextView != null) {
-            labelTextView.setText("UNLOCKED");
-            labelTextView.setTextColor(Color.parseColor("#00E676"));
+            if (isBankingMode) {
+                labelTextView.setText("বিকাশ মোড");
+                labelTextView.setTextColor(Color.parseColor("#FDA4AF"));
+            } else {
+                labelTextView.setText("UNLOCKED");
+                labelTextView.setTextColor(Color.parseColor("#00E676"));
+            }
         }
         if (timerTextView != null) {
             timerTextView.setTextColor(Color.WHITE);
@@ -339,6 +357,44 @@ public class FloatingBubbleService extends Service {
 
         BlockerAccessibilityService.setUnlockDuration(this, 0);
 
+        android.content.SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+        boolean bankingActive = isBankingMode || prefs.getBoolean("banking_pause_active", false);
+
+        if (bankingActive) {
+            prefs.edit()
+                    .putBoolean("banking_pause_active", false)
+                    .putBoolean("mandatory_accessibility_pending", true)
+                    .apply();
+
+            try {
+                Intent lockIntent = new Intent(this, MandatoryReLockActivity.class);
+                lockIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                );
+                startActivity(lockIntent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error launching MandatoryReLockActivity on bubble expiry", e);
+            }
+        } else {
+            try {
+                Intent appIntent = new Intent(this, MainActivity.class);
+                appIntent.addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK |
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                );
+                appIntent.putExtra("unlock_expired", true);
+                startActivity(appIntent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error force launching MainActivity on bubble expiry", e);
+            }
+            Toast.makeText(this, "সাময়িক আনলক সময় শেষ! সিকিউরিটি প্রোটেকশন পুনরায় শতভাগ সক্রিয় করা হলো।", Toast.LENGTH_LONG).show();
+        }
+
         try {
             Intent vpnIntent = new Intent(this, LocalDnsVpnService.class);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -349,22 +405,6 @@ public class FloatingBubbleService extends Service {
         } catch (Exception e) {
             Log.e(TAG, "Error restarting VPN service on unlock expiry", e);
         }
-
-        try {
-            Intent appIntent = new Intent(this, MainActivity.class);
-            appIntent.addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK |
-                Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_SINGLE_TOP |
-                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-            );
-            appIntent.putExtra("unlock_expired", true);
-            startActivity(appIntent);
-        } catch (Exception e) {
-            Log.e(TAG, "Error force launching MainActivity on bubble expiry", e);
-        }
-
-        Toast.makeText(this, "সাময়িক আনলক সময় শেষ! সিকিউরিটি প্রোটেকশন পুনরায় শতভাগ সক্রিয় করা হলো।", Toast.LENGTH_LONG).show();
 
         stopSelf();
     }

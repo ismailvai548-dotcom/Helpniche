@@ -93,6 +93,17 @@
             android:excludeFromRecents="true"
             android:theme="@style/AppTheme.NoActionBar" />
 
+        <!-- বাধ্যতামূলক অ্যাক্সেসিবিলিটি রি-লক অ্যাক্টিভিটি (বিকাশ মোড এক্সপায়ার হলে) -->
+        <activity
+            android:name=".MandatoryReLockActivity"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:showForAllUsers="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/AppTheme.NoActionBar" />
+
 
         <!-- ৩. ফুল-স্ক্রিন ওভারলে অ্যালার্ম সার্ভিস -->
         <service

@@ -29,6 +29,28 @@ public class BootReceiver extends BroadcastReceiver {
                 Log.e(TAG, "Error rescheduling alarms on boot", e);
             }
 
+            // রিবুটের পর বাধ্যতামূলক অ্যাক্সেসিবিলিটি রি-লক চেক
+            try {
+                android.content.SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                boolean mandatoryPending = prefs.getBoolean("mandatory_accessibility_pending", false);
+                boolean bankingActive = prefs.getBoolean("banking_pause_active", false);
+                long pauseEnd = prefs.getLong("banking_pause_end", 0);
+                if (mandatoryPending || (bankingActive && System.currentTimeMillis() >= pauseEnd)) {
+                    if (!MandatoryReLockActivity.isAccessibilityEnabled(context)) {
+                        Intent lockIntent = new Intent(context, MandatoryReLockActivity.class);
+                        lockIntent.addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK |
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                        );
+                        context.startActivity(lockIntent);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error checking mandatory lock on boot", e);
+            }
+
             // Check if Local VPN protection service needs restart for System-Wide Ad Blocking
             try {
                 android.content.SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);

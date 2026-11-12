@@ -36,6 +36,22 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
         if (intent == null || intent.getAction() == null) return;
         String action = intent.getAction();
         if (Intent.ACTION_USER_PRESENT.equals(action)) {
+            // বাধ্যতামূলক অ্যাক্সেসিবিলিটি রি-লক চেক
+            try {
+                SharedPreferences prefs = context.getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                boolean mandatoryPending = prefs.getBoolean("mandatory_accessibility_pending", false);
+                if (mandatoryPending && !MandatoryReLockActivity.isAccessibilityEnabled(context)) {
+                    Intent lockIntent = new Intent(context, MandatoryReLockActivity.class);
+                    lockIntent.addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK |
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP |
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP |
+                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                    );
+                    context.startActivity(lockIntent);
+                }
+            } catch (Exception ignored) {}
+
             triggerUnlockReminder(context);
             handleScreenUnlocked(context);
         } else if (Intent.ACTION_SCREEN_OFF.equals(action)) {
