@@ -37,6 +37,7 @@ BEGIN
 
     RETURN jsonb_build_object(
         'success', true,
+        'request_id', v_req.id,
         'duration_minutes', v_minutes
     );
 END;

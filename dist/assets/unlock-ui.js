@@ -110,6 +110,9 @@
     }
 
     let isCheckingRemote = false;
+    let lastHandledUnlockId = localStorage.getItem('last_handled_remote_unlock_id') || '';
+    let lastHandledApprovedAt = localStorage.getItem('last_handled_remote_approved_at') || '';
+
     async function checkRemoteApproval() {
         if (isCheckingRemote || !currentDeviceId) return;
         isCheckingRemote = true;
@@ -125,11 +128,19 @@
                 body: JSON.stringify({
                     p_device_id: currentDeviceId
                 })
-            });
+            }).catch(() => null);
 
-            if (rpcRes.ok) {
+            if (rpcRes && rpcRes.ok) {
                 const data = await rpcRes.json();
                 if (data && data.success) {
+                    if (data.request_id && data.request_id === lastHandledUnlockId) {
+                        return;
+                    }
+                    if (data.request_id) {
+                        lastHandledUnlockId = data.request_id;
+                        localStorage.setItem('last_handled_remote_unlock_id', data.request_id);
+                    }
+
                     const mins = data.duration_minutes || 5;
                     const plugin = getPlugin();
                     if (plugin?.setUnlockDuration) {
@@ -146,19 +157,46 @@
             }
 
             // ২. ফলব্যাক: সরাসরি রেস্ট কুয়েরি চেক
-            const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?device_id=eq.${encodeURIComponent(currentDeviceId)}&status=eq.approved&select=id,reason,status`, {
+            const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?device_id=eq.${encodeURIComponent(currentDeviceId)}&status=eq.approved&select=id,reason,status,approved_at`, {
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
                 }
-            });
-            if (res.ok) {
+            }).catch(() => null);
+
+            if (res && res.ok) {
                 const rows = await res.json();
                 if (rows && rows.length > 0) {
                     const req = rows[0];
+
+                    // আগের একই অ্যাপ্রুভাল আইডি বা টাইমস্ট্যাম্প ইতিমধ্যে হ্যান্ডেল হয়ে থাকলে পুনরায় অ্যালার্ট দেখানো নিষিদ্ধ
+                    if (req.id && req.id === lastHandledUnlockId) {
+                        return;
+                    }
+                    if (req.approved_at && req.approved_at === lastHandledApprovedAt) {
+                        return;
+                    }
+
                     let mins = 5;
                     if (req.reason && req.reason.startsWith('remote_unlock:')) {
                         mins = parseInt(req.reason.split(':')[1], 10) || 5;
+                    }
+
+                    // অনুমোদন যদি অতি পুরনো হয় (বর্তমান সময় থেকে সেশন শেষ হয়ে গেছে), তবে অ্যালার্ট না দেওয়া
+                    if (req.approved_at) {
+                        const approvedTime = new Date(req.approved_at).getTime();
+                        if (!isNaN(approvedTime) && (Date.now() - approvedTime > (mins * 60 * 1000))) {
+                            return;
+                        }
+                    }
+
+                    if (req.id) {
+                        lastHandledUnlockId = req.id;
+                        localStorage.setItem('last_handled_remote_unlock_id', req.id);
+                    }
+                    if (req.approved_at) {
+                        lastHandledApprovedAt = req.approved_at;
+                        localStorage.setItem('last_handled_remote_approved_at', req.approved_at);
                     }
 
                     const plugin = getPlugin();
@@ -201,9 +239,6 @@
         const plugin = getPlugin();
         if (!plugin || !plugin.getUnlockStatus) return;
 
-        // লাইভ রিমোট আনলক চেক (ইউজারকে কোড দিতে হবে না, অ্যাডমিন অনুমোদন দিলেই আনলক)
-        checkRemoteApproval();
-
         try {
             const status = await plugin.getUnlockStatus();
             const timerEl = document.getElementById('unlock-timer-banner');
@@ -224,6 +259,8 @@
                         timerEl.innerText = `Unlocked (${mins}m ${secs}s remaining)`;
                     }
                 }
+                // গুরুত্বপূর্ণ: অ্যাপটি ইতিমধ্যে আনলকড থাকলে রিমোট কুয়েরি বা অ্যালার্ট চেক করার প্রয়োজন নেই
+                return;
             } else {
                 if (timerEl) timerEl.style.display = 'none';
 
@@ -235,6 +272,9 @@
                         `<b>স্ট্যাটাস:</b> সময় শেষ, প্রটেকশন পুনরায় লক করা হয়েছে।`;
                     notifyTelegramAdmin(endNotice);
                 }
+
+                // শুধুমাত্র যদি অ্যাপটি লকড অবস্থায় থাকে, তখনই রিমোট আনলক চেক করা হবে
+                checkRemoteApproval();
             }
         } catch (e) {
             console.error('Error checking unlock status:', e);
