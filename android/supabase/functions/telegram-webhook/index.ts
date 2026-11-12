@@ -68,20 +68,41 @@ async function answerCallbackQuery(queryId: string, text: string, showAlert = fa
 }
 
 serve(async (req) => {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-telegram-bot-api-secret-token",
+  };
+
   try {
-    if (req.method !== "POST") {
-      return new Response("Method Not Allowed", { status: 405 });
+    if (req.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders });
     }
 
-    // H3: validate the Telegram webhook shared secret when configured.
-    if (TELEGRAM_WEBHOOK_SECRET) {
-      const gotSecret = req.headers.get("x-telegram-bot-api-secret-token") || "";
-      if (gotSecret !== TELEGRAM_WEBHOOK_SECRET) {
-        return new Response("Unauthorized", { status: 401 });
-      }
+    if (req.method !== "POST") {
+      return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
     }
 
     const update = await req.json();
+
+    // 0. App Client Notifications (Donations, System alerts, Unlock events)
+    if (update && (update.type === "admin_notification" || update.type === "donation_alert" || update.type === "client_event")) {
+      const alertText = update.text || update.message || "";
+      if (alertText && ADMIN_CHAT_ID) {
+        await sendTelegramMessage(ADMIN_CHAT_ID, alertText);
+      }
+      return new Response(JSON.stringify({ success: true, delivered: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // H3: validate the Telegram webhook shared secret when configured (for bot updates).
+    if (TELEGRAM_WEBHOOK_SECRET) {
+      const gotSecret = req.headers.get("x-telegram-bot-api-secret-token") || "";
+      if (gotSecret !== TELEGRAM_WEBHOOK_SECRET) {
+        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      }
+    }
 
     // 1. Handle Callbacks from Admin Inline Keyboard
     if (update.callback_query) {

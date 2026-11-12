@@ -12,7 +12,7 @@ const KEYS = {
 
 // অ্যাডমিনের দেওয়া সিক্রেট মাস্টার কোড (যা আপনি টেলিগ্রামে দিবেন)
 export const ADMIN_SECRET_CODE = '7860';
-export const TELEGRAM_ADMIN_LINK = 'https://t.me/your_telegram_username'; // আপনার টেলিগ্রাম লিঙ্ক
+export const TELEGRAM_ADMIN_LINK = 'https://t.me/helpniche_bot'; // অফিশিয়াল টেলিগ্রাম বট লিঙ্ক
 
 export const ADULT_KEYWORDS = ['porn', 'xxx', 'xvideos', 'xnxx', 'adult', 'sex'];
 export const GAMBLING_KEYWORDS = ['1xbet', 'bet365', 'melbet', 'casino', 'gambling', 'baji', 'jeetbuzz'];

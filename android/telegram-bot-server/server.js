@@ -574,15 +574,30 @@ async function executeUnlock(ctx, deviceId, minutes, durationText, targetUserId 
 
         // unlock_requests আপডেট করা (ডিভাইসের জিরো-টাচ রিমোট আনলকের জন্য)
         try {
-            await supabase
+            const { data: updatedRows } = await supabase
                 .from('unlock_requests')
                 .update({
                     status: 'approved',
                     approved_at: new Date().toISOString(),
                     reason: `remote_unlock:${minutes}`
                 })
-                .eq('device_id', cleanDevId);
-        } catch (e) {}
+                .eq('device_id', cleanDevId)
+                .select();
+
+            if (!updatedRows || updatedRows.length === 0) {
+                await supabase
+                    .from('unlock_requests')
+                    .insert({
+                        device_id: cleanDevId,
+                        device_name: 'Android Device',
+                        status: 'approved',
+                        approved_at: new Date().toISOString(),
+                        reason: `remote_unlock:${minutes}`
+                    });
+            }
+        } catch (e) {
+            console.error("Remote unlock request upsert error:", e);
+        }
 
         // অ্যাডমিনকে সুন্দর কনফার্মেশন মেসেজ
         const adminSuccessMsg = `✅ <b>আনলক সফলভাবে কার্যকর হয়েছে!</b>\n\n` +

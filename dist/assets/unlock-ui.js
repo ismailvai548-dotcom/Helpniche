@@ -114,6 +114,38 @@
         if (isCheckingRemote || !currentDeviceId) return;
         isCheckingRemote = true;
         try {
+            // ১. অটোমিক আরপিসি কল দিয়ে রিমোট অনুমোদন যাচাই ও কনজিউম করা (RLS সুরক্ষিত)
+            const rpcRes = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/rpc/check_and_consume_remote_unlock`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                },
+                body: JSON.stringify({
+                    p_device_id: currentDeviceId
+                })
+            });
+
+            if (rpcRes.ok) {
+                const data = await rpcRes.json();
+                if (data && data.success) {
+                    const mins = data.duration_minutes || 5;
+                    const plugin = getPlugin();
+                    if (plugin?.setUnlockDuration) {
+                        await plugin.setUnlockDuration({ minutes: mins });
+                    }
+                    const overlay = document.getElementById('unlock-modal-overlay');
+                    if (overlay) overlay.style.display = 'none';
+
+                    isSessionCurrentlyActive = true;
+                    const durText = mins >= 52560000 ? 'স্থায়ীভাবে' : `${mins} মিনিটের জন্য`;
+                    alert(`✅ অ্যাডমিন কর্তৃক আপনার অ্যাপটি দূর থেকে ${durText} সফলভাবে আনলক করা হয়েছে!`);
+                    return;
+                }
+            }
+
+            // ২. ফলব্যাক: সরাসরি রেস্ট কুয়েরি চেক
             const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?device_id=eq.${encodeURIComponent(currentDeviceId)}&status=eq.approved&select=id,reason,status`, {
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
@@ -147,7 +179,7 @@
                             status: 'pending',
                             reason: 'remote_unlocked_consumed'
                         })
-                    });
+                    }).catch(() => {});
 
                     // Hide modal if open
                     const overlay = document.getElementById('unlock-modal-overlay');

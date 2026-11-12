@@ -676,7 +676,6 @@ public class MainActivity extends BridgeActivity {
             try {
                 unlockReceiver = new ScreenUnlockReceiver();
                 IntentFilter filter = new IntentFilter();
-                filter.addAction(Intent.ACTION_USER_PRESENT);
                 filter.addAction(Intent.ACTION_SCREEN_OFF);
                 filter.addAction(android.net.ConnectivityManager.CONNECTIVITY_ACTION);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
