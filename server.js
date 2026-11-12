@@ -572,24 +572,26 @@ async function executeUnlock(ctx, deviceId, minutes, durationText, targetUserId 
             return ctx.reply("❌ সুপাবেস ডাটাবেসে সেভ হতে সমস্যা হয়েছে: " + insErr.message);
         }
 
-        // unlock_requests আপডেট করা
+        // unlock_requests আপডেট করা (ডিভাইসের জিরো-টাচ রিমোট আনলকের জন্য)
         try {
             await supabase
                 .from('unlock_requests')
                 .update({
                     status: 'approved',
-                    approved_at: new Date().toISOString()
+                    approved_at: new Date().toISOString(),
+                    reason: `remote_unlock:${minutes}`
                 })
                 .eq('device_id', cleanDevId);
         } catch (e) {}
 
         // অ্যাডমিনকে সুন্দর কনফার্মেশন মেসেজ
-        const adminSuccessMsg = `✅ <b>আনলক কোড সফলভাবে তৈরি হয়েছে!</b>\n\n` +
+        const adminSuccessMsg = `✅ <b>আনলক সফলভাবে কার্যকর হয়েছে!</b>\n\n` +
             `📱 <b>Device ID:</b> <code>${cleanDevId}</code>\n` +
-            `🔑 <b>Unlock Code:</b> <code>${randomCode}</code>\n` +
             `⏱️ <b>মেয়াদ:</b> ${durationText}\n` +
-            `📌 <b>স্ট্যাটাস:</b> Ready (Unused)\n\n` +
-            `💡 কোডটি ইউজারকে দিন। ইউজার অ্যাপে কোডটি <code>${randomCode}</code> বসালে অ্যাপটি ${durationText}ের জন্য স্বয়ংক্রিয়ভাবে আনলক হয়ে যাবে।`;
+            `🔑 <b>ব্যাকআপ কোড:</b> <code>${randomCode}</code>\n` +
+            `📌 <b>স্ট্যাটাস:</b> 🟢 দূর থেকে অটো-আনলক অনুমোদিত\n\n` +
+            `🚀 <b>জিরো-টাচ রিমোট আনলক:</b> ইউজারের ফোনে কোড টাইপ করার প্রয়োজন নেই, ফোন অন থাকা অবস্থায় স্বয়ংক্রিয়ভাবে ${durationText}ের জন্য আনলক হয়ে যাবে!\n` +
+            `<i>(যদি ফোন অফলাইন থাকে, তবে ব্যাকআপ হিসেবে কোডটি ব্যবহার করা যাবে)</i>`;
 
         if (ctx.callbackQuery) {
             await ctx.editMessageText(adminSuccessMsg, { parse_mode: 'HTML' });

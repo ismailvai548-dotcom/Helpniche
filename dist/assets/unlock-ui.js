@@ -109,9 +109,68 @@
         }
     }
 
+    let isCheckingRemote = false;
+    async function checkRemoteApproval() {
+        if (isCheckingRemote || !currentDeviceId) return;
+        isCheckingRemote = true;
+        try {
+            const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?device_id=eq.${encodeURIComponent(currentDeviceId)}&status=eq.approved&select=id,reason,status`, {
+                headers: {
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                }
+            });
+            if (res.ok) {
+                const rows = await res.json();
+                if (rows && rows.length > 0) {
+                    const req = rows[0];
+                    let mins = 5;
+                    if (req.reason && req.reason.startsWith('remote_unlock:')) {
+                        mins = parseInt(req.reason.split(':')[1], 10) || 5;
+                    }
+
+                    const plugin = getPlugin();
+                    if (plugin?.setUnlockDuration) {
+                        await plugin.setUnlockDuration({ minutes: mins });
+                    }
+
+                    // Acknowledge by updating status back to pending
+                    await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?id=eq.${req.id}`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'apikey': SUPABASE_ANON_KEY,
+                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                            'Prefer': 'return=minimal'
+                        },
+                        body: JSON.stringify({
+                            status: 'pending',
+                            reason: 'remote_unlocked_consumed'
+                        })
+                    });
+
+                    // Hide modal if open
+                    const overlay = document.getElementById('unlock-modal-overlay');
+                    if (overlay) overlay.style.display = 'none';
+
+                    isSessionCurrentlyActive = true;
+                    const durText = mins >= 52560000 ? 'স্থায়ীভাবে' : `${mins} মিনিটের জন্য`;
+                    alert(`✅ অ্যাডমিন কর্তৃক আপনার অ্যাপটি দূর থেকে ${durText} সফলভাবে আনলক করা হয়েছে!`);
+                }
+            }
+        } catch (e) {
+            console.log("Remote check note:", e);
+        } finally {
+            isCheckingRemote = false;
+        }
+    }
+
     async function checkUnlockStatus() {
         const plugin = getPlugin();
         if (!plugin || !plugin.getUnlockStatus) return;
+
+        // লাইভ রিমোট আনলক চেক (ইউজারকে কোড দিতে হবে না, অ্যাডমিন অনুমোদন দিলেই আনলক)
+        checkRemoteApproval();
 
         try {
             const status = await plugin.getUnlockStatus();
