@@ -100,15 +100,23 @@ if (!localStorage.getItem('APP_INSTALL_TIMESTAMP')) {
     localStorage.setItem('APP_INSTALL_TIMESTAMP', streakStartTime.toString());
 }
 
+function getLocalDateKey() {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 // Today Focus Time Helper Functions (রিয়েল-টাইম দৈনিক ফোকাস টাইম হিসাব)
 function getTodayFocusMinutes() {
-    const todayKey = 'FOCUS_MINS_' + new Date().toISOString().split('T')[0];
+    const todayKey = 'FOCUS_MINS_' + getLocalDateKey();
     return parseInt(localStorage.getItem(todayKey) || '0', 10);
 }
 
 function addTodayFocusMinutes(mins) {
     if (!mins || mins <= 0) return getTodayFocusMinutes();
-    const todayKey = 'FOCUS_MINS_' + new Date().toISOString().split('T')[0];
+    const todayKey = 'FOCUS_MINS_' + getLocalDateKey();
     const current = getTodayFocusMinutes();
     const updated = current + mins;
     localStorage.setItem(todayKey, updated.toString());

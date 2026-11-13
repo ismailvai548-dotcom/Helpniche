@@ -59,12 +59,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             BlockerAccessibilityService.setUnlockDuration(context, 0);
 
             try {
-                Intent vpnIntent = new Intent(context, LocalDnsVpnService.class);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(vpnIntent);
-                } else {
-                    context.startService(vpnIntent);
-                }
+                LocalDnsVpnService.startVpn(context);
             } catch (Exception e) {
                 Log.e(TAG, "Error restarting LocalDnsVpnService", e);
             }

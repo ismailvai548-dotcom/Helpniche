@@ -347,7 +347,7 @@ function syncPrayerAlarmToNative(item) {
                 audioType: 'prayer_' + item.key,
                 audioUri: item.audioPath,
                 repeatMode: 'everyday',
-                repeatDays: '[1,2,3,4,5,6,7]'
+                repeatDays: [1, 2, 3, 4, 5, 6, 7]
             });
         } catch (e) {
             console.error('Error scheduling prayer alarm native:', e);
@@ -1175,7 +1175,7 @@ function incrementTargetCount() {
 function startTargetAutoPlay() {
     if (dailyTarget.completedCount >= dailyTarget.goal) return;
     isAutoPlaying = true;
-    targetAudioPlayer.src = dailyTarget.audioData || '/durood.mp3';
+    targetAudioPlayer.src = dailyTarget.audioData || 'durood.mp3';
     targetAudioPlayer.play().catch(() => {});
     targetAudioPlayer.onended = () => {
         incrementTargetCount();

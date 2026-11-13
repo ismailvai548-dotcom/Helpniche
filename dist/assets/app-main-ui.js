@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
 
    MAIN ORCHESTRATOR & ROUTER (UPDATED WITH ADVANCED AI & DUROOD ACTIONS)
 
@@ -1005,21 +1005,8 @@ function renderModalsAndOverlays() {
 
                 </button>
 
-
-
             </div>
-
         </div>
-
-                </button>
-
-
-
-            </div>
-
-        </div>
-
-
 
         <!-- Feature & Permission Guide Modal -->
 
@@ -2091,7 +2078,7 @@ window.openUnlockGuardModal = function() {
 
     if (txt) {
 
-        txt.value = (unlockGuard.text && unlockGuard.text.trim()) ? unlockGuard.text.trim() : 'صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّমَ';
+        txt.value = (unlockGuard.text && unlockGuard.text.trim()) ? unlockGuard.text.trim() : 'صَلَّىٰ ٱللَّٰهُ عَلَيْهِ وَسَلَّمَ';
 
     }
 
@@ -2272,24 +2259,7 @@ window.openAboutAppsModal = function() {
         modal.style.display = 'flex';
 
     }
-
 };
-
-
-
-window.openUnlockGuardModal = function() {
-
-    const modal = document.getElementById('unlock-alert-modal');
-
-    if (modal) {
-
-        modal.style.display = 'flex';
-
-    }
-
-};
-
-
 
 /* ==========================================================================
 
@@ -2892,31 +2862,18 @@ function updatePermissionGuideUI() {
     // Update Home Screen Card Badge if present
 
     const homePermBadge = document.getElementById('home-perm-badge');
-
     if (homePermBadge) {
-
-        if (completedCount >= 4) {
-
+        if (completedCount >= totalSteps) {
             homePermBadge.innerText = 'সম্পূর্ণ সক্রিয়';
-
             homePermBadge.style.background = 'rgba(34, 197, 94, 0.15)';
-
             homePermBadge.style.color = '#4ade80';
-
             homePermBadge.style.border = '1px solid rgba(34, 197, 94, 0.3)';
-
         } else {
-
-            homePermBadge.innerText = `${toBengaliNum(completedCount)}/৪ সক্রিয়`;
-
+            homePermBadge.innerText = `${toBengaliNum(completedCount)}/${toBengaliNum(totalSteps)} সক্রিয়`;
             homePermBadge.style.background = 'rgba(56, 189, 248, 0.12)';
-
             homePermBadge.style.color = '#38bdf8';
-
             homePermBadge.style.border = '1px solid rgba(56, 189, 248, 0.3)';
-
         }
-
     }
 
 }

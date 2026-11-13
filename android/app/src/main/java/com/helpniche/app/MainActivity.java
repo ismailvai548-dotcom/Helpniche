@@ -1,6 +1,8 @@
 package com.helpniche.app;
 
+import android.app.AlarmManager;
 import android.app.AlertDialog;
+import android.app.NotificationManager;
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -171,7 +173,7 @@ public class MainActivity extends BridgeActivity {
         try {
             SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
             boolean isSystemWideEnabled = prefs.getBoolean("system_wide_adblock_enabled", true);
-            if (isSystemWideEnabled && VpnService.prepare(this) == null && !BlockerAccessibilityService.isUnlocked(this)) {
+            if (isSystemWideEnabled && VpnService.prepare(this) == null && !BlockerAccessibilityService.isUnlocked(this) && !BlockerAccessibilityService.isPermanentUnlocked(this)) {
                 LocalDnsVpnService.startVpn(this);
             }
         } catch (Exception ignored) {}
@@ -284,12 +286,32 @@ public class MainActivity extends BridgeActivity {
             boolean accessibility = isAccessibilityServiceEnabled();
             boolean battery = isIgnoringBatteryOptimizations();
 
+            boolean overlayGranted = true;
+            boolean exactAlarmGranted = true;
+            boolean fullScreenIntentGranted = true;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    overlayGranted = Settings.canDrawOverlays(this);
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+                    exactAlarmGranted = am == null || am.canScheduleExactAlarms();
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                    fullScreenIntentGranted = nm == null || nm.canUseFullScreenIntent();
+                }
+            } catch (Exception ignored) {}
+
             org.json.JSONObject status = new org.json.JSONObject();
             status.put("vpnGranted", vpn);
             status.put("adminActive", admin);
             status.put("restrictedSettingsDone", restrictedDone);
             status.put("accessibilityEnabled", accessibility);
             status.put("batteryBypassed", battery);
+            status.put("overlayGranted", overlayGranted);
+            status.put("exactAlarmGranted", exactAlarmGranted);
+            status.put("fullScreenIntentGranted", fullScreenIntentGranted);
             status.put("sdkInt", Build.VERSION.SDK_INT);
 
             if (getBridge() != null && getBridge().getWebView() != null) {

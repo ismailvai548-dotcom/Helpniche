@@ -212,8 +212,7 @@ public class FocusAudioPlugin extends Plugin {
     public void stopAudio(PluginCall call) {
         try {
             Intent serviceIntent = new Intent(getContext(), FocusAudioService.class);
-            serviceIntent.setAction(FocusAudioService.ACTION_STOP);
-            getContext().startService(serviceIntent);
+            getContext().stopService(serviceIntent);
 
             JSObject ret = new JSObject();
             ret.put("success", true);
@@ -227,10 +226,7 @@ public class FocusAudioPlugin extends Plugin {
     public void setMuted(PluginCall call) {
         Boolean muted = call.getBoolean("muted", false);
         try {
-            Intent serviceIntent = new Intent(getContext(), FocusAudioService.class);
-            serviceIntent.setAction(FocusAudioService.ACTION_SET_MUTED);
-            serviceIntent.putExtra("is_muted", Boolean.TRUE.equals(muted));
-            getContext().startService(serviceIntent);
+            FocusAudioService.setMutedStatic(Boolean.TRUE.equals(muted));
 
             JSObject ret = new JSObject();
             ret.put("success", true);

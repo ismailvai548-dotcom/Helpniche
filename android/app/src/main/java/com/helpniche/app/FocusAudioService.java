@@ -30,8 +30,30 @@ public class FocusAudioService extends Service {
     public static final String EXTRA_AUDIO_TYPE = "extra_audio_type"; // "library", "device", "raw", "url"
     public static final String EXTRA_AUDIO_NAME = "extra_audio_name";
 
+    private static volatile FocusAudioService activeInstance = null;
     private MediaPlayer mediaPlayer = null;
     private boolean isMuted = false;
+
+    public static void setMutedStatic(boolean muted) {
+        if (activeInstance != null) {
+            activeInstance.isMuted = muted;
+            if (activeInstance.mediaPlayer != null) {
+                try {
+                    float vol = muted ? 0.0f : 1.0f;
+                    activeInstance.mediaPlayer.setVolume(vol, vol);
+                    Log.i(TAG, "FocusAudioService setMutedStatic: " + vol);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error setting volume in setMutedStatic", e);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        activeInstance = this;
+    }
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -142,8 +164,10 @@ public class FocusAudioService extends Service {
             mediaPlayer.prepareAsync();
             mediaPlayer.setOnPreparedListener(mp -> {
                 try {
+                    float vol = this.isMuted ? 0.0f : 1.0f;
+                    mp.setVolume(vol, vol);
                     mp.start();
-                    Log.i(TAG, "Focus Audio playback started successfully.");
+                    Log.i(TAG, "Focus Audio playback started successfully. Muted: " + this.isMuted);
                 } catch (Exception e) {
                     Log.e(TAG, "Error starting MediaPlayer after prepare", e);
                 }
@@ -184,6 +208,9 @@ public class FocusAudioService extends Service {
 
     @Override
     public void onDestroy() {
+        if (activeInstance == this) {
+            activeInstance = null;
+        }
         stopMediaPlayer();
         super.onDestroy();
     }

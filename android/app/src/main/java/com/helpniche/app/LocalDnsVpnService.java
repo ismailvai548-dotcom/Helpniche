@@ -29,6 +29,7 @@ import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -601,35 +602,7 @@ public class LocalDnsVpnService extends VpnService {
             Builder builder = new Builder();
             builder.setMtu(1500);
 
-            if (!activeBlocked.isEmpty()) {
-                // --- FIREWALL SINKHOLE MODE (Per-app Network Block) ---
-                isFirewallMode = true;
-                builder.setSession("HelpnicheFirewall");
-                builder.addAddress("10.254.1.2", 24);
-                builder.addAddress("fd00:254::2", 64);
-                builder.addRoute("0.0.0.0", 0);
-                builder.addRoute("::", 0);
-                builder.addDnsServer("10.254.1.1");
-
-                int added = 0;
-                for (String pkg : activeBlocked) {
-                    try {
-                        builder.addAllowedApplication(pkg);
-                        added++;
-                    } catch (PackageManager.NameNotFoundException ignored) {
-                    } catch (Exception e) {
-                        Log.w(TAG, "Could not add allowed app: " + pkg, e);
-                    }
-                }
-
-                if (added > 0) {
-                    vpnInterface = builder.establish();
-                    Log.i(TAG, "Firewall VPN established with " + added + " blocked apps.");
-                    return;
-                }
-            }
-
-            // --- STANDARD MODE (Family DNS & Porn Filtering) ---
+            // --- UNIFIED SAFE MODE (Family DNS, AdBlock & Porn Filtering 24/7) ---
             isFirewallMode = false;
             builder.setSession("FocusShieldLocalVPN");
             builder.addAddress("10.0.0.2", 24);
@@ -819,7 +792,34 @@ public class LocalDnsVpnService extends VpnService {
 
             if (queryDomain != null) {
                 byte[] packetCopy = Arrays.copyOf(packet, length);
-                if (isAdDomain(queryDomain)) {
+                boolean shouldSinkhole = isAdDomain(queryDomain);
+
+                // Android 10+ (API 29+): Check if packet originates from a network-blocked app
+                if (!shouldSinkhole && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && currentBlockedApps != null && !currentBlockedApps.isEmpty()) {
+                    try {
+                        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                        if (cm != null) {
+                            InetAddress srcAddr = InetAddress.getByAddress(new byte[]{packet[12], packet[13], packet[14], packet[15]});
+                            InetAddress dstAddr = InetAddress.getByAddress(new byte[]{packet[16], packet[17], packet[18], packet[19]});
+                            int srcPort = ((packet[ihl] & 0xFF) << 8) | (packet[ihl + 1] & 0xFF);
+                            int dstPort = ((packet[ihl + 2] & 0xFF) << 8) | (packet[ihl + 3] & 0xFF);
+                            int ownerUid = cm.getConnectionOwnerUid(android.system.OsConstants.IPPROTO_UDP, new InetSocketAddress(srcAddr, srcPort), new InetSocketAddress(dstAddr, dstPort));
+                            if (ownerUid > 0) {
+                                String[] pkgs = getPackageManager().getPackagesForUid(ownerUid);
+                                if (pkgs != null) {
+                                    for (String p : pkgs) {
+                                        if (currentBlockedApps.contains(p.toLowerCase())) {
+                                            shouldSinkhole = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
+                if (shouldSinkhole) {
                     if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
                         dnsThreadPool.submit(() -> sendSinkholeDnsResponse(packetCopy, length, ihl, dnsOffset, out));
                     }

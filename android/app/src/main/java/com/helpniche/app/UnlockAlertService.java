@@ -105,6 +105,7 @@ public class UnlockAlertService extends Service {
             }
         } catch (Exception e) {
             Log.e(TAG, "Error starting foreground notification for UnlockAlertService", e);
+            stopSelf();
         }
     }
 

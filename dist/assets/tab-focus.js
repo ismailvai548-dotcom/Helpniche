@@ -258,11 +258,11 @@ function renderLibraryTabSync() {
                             `}
                         </button>
                         <div style="overflow:hidden;">
-                            <div style="font-size:12px; font-weight:bold; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(track.name)}</div>
+                            <div style="font-size:12px; font-weight:bold; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(track.title || track.name || '')}</div>
                             <div style="font-size:10px; color:#94a3b8;">${escapeHtml(track.duration || 'Preset')}</div>
                         </div>
                     </div>
-                    <button class="btn-select-library-track" data-url="${escapeHtml(track.url)}" data-name="${escapeHtml(track.name)}" style="background:${isSelected ? '#16a34a' : 'transparent'}; border:1px solid ${isSelected ? '#16a34a' : '#334155'}; color:${isSelected ? '#ffffff' : '#cbd5e1'}; font-size:11px; font-weight:bold; padding:4px 10px; border-radius:6px; cursor:pointer; flex-shrink:0;">
+                    <button class="btn-select-library-track" data-url="${escapeHtml(track.url)}" data-name="${escapeHtml(track.title || track.name || '')}" style="background:${isSelected ? '#16a34a' : 'transparent'}; border:1px solid ${isSelected ? '#16a34a' : '#334155'}; color:${isSelected ? '#ffffff' : '#cbd5e1'}; font-size:11px; font-weight:bold; padding:4px 10px; border-radius:6px; cursor:pointer; flex-shrink:0;">
                         ${isSelected ? 'Selected' : 'Use'}
                     </button>
                 </div>
@@ -305,11 +305,11 @@ async function renderLibraryTabContent() {
                             `}
                         </button>
                         <div style="overflow:hidden;">
-                            <div style="font-size:12px; font-weight:bold; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(track.name)}</div>
+                            <div style="font-size:12px; font-weight:bold; color:#ffffff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(track.title || track.name || '')}</div>
                             <div style="font-size:10px; color:#94a3b8;">${escapeHtml(track.duration || 'Preset')}</div>
                         </div>
                     </div>
-                    <button class="btn-select-library-track" data-url="${escapeHtml(track.url)}" data-name="${escapeHtml(track.name)}" style="background:${isSelected ? '#16a34a' : 'transparent'}; border:1px solid ${isSelected ? '#16a34a' : '#334155'}; color:${isSelected ? '#ffffff' : '#cbd5e1'}; font-size:11px; font-weight:bold; padding:4px 10px; border-radius:6px; cursor:pointer; flex-shrink:0;">
+                    <button class="btn-select-library-track" data-url="${escapeHtml(track.url)}" data-name="${escapeHtml(track.title || track.name || '')}" style="background:${isSelected ? '#16a34a' : 'transparent'}; border:1px solid ${isSelected ? '#16a34a' : '#334155'}; color:${isSelected ? '#ffffff' : '#cbd5e1'}; font-size:11px; font-weight:bold; padding:4px 10px; border-radius:6px; cursor:pointer; flex-shrink:0;">
                         ${isSelected ? 'Selected' : 'Use'}
                     </button>
                 </div>
@@ -417,6 +417,14 @@ function bindLibraryEvents() {
             localStorage.setItem('SELECTED_FOCUS_AUDIO_TYPE', 'library');
             localStorage.setItem('SELECTED_SUPABASE_AUDIO_URL', url);
             localStorage.setItem('SELECTED_FOCUS_AUDIO_NAME', name);
+
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FocusAudioPlugin) {
+                window.Capacitor.Plugins.FocusAudioPlugin.setSelectedAudio({
+                    audioUri: url,
+                    audioType: 'library',
+                    audioName: name
+                }).catch(e => console.error("Error syncing library audio to native plugin:", e));
+            }
 
             switchTab('focus');
         };

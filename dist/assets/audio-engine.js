@@ -130,9 +130,9 @@ class FocusAudioEngine {
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FocusAudioPlugin) {
             try {
                 const info = await window.Capacitor.Plugins.FocusAudioPlugin.getSelectedAudio();
-                const uriToPlay = info.audioUri || selectedAudioUrl;
-                const typeToPlay = info.audioType || selectedAudioType;
-                const nameToPlay = info.audioName || selectedAudioName;
+                const typeToPlay = selectedAudioType || (info && info.audioType) || 'library';
+                const uriToPlay = (typeToPlay === 'library') ? (selectedAudioUrl || (info && info.audioUri)) : ((info && info.audioUri) || selectedAudioUrl);
+                const nameToPlay = (typeToPlay === 'library') ? (selectedAudioName || (info && info.audioName)) : ((info && info.audioName) || selectedAudioName);
 
                 await window.Capacitor.Plugins.FocusAudioPlugin.playAudio({
                     audioUri: uriToPlay,

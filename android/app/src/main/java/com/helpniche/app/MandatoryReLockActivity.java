@@ -206,6 +206,7 @@ public class MandatoryReLockActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        isNavigatingToSettings = false;
         if (isAccessibilityEnabled(this)) {
             unlockAndFinish();
             return;
@@ -221,20 +222,23 @@ public class MandatoryReLockActivity extends Activity {
         stopPeriodicCheck();
 
         // If user didn't intentionally navigate to settings and accessibility is still off, re-assert lock
-        if (!isNavigatingToSettings && !isAccessibilityEnabled(this)) {
+        if (!isFinishing() && !isDestroyed() && !isNavigatingToSettings && !isAccessibilityEnabled(this)) {
             handler.postDelayed(() -> {
-                if (!isAccessibilityEnabled(MandatoryReLockActivity.this)) {
-                    Intent bringBack = new Intent(MandatoryReLockActivity.this, MandatoryReLockActivity.class);
-                    bringBack.addFlags(
-                            Intent.FLAG_ACTIVITY_NEW_TASK |
-                            Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP
-                    );
-                    startActivity(bringBack);
+                if (!isFinishing() && !isDestroyed() && !isNavigatingToSettings && !isAccessibilityEnabled(MandatoryReLockActivity.this)) {
+                    try {
+                        Intent bringBack = new Intent(MandatoryReLockActivity.this, MandatoryReLockActivity.class);
+                        bringBack.addFlags(
+                                Intent.FLAG_ACTIVITY_NEW_TASK |
+                                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT |
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP
+                        );
+                        startActivity(bringBack);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error re-asserting MandatoryReLockActivity", e);
+                    }
                 }
-            }, 500);
+            }, 800);
         }
-        isNavigatingToSettings = false;
     }
 
     private void startPeriodicCheck() {

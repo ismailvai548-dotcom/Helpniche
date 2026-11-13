@@ -396,12 +396,7 @@ public class FloatingBubbleService extends Service {
         }
 
         try {
-            Intent vpnIntent = new Intent(this, LocalDnsVpnService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(vpnIntent);
-            } else {
-                startService(vpnIntent);
-            }
+            LocalDnsVpnService.startVpn(this);
         } catch (Exception e) {
             Log.e(TAG, "Error restarting VPN service on unlock expiry", e);
         }

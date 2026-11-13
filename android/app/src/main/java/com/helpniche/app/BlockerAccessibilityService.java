@@ -492,11 +492,11 @@ public class BlockerAccessibilityService extends AccessibilityService {
         }
 
         // ৫. অ্যাডাল্ট কিওয়ার্ডস ও বাউন্ডারি চেক (bare 'sex' বা bare 'xxx' বাদ যাতে ফর্ম বা সাধারণ টেক্সট না কাটে)
-        if (lower.contains(".xxx") || lower.contains("xxx.") || lower.matches(".*\b(xxx\s+video|xxx\s+movie|xxx\s+porn|xxx\s+film)\b.*")) {
+        if (lower.contains(".xxx") || lower.contains("xxx.") || lower.matches(".*\\b(xxx\\s+video|xxx\\s+movie|xxx\\s+porn|xxx\\s+film)\\b.*")) {
             return true;
         }
 
-        if (lower.matches(".*\b(nude|nudity|milf|incest|fetish)\b.*")) {
+        if (lower.matches(".*\\b(nude|nudity|milf|incest|fetish)\\b.*")) {
             return true;
         }
 
@@ -1920,7 +1920,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
             updateBrowserSessionState(event, packageName);
 
             // বিকাশ বা নগদ অ্যাপ ওপেন হলে স্বয়ংক্রিয়ভাবে ৫ মিনিটের ব্যাংকিং বিরতি শুরু করা
-            if (packageName.contains("bkash") || packageName.equals("com.bkash.customerapp") || packageName.equals("com.nagad.customer")) {
+            if (packageName.contains("bkash") || packageName.contains("nagad") || packageName.equals("com.bkash.customerapp") || packageName.equals("com.konasl.nagad") || packageName.equals("com.konasl.nagad.agent")) {
                 triggerBankingAutoPause(this);
                 return;
             }
@@ -1986,28 +1986,40 @@ public class BlockerAccessibilityService extends AccessibilityService {
             }
         }
 
-        // ৭. স্পেসিফিক অ্যাপ ব্লক চেক (যেমন ইউটিউব ব্লক)
-        if (isAppBlocked(this, packageName)) {
+        // ৭. স্পেসিফিক অ্যাপ ব্লক চেক (যেমন ইউটিউব ব্লক বা নেটওয়ার্ক কন্ট্রোল ব্লক)
+        boolean isNetBlocked = false;
+        try {
+            Set<String> activeNet = LocalDnsVpnService.getActiveBlockedPackages(this);
+            if (activeNet != null && activeNet.contains(packageName.toLowerCase())) {
+                isNetBlocked = true;
+            }
+        } catch (Exception ignored) {}
+
+        if (isNetBlocked || isAppBlocked(this, packageName)) {
             performGlobalAction(GLOBAL_ACTION_HOME);
 
             String appName = getAppNameFromPackage(this, packageName);
             long remainingMs = getAppBlockRemainingMs(this, packageName);
             long remainingSeconds = Math.max(0, remainingMs / 1000L);
 
-            try {
-                Intent overlayIntent = new Intent(this, MainActivity.class);
-                overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                overlayIntent.putExtra("show_blocked_app_overlay", true);
-                overlayIntent.putExtra("blocked_package_name", packageName);
-                overlayIntent.putExtra("blocked_app_name", appName);
-                overlayIntent.putExtra("blocked_remaining_seconds", remainingSeconds);
-                startActivity(overlayIntent);
-            } catch (Exception e) {
-                Log.e(TAG, "Error launching blocked app overlay", e);
-            }
+            if (!isNetBlocked) {
+                try {
+                    Intent overlayIntent = new Intent(this, MainActivity.class);
+                    overlayIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                    overlayIntent.putExtra("show_blocked_app_overlay", true);
+                    overlayIntent.putExtra("blocked_package_name", packageName);
+                    overlayIntent.putExtra("blocked_app_name", appName);
+                    overlayIntent.putExtra("blocked_remaining_seconds", remainingSeconds);
+                    startActivity(overlayIntent);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error launching blocked app overlay", e);
+                }
 
-            String timeMsg = formatRemainingTimeBangla(remainingSeconds);
-            Toast.makeText(this, appName + " দেখার জন্য " + timeMsg + " অপেক্ষা করুন", Toast.LENGTH_LONG).show();
+                String timeMsg = formatRemainingTimeBangla(remainingSeconds);
+                Toast.makeText(this, appName + " দেখার জন্য " + timeMsg + " অপেক্ষা করুন", Toast.LENGTH_LONG).show();
+            } else {
+                Toast.makeText(this, appName + " এর নেটওয়ার্ক অ্যাক্সেস সাময়িকভাবে বন্ধ রয়েছে", Toast.LENGTH_LONG).show();
+            }
             return;
         }
 
