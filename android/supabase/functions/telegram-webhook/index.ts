@@ -88,7 +88,7 @@ serve(async (req) => {
     if (update && (update.type === "admin_notification" || update.type === "donation_alert" || update.type === "client_event")) {
       const alertText = update.text || update.message || "";
       if (alertText && ADMIN_CHAT_ID) {
-        await sendTelegramMessage(ADMIN_CHAT_ID, alertText);
+        await sendTelegramMessage(ADMIN_CHAT_ID, alertText, update.reply_markup);
       }
       return new Response(JSON.stringify({ success: true, delivered: true }), {
         status: 200,
@@ -311,6 +311,94 @@ serve(async (req) => {
             })
           }).catch(() => {});
         }
+      }
+
+      // Handle Donation Confirm / Reject Callbacks (don_ok:<requestId> / don_no:<requestId>)
+      else if (dataStr.startsWith("don_ok:") || dataStr.startsWith("don_no:")) {
+        const isApprove = dataStr.startsWith("don_ok:");
+        const requestId = dataStr.slice(7).trim();
+        if (!requestId) {
+          await answerCallbackQuery(query.id, "❌ রিকোয়েস্ট আইডি পাওয়া যায়নি!", true);
+          return new Response("OK");
+        }
+
+        const { data: reqRow } = await supabase
+          .from("unlock_requests")
+          .select("*")
+          .eq("id", requestId)
+          .maybeSingle();
+
+        if (!reqRow) {
+          await answerCallbackQuery(query.id, "❌ ডাটাবেজে এই হাদিয়া অনুরোধটি পাওয়া যায়নি!", true);
+          return new Response("OK");
+        }
+
+        if (reqRow.status === "approved" && isApprove) {
+          await answerCallbackQuery(query.id, "✅ এটি ইতিপূর্বেই কনফার্ম করা হয়েছে।", false);
+          return new Response("OK");
+        }
+        if (reqRow.status === "rejected" && !isApprove) {
+          await answerCallbackQuery(query.id, "❌ এটি ইতিপূর্বেই বাতিল করা হয়েছে।", false);
+          return new Response("OK");
+        }
+
+        const nowIso = new Date().toISOString();
+        let meta: any = {};
+        try { meta = JSON.parse(reqRow.reason || "{}"); } catch (_) {}
+
+        await supabase
+          .from("unlock_requests")
+          .update({
+            status: isApprove ? "approved" : "rejected",
+            approved_at: isApprove ? nowIso : null,
+            updated_at: nowIso
+          })
+          .eq("id", requestId);
+
+        // Best-effort sync to canonical donations table (if linked & columns exist)
+        try {
+          const updateFields: Record<string, any> = isApprove
+            ? { status: "approved", approved_at: nowIso, verified_by: "telegram_admin", total_user_donated: Number(meta.amount) || 0 }
+            : { status: "rejected", rejected_at: nowIso, verified_by: "telegram_admin" };
+          const { error: donErr } = await supabase
+            .from("donations")
+            .update(updateFields)
+            .ilike("trx_id", `%REQ:${requestId}%`);
+          if (donErr && isApprove) {
+            await supabase
+              .from("donations")
+              .update({ total_user_donated: Number(meta.amount) || 0 })
+              .ilike("trx_id", `%REQ:${requestId}%`);
+          }
+        } catch (_) {}
+
+        const origPlain = (query.message?.text || "হাদিয়া অনুরোধ")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        const statusBanner = isApprove
+          ? "✅ <b>কনফার্ম ও অনুমোদিত!</b> (ইউজারের প্রোফাইলে যুক্ত হবে)"
+          : "❌ <b>বাতিল করা হয়েছে</b> (প্রোফাইলে যোগ হবে না)";
+
+        if (query.message && query.message.message_id) {
+          await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              chat_id: query.message.chat.id,
+              message_id: query.message.message_id,
+              text: `${origPlain}\n\n───────────────────\n${statusBanner}`,
+              parse_mode: "HTML",
+              reply_markup: { inline_keyboard: [] }
+            })
+          }).catch(() => {});
+        }
+
+        await answerCallbackQuery(
+          query.id,
+          isApprove ? "✅ হাদিয়া কনফার্ম ও অনুমোদিত হয়েছে!" : "❌ হাদিয়া অনুরোধ বাতিল করা হয়েছে।",
+          false
+        );
       }
     }
 

@@ -195,18 +195,44 @@ function bindSettingsTabEvents() {
     window.updateSettingsDonationCard = function() {
         const badgeEl = document.getElementById('settings-donation-badge');
         const descEl = document.getElementById('settings-donation-desc');
-        const total = parseFloat(localStorage.getItem('donation_total_amount') || '0');
+        const total = parseFloat(localStorage.getItem('donation_total_amount') || '0') || 0;
+        let pendingList = [];
+        try {
+            pendingList = JSON.parse(localStorage.getItem('donation_pending_list') || '[]');
+            if (!Array.isArray(pendingList)) pendingList = [];
+        } catch (e) { pendingList = []; }
+        const pendingSum = pendingList.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+
         if (total > 0) {
             if (badgeEl) {
-                badgeEl.innerText = `মোট: ৳${total}`;
+                badgeEl.innerText = pendingList.length > 0 ? `মোট: ৳${total} (+⏳)` : `মোট: ৳${total}`;
                 badgeEl.style.color = '#34d399';
             }
             if (descEl) {
-                descEl.innerText = `আলহামদুলিল্লাহ, আপনার মোট অবদান: ৳${total}`;
+                descEl.innerText = `আলহামদুলিল্লাহ, আপনার অনুমোদিত মোট অবদান: ৳${total}`;
+            }
+        } else if (pendingList.length > 0) {
+            if (badgeEl) {
+                badgeEl.innerText = `⏳ পর্যালোচনায় (৳${pendingSum})`;
+                badgeEl.style.color = '#fbbf24';
+            }
+            if (descEl) {
+                descEl.innerText = `আপনার ৳${pendingSum} অনুদান অ্যাডমিনের কনফার্মেশনের অপেক্ষায় আছে।`;
+            }
+        } else {
+            if (badgeEl) {
+                badgeEl.innerText = 'বিকাশ ও নগদ';
+                badgeEl.style.color = '#34d399';
+            }
+            if (descEl) {
+                descEl.innerText = '';
             }
         }
     };
     window.updateSettingsDonationCard();
+    if (window.triggerDonationSync) {
+        window.triggerDonationSync(false);
+    }
 
     // ৩. আপডেট ও সাপোর্ট কার্ড ক্লিক ইভেন্ট
     const btnCardUpdates = document.getElementById('btn-card-updates');

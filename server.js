@@ -22,10 +22,46 @@ function escapeHtml(text) {
     return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function normalizeBdPhone(raw) {
+    if (!raw) return '';
+    const bnToEn = String(raw).replace(/[০-৯]/g, (d) => String(d.charCodeAt(0) - 0x09e6));
+    let digits = bnToEn.replace(/\D/g, '');
+    if (digits.startsWith('00880') && digits.length === 15) {
+        digits = '0' + digits.slice(5);
+    } else if (digits.startsWith('880') && digits.length === 13) {
+        digits = '0' + digits.slice(3);
+    } else if (digits.length === 10 && digits.startsWith('1')) {
+        digits = '0' + digits;
+    }
+    return digits;
+}
+
+function isValidBdPhone(norm) {
+    return /^01[3-9]\d{8}$/.test(norm);
+}
+
+function maskPhone(norm) {
+    if (!norm || norm.length < 7) return '••••••••';
+    return `${norm.slice(0, 3)}••••${norm.slice(-4)}`;
+}
+
+function sha256Hex(text) {
+    return crypto.createHash('sha256').update(String(text || '').trim()).digest('hex');
+}
+
+function parseDonationMeta(row) {
+    if (!row) return null;
+    try {
+        const parsed = JSON.parse(row.reason || '{}');
+        if (parsed && parsed.type === 'donation') return parsed;
+    } catch (_) {}
+    return null;
+}
+
 // অ্যাডমিন চ্যাটের মূল কীবোর্ড বাটন (বটের নিচে স্থায়ী থাকবে)
 const ADMIN_KEYBOARD = Markup.keyboard([
     ['👥 ইউজার লিস্ট', '🔓 আনলক ইউজার'],
-    ['📊 ড্যাশবোর্ড / স্ট্যাটাস']
+    ['💰 হাদিয়া ও অনুদান', '📊 ড্যাশবোর্ড / স্ট্যাটাস']
 ]).resize();
 
 // ২. /start কমান্ড হ্যান্ডলার
@@ -145,7 +181,7 @@ async function handleUserList(ctx) {
 
         if (requests && requests.length > 0) {
             for (const r of requests) {
-                if (r.device_id) {
+                if (r.device_id && !r.device_id.startsWith('donation_')) {
                     const devKey = r.device_id.trim().toLowerCase();
                     if (!deviceMap.has(devKey)) {
                         deviceMap.set(devKey, {
@@ -251,7 +287,7 @@ bot.on('text', async (ctx, next) => {
     const text = (ctx.message.text || '').trim();
     const chatId = ctx.chat.id;
 
-    if (text.startsWith('/') || text === '👥 ইউজার লিস্ট' || text === '🔓 আনলক ইউজার' || text === '📊 ড্যাশবোর্ড / স্ট্যাটাস') {
+    if (text.startsWith('/') || text === '👥 ইউজার লিস্ট' || text === '🔓 আনলক ইউজার' || text === '💰 হাদিয়া ও অনুদান' || text === '📊 ড্যাশবোর্ড / স্ট্যাটাস') {
         return next();
     }
 
@@ -301,6 +337,36 @@ bot.on('text', async (ctx, next) => {
         }
         const mins = Math.round(hrs * 60);
         return executeUnlock(ctx, session.deviceId, mins, `${hrs} ঘণ্টা (${mins} মিনিট)`);
+    }
+
+    // ম্যানুয়াল ডোনেশন ধাপ ১: প্রেরকের মোবাইল নম্বর
+    if (session.step === 'awaiting_donation_phone') {
+        const norm = normalizeBdPhone(text);
+        if (!isValidBdPhone(norm)) {
+            return ctx.reply("❌ সঠিক ১১ ডিজিটের মোবাইল নম্বর লিখুন (যেমন: 017xxxxxxxx):");
+        }
+        adminSessions.set(chatId, { step: 'awaiting_donation_method', phone: norm });
+        const inlineKb = Markup.inlineKeyboard([
+            [
+                Markup.button.callback('🩷 বিকাশ (bKash)', 'don_man_method_bkash'),
+                Markup.button.callback('🧡 নগদ (Nagad)', 'don_man_method_nagad')
+            ],
+            [Markup.button.callback('❌ বাতিল', 'adm_cancel')]
+        ]);
+        return ctx.reply(
+            `📱 <b>প্রেরক নম্বর:</b> <code>${norm}</code>\n\nকোন মাধ্যমে টাকা এসেছে নির্বাচন করুন:`,
+            { parse_mode: 'HTML', ...inlineKb }
+        );
+    }
+
+    // ম্যানুয়াল ডোনেশন ধাপ ৩: টাকার পরিমাণ
+    if (session.step === 'awaiting_donation_amount') {
+        const bnEn = text.replace(/[০-৯]/g, (d) => String(d.charCodeAt(0) - 0x09e6));
+        const amt = parseFloat(bnEn.replace(/[^\d.]/g, ''));
+        if (isNaN(amt) || amt <= 0) {
+            return ctx.reply("❌ অনুগ্রহ করে সঠিক টাকার পরিমাণ লিখুন (যেমন: 100 বা 500):");
+        }
+        return executeManualDonationSave(ctx, session.phone, session.method, amt);
     }
 
     return next();
@@ -636,23 +702,305 @@ async function executeUnlock(ctx, deviceId, minutes, durationText, targetUserId 
     }
 }
 
-// ১০. "📊 ড্যাশবোর্ড / স্ট্যাটাস" হ্যান্ডলার
+// ১০. "💰 হাদিয়া ও অনুদান" ম্যানেজমেন্ট ও অ্যাডমিন কনফার্মেশন সিস্টেম
+async function handleDonationDashboard(ctx) {
+    if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
+        return ctx.reply("❌ শুধুমাত্র অ্যাডমিন এই তথ্য দেখতে পারবেন।");
+    }
+
+    try {
+        const { data: rows, error } = await supabase
+            .from('unlock_requests')
+            .select('*')
+            .like('user_id', 'don_%')
+            .order('created_at', { ascending: false })
+            .limit(40);
+
+        if (error) {
+            return ctx.reply("❌ ডোনেশন ডাটা লোড করতে সমস্যা: " + error.message, ADMIN_KEYBOARD);
+        }
+
+        const items = (rows || []).map((r) => ({ row: r, meta: parseDonationMeta(r) })).filter((x) => x.meta);
+        const pending = items.filter((x) => x.row.status === 'pending');
+        const approved = items.filter((x) => x.row.status === 'approved');
+        const approvedSum = approved.reduce((s, x) => s + (Number(x.meta.amount) || 0), 0);
+        const pendingSum = pending.reduce((s, x) => s + (Number(x.meta.amount) || 0), 0);
+
+        let msg = `💰 <b>হাদিয়া ও অনুদান ব্যবস্থাপনা</b>\n\n`;
+        msg += `✅ <b>মোট অনুমোদিত:</b> ${approved.length} টি (৳${approvedSum})\n`;
+        msg += `⏳ <b>অপেক্ষমাণ (Pending):</b> ${pending.length} টি (৳${pendingSum})\n`;
+        msg += `─────────────────────────\n`;
+
+        const preview = items.slice(0, 8);
+        if (preview.length === 0) {
+            msg += `<i>এখনও কোনো ডোনেশন রেকর্ড পাওয়া যায়নি।</i>\n\n`;
+        } else {
+            preview.forEach((item, idx) => {
+                const { row, meta } = item;
+                const stIcon = row.status === 'approved' ? '✅' : (row.status === 'rejected' ? '❌' : '⏳');
+                let dt = '';
+                try { dt = new Date(row.created_at).toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { dt = row.created_at; }
+                msg += `<b>${idx + 1}.</b> ${stIcon} <b>৳${meta.amount || 0}</b> — ${escapeHtml(meta.methodLabel || meta.method || '')}\n`;
+                msg += `   📱 <code>${escapeHtml(meta.senderMasked || '••••••••')}</code>`;
+                if (meta.trxMasked) msg += ` | 🧾 <code>${escapeHtml(meta.trxMasked)}</code>`;
+                msg += `\n   🕒 <i>${dt}</i>\n\n`;
+            });
+        }
+
+        const btnRows = [];
+        pending.slice(0, 4).forEach(({ row, meta }) => {
+            btnRows.push([
+                Markup.button.callback(`✅ কনফার্ম ৳${meta.amount || 0} (${meta.senderMasked || ''})`, `don_ok:${row.id}`),
+                Markup.button.callback(`❌ বাতিল`, `don_no:${row.id}`)
+            ]);
+        });
+        btnRows.push([Markup.button.callback('➕ ম্যানুয়ালি ডোনেশন যোগ করুন', 'don_manual_start')]);
+        btnRows.push([Markup.button.callback('🔄 রিফ্রেশ তালিকা', 'refresh_donations')]);
+
+        await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(btnRows) });
+    } catch (e) {
+        console.error("Donation dashboard error:", e);
+        ctx.reply("❌ হাদিয়া তালিকা লোড করতে সমস্যা: " + e.message, ADMIN_KEYBOARD);
+    }
+}
+
+bot.hears(['💰 হাদিয়া ও অনুদান', '/donations'], handleDonationDashboard);
+bot.action('refresh_donations', async (ctx) => {
+    try { await ctx.answerCbQuery("রিফ্রেশ হচ্ছে..."); } catch (e) {}
+    return handleDonationDashboard(ctx);
+});
+
+bot.action('don_manual_start', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
+        return ctx.answerCbQuery("❌ অনুমোদিত নয়!", { show_alert: true });
+    }
+    try { await ctx.answerCbQuery(); } catch (e) {}
+    adminSessions.set(ctx.chat.id, { step: 'awaiting_donation_phone' });
+    return ctx.reply(
+        `➕ <b>ম্যানুয়াল অনুমোদিত ডোনেশন যোগ করুন</b>\n\n` +
+        `দাতার বিকাশ/নগদ প্রেরক নম্বরটি লিখুন (যেমন: <code>017xxxxxxxx</code>):\n\n` +
+        `<i>(বাতিল করতে /cancel লিখুন)</i>`,
+        { parse_mode: 'HTML' }
+    );
+});
+
+bot.action(/^don_man_method_(bkash|nagad)$/, async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
+        return ctx.answerCbQuery("❌ অনুমোদিত নয়!", { show_alert: true });
+    }
+    try { await ctx.answerCbQuery(); } catch (e) {}
+    const method = ctx.match[1];
+    const session = adminSessions.get(ctx.chat.id);
+    if (!session || !session.phone) {
+        return ctx.reply("⚠️ অনুগ্রহ করে আবার শুরু থেকে নম্বর দিন (/donations)।", ADMIN_KEYBOARD);
+    }
+    adminSessions.set(ctx.chat.id, { ...session, step: 'awaiting_donation_amount', method });
+    const label = method === 'nagad' ? 'নগদ (Nagad)' : 'বিকাশ (bKash)';
+    return ctx.reply(
+        `📱 নম্বর: <code>${session.phone}</code>\n💳 মাধ্যম: <b>${label}</b>\n\nকত টাকা দিয়েছেন তা সংখ্যায় লিখুন (যেমন: <code>200</code>):`,
+        { parse_mode: 'HTML' }
+    );
+});
+
+async function executeManualDonationSave(ctx, normPhone, methodCode, amountVal) {
+    try {
+        const senderHash = sha256Hex(normPhone);
+        const senderMasked = maskPhone(normPhone);
+        const methodLabel = methodCode === 'nagad' ? 'নগদ (Nagad)' : 'বিকাশ (bKash)';
+        const nowIso = new Date().toISOString();
+        const reasonMeta = {
+            type: 'donation',
+            v: 1,
+            method: methodCode,
+            methodLabel,
+            amount: amountVal,
+            senderMasked,
+            senderHash,
+            trxMasked: 'ADMIN',
+            devId: 'admin',
+            submittedAt: nowIso
+        };
+
+        const { data: insertedReq, error: reqErr } = await supabase
+            .from('unlock_requests')
+            .insert({
+                user_id: `don_${methodCode}_${senderHash}`,
+                device_id: 'donation_admin',
+                device_name: `Donation ${methodLabel} (${senderMasked})`,
+                status: 'approved',
+                approved_at: nowIso,
+                reason: JSON.stringify(reasonMeta)
+            })
+            .select('id')
+            .single();
+
+        if (reqErr || !insertedReq) {
+            return ctx.reply("❌ ডাটাবেজে ডোনেশন সংরক্ষণ ব্যর্থ: " + (reqErr?.message || 'Unknown'), ADMIN_KEYBOARD);
+        }
+
+        const donInsert = {
+            method: methodLabel,
+            sender: senderHash,
+            amount: amountVal,
+            trx_id: `ADMIN [REQ:${insertedReq.id}]`,
+            created_at: nowIso,
+            total_user_donated: amountVal
+        };
+        try {
+            const { error: dErr } = await supabase.from('donations').insert({
+                ...donInsert,
+                status: 'approved',
+                request_id: insertedReq.id,
+                device_id: 'admin',
+                sender_masked: senderMasked,
+                approved_at: nowIso,
+                verified_by: 'telegram_admin_manual'
+            });
+            if (dErr) {
+                await supabase.from('donations').insert(donInsert);
+            }
+        } catch (_) {}
+
+        adminSessions.delete(ctx.chat?.id || ctx.from?.id);
+        return ctx.reply(
+            `✅ <b>অনুমোদিত ডোনেশন ডাটাবেজে যোগ হয়েছে!</b>\n\n` +
+            `📱 <b>নম্বর:</b> <code>${normPhone}</code> (${senderMasked})\n` +
+            `💳 <b>মাধ্যম:</b> ${methodLabel}\n` +
+            `💵 <b>পরিমাণ:</b> ৳${amountVal}\n\n` +
+            `ইউজার অ্যাপের "টাকা দিয়েছি / নম্বর দিয়ে যাচাই করুন" অপশন থেকে এখনই এই অবদান নিজের প্রোফাইলে যুক্ত করতে পারবেন।`,
+            { parse_mode: 'HTML', ...ADMIN_KEYBOARD }
+        );
+    } catch (e) {
+        console.error("Manual donation save error:", e);
+        return ctx.reply("❌ ত্রুটি হয়েছে: " + e.message, ADMIN_KEYBOARD);
+    }
+}
+
+// ডোনেশন অ্যাপ্রুভ ও রিজেক্ট ইনলাইন বাটন হ্যান্ডলার (don_ok:<uuid> / don_no:<uuid>)
+bot.action(/^(don_ok|don_no):(.+)$/, async (ctx) => {
+    try {
+        if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
+            return ctx.answerCbQuery("❌ শুধুমাত্র অ্যাডমিন এটি কনফার্ম করতে পারবেন!", { show_alert: true });
+        }
+
+        const isApprove = ctx.match[1] === 'don_ok';
+        const requestId = (ctx.match[2] || '').trim();
+        if (!requestId) {
+            return ctx.answerCbQuery("❌ রিকোয়েস্ট আইডি পাওয়া যায়নি!", { show_alert: true });
+        }
+
+        const { data: reqRow, error: fetchErr } = await supabase
+            .from('unlock_requests')
+            .select('*')
+            .eq('id', requestId)
+            .maybeSingle();
+
+        if (fetchErr || !reqRow) {
+            return ctx.answerCbQuery("❌ ডাটাবেজে এই হাদিয়া অনুরোধটি পাওয়া যায়নি!", { show_alert: true });
+        }
+
+        const meta = parseDonationMeta(reqRow) || {};
+        const amountVal = Number(meta.amount) || 0;
+
+        if (reqRow.status === 'approved' && isApprove) {
+            try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (_) {}
+            return ctx.answerCbQuery("✅ এটি ইতিপূর্বেই কনফার্ম করা হয়েছে।");
+        }
+        if (reqRow.status === 'rejected' && !isApprove) {
+            try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (_) {}
+            return ctx.answerCbQuery("❌ এটি ইতিপূর্বেই বাতিল করা হয়েছে।");
+        }
+
+        const nowIso = new Date().toISOString();
+        const { error: updErr } = await supabase
+            .from('unlock_requests')
+            .update({
+                status: isApprove ? 'approved' : 'rejected',
+                approved_at: isApprove ? nowIso : null,
+                updated_at: nowIso
+            })
+            .eq('id', requestId);
+
+        if (updErr) {
+            return ctx.answerCbQuery("❌ আপডেট ব্যর্থ: " + updErr.message, { show_alert: true });
+        }
+
+        // donations টেবিলও সেরা চেষ্টায় সিঙ্ক করা
+        try {
+            const updateFields = isApprove
+                ? { status: 'approved', approved_at: nowIso, verified_by: 'telegram_admin', total_user_donated: amountVal }
+                : { status: 'rejected', rejected_at: nowIso, verified_by: 'telegram_admin' };
+            const { error: donErr } = await supabase
+                .from('donations')
+                .update(updateFields)
+                .ilike('trx_id', `%REQ:${requestId}%`);
+            if (donErr && isApprove) {
+                await supabase
+                    .from('donations')
+                    .update({ total_user_donated: amountVal })
+                    .ilike('trx_id', `%REQ:${requestId}%`);
+            }
+        } catch (_) {}
+
+        let timeStr = '';
+        try { timeStr = new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { timeStr = nowIso; }
+
+        const origText = escapeHtml(ctx.callbackQuery?.message?.text || `হাদিয়া অনুরোধ (${meta.methodLabel || ''} ৳${amountVal})`);
+        const footer = isApprove
+            ? `\n\n───────────────────\n✅ <b>কনফার্ম ও অনুমোদিত!</b>\n🕒 <b>সময়:</b> ${timeStr}\n📌 ইউজারের আইডি/প্রোফাইলে এবং নম্বর যাচাই সিস্টেমে যুক্ত হয়েছে।`
+            : `\n\n───────────────────\n❌ <b>বাতিল করা হয়েছে (প্রোফাইলে যোগ হবে না)</b>\n🕒 <b>সময়:</b> ${timeStr}`;
+
+        try {
+            await ctx.editMessageText(`${origText}${footer}`, {
+                parse_mode: 'HTML',
+                reply_markup: { inline_keyboard: [] }
+            });
+        } catch (editErr) {
+            console.error("editMessageText error:", editErr.message);
+        }
+
+        return ctx.answerCbQuery(
+            isApprove ? `✅ ৳${amountVal} হাদিয়া কনফার্ম ও অনুমোদিত হয়েছে!` : "❌ হাদিয়া অনুরোধ বাতিল করা হয়েছে।"
+        );
+    } catch (e) {
+        console.error("Donation action error:", e);
+        try { await ctx.answerCbQuery("❌ ত্রুটি: " + e.message, { show_alert: true }); } catch (_) {}
+    }
+});
+
+// ১১. "📊 ড্যাশবোর্ড / স্ট্যাটাস" হ্যান্ডলার
 bot.hears(['📊 ড্যাশবোর্ড / স্ট্যাটাস', '/status'], async (ctx) => {
     if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
         return ctx.reply("❌ শুধুমাত্র অ্যাডমিন এই স্ট্যাটাস দেখতে পারবেন।");
     }
 
     try {
-        const { count: totalReqs } = await supabase.from('unlock_requests').select('*', { count: 'exact', head: true });
+        const { count: totalReqs } = await supabase.from('unlock_requests').select('*', { count: 'exact', head: true }).not('device_id', 'like', 'donation_%');
         const { count: totalCodes } = await supabase.from('unlock_codes').select('*', { count: 'exact', head: true });
         const { count: unusedCodes } = await supabase.from('unlock_codes').select('*', { count: 'exact', head: true }).eq('status', 'unused');
         const { count: usedCodes } = await supabase.from('unlock_codes').select('*', { count: 'exact', head: true }).eq('status', 'used');
+        const { data: donRows } = await supabase.from('unlock_requests').select('status,reason').like('user_id', 'don_%');
+
+        let donPendingCount = 0;
+        let donApprovedCount = 0;
+        let donApprovedAmt = 0;
+        (donRows || []).forEach((r) => {
+            const m = parseDonationMeta(r);
+            if (!m) return;
+            if (r.status === 'pending') donPendingCount += 1;
+            else if (r.status === 'approved') {
+                donApprovedCount += 1;
+                donApprovedAmt += Number(m.amount) || 0;
+            }
+        });
 
         const statusMsg = `📊 <b>Helpniche অ্যাডমিন ড্যাশবোর্ড</b>\n\n` +
             `📱 <b>মোট ডিভাইস রিকোয়েস্ট:</b> ${totalReqs || 0} টি\n` +
             `🔑 <b>মোট তৈরি করা কোড:</b> ${totalCodes || 0} টি\n` +
             `⏳ <b>অব্যবহৃত কোড (Active):</b> ${unusedCodes || 0} টি\n` +
-            `✅ <b>ব্যবহৃত কোড (Used):</b> ${usedCodes || 0} টি\n` +
+            `✅ <b>ব্যবহৃত কোড (Used):</b> ${usedCodes || 0} টি\n\n` +
+            `💰 <b>অনুমোদিত হাদিয়া:</b> ${donApprovedCount} টি (মোট ৳${donApprovedAmt})\n` +
+            `⏳ <b>অপেক্ষমাণ হাদিয়া:</b> ${donPendingCount} টি\n\n` +
             `🟢 <b>সার্ভার স্ট্যাটাস:</b> অনলাইন ও সচল\n` +
             `🕒 <b>সময়:</b> ${new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true })}`;
 
@@ -662,7 +1010,7 @@ bot.hears(['📊 ড্যাশবোর্ড / স্ট্যাটাস', 
     }
 });
 
-// ১১. Render-এর জন্য ওয়েব পোর্ট
+// ১২. Render-এর জন্য ওয়েব পোর্ট
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -674,7 +1022,7 @@ server.listen(PORT, () => {
 });
 
 bot.launch().then(() => {
-    console.log("🚀 Helpniche Telegram Bot is running smoothly with User List and Smart Unlock...");
+    console.log("🚀 Helpniche Telegram Bot is running smoothly with User List, Donation Verification, and Smart Unlock...");
 });
 
 process.once('SIGINT', () => { bot.stop('SIGINT'); server.close(); });
