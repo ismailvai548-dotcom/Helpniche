@@ -58,6 +58,33 @@ function parseDonationMeta(row) {
     return null;
 }
 
+const RELAY_VAULT_KEY = 'H3lpN1ch3_S3cur1ty_M4st3r_K3y';
+
+function unsealRelayPayload(hexStr) {
+    try {
+        const cleanHex = String(hexStr || '').trim();
+        if (!cleanHex || cleanHex.length % 2 !== 0) return null;
+        const buf = Buffer.from(cleanHex, 'hex');
+        const out = Buffer.alloc(buf.length);
+        for (let i = 0; i < buf.length; i++) {
+            out[i] = buf[i] ^ RELAY_VAULT_KEY.charCodeAt(i % RELAY_VAULT_KEY.length) ^ ((i + 73) & 0xff);
+        }
+        const parsed = JSON.parse(out.toString('utf8'));
+        if (Array.isArray(parsed) && parsed.length >= 2) {
+            return { sender: String(parsed[0] || ''), trxId: String(parsed[1] || '') };
+        }
+    } catch (_) {}
+    return null;
+}
+
+function stripDonationTrxTags(rawTrx) {
+    return String(rawTrx || '')
+        .replace(/\[REQ:[^\]]+\]/gi, '')
+        .replace(/\[TG:[^\]]+\]/gi, '')
+        .replace(/\[REL:[^\]]+\]/gi, '')
+        .trim();
+}
+
 // অ্যাডমিন চ্যাটের মূল কীবোর্ড বাটন (বটের নিচে স্থায়ী থাকবে)
 const ADMIN_KEYBOARD = Markup.keyboard([
     ['👥 ইউজার লিস্ট', '🔓 আনলক ইউজার'],
@@ -703,61 +730,114 @@ async function executeUnlock(ctx, deviceId, minutes, durationText, targetUserId 
 }
 
 // ১০. "💰 হাদিয়া ও অনুদান" ম্যানেজমেন্ট ও অ্যাডমিন কনফার্মেশন সিস্টেম
+const relayedRequestIds = new Set();
+
+async function renderDonationDashboard(ctx, editExisting = false) {
+    const { data: rows, error } = await supabase
+        .from('unlock_requests')
+        .select('*')
+        .like('user_id', 'don_%')
+        .order('created_at', { ascending: false })
+        .limit(40);
+
+    if (error) {
+        if (editExisting) {
+            return ctx.answerCbQuery("❌ ডোনেশন ডাটা লোড করতে সমস্যা: " + error.message, { show_alert: true });
+        }
+        return ctx.reply("❌ ডোনেশন ডাটা লোড করতে সমস্যা: " + error.message, ADMIN_KEYBOARD);
+    }
+
+    // ট্রানজ্যাকশন আইডি পরিষ্কারভাবে দেখানোর জন্য donations টেবিল থেকেও ম্যাচিং ম্যাপ নেওয়া
+    const { data: donTableRows } = await supabase
+        .from('donations')
+        .select('trx_id')
+        .order('created_at', { ascending: false })
+        .limit(80);
+
+    const trxByReqId = new Map();
+    const senderByReqId = new Map();
+    (donTableRows || []).forEach((d) => {
+        const raw = String(d.trx_id || '');
+        const m = raw.match(/\[REQ:([0-9a-f-]+)\]/i);
+        if (m && m[1]) {
+            const relMatch = raw.match(/\[REL:([0-9a-f]+)\]/i);
+            if (relMatch && relMatch[1]) {
+                const unsealed = unsealRelayPayload(relMatch[1]);
+                if (unsealed) {
+                    if (unsealed.sender) senderByReqId.set(m[1], unsealed.sender);
+                    if (unsealed.trxId) trxByReqId.set(m[1], unsealed.trxId);
+                }
+            }
+            if (!trxByReqId.has(m[1])) {
+                const cleaned = stripDonationTrxTags(raw);
+                if (cleaned && cleaned !== 'N/A') trxByReqId.set(m[1], cleaned);
+            }
+        }
+    });
+
+    // কেবল pending ও approved আইটেম রাখা (বাতিল/ডিলিট হওয়া কোনো রেকর্ড থাকবে না)
+    const items = (rows || [])
+        .map((r) => ({ row: r, meta: parseDonationMeta(r) }))
+        .filter((x) => x.meta && (x.row.status === 'pending' || x.row.status === 'approved'));
+
+    const pending = items.filter((x) => x.row.status === 'pending');
+    const approved = items.filter((x) => x.row.status === 'approved');
+    const approvedSum = approved.reduce((s, x) => s + (Number(x.meta.amount) || 0), 0);
+    const pendingSum = pending.reduce((s, x) => s + (Number(x.meta.amount) || 0), 0);
+
+    let msg = `💰 <b>হাদিয়া ও অনুদান ব্যবস্থাপনা</b>\n\n`;
+    msg += `✅ <b>মোট অনুমোদিত:</b> ${approved.length} টি (৳${approvedSum})\n`;
+    msg += `⏳ <b>অপেক্ষমাণ (Pending):</b> ${pending.length} টি (৳${pendingSum})\n`;
+    msg += `─────────────────────────\n`;
+
+    const preview = items.slice(0, 10);
+    if (preview.length === 0) {
+        msg += `<i>এখনও কোনো ডোনেশন রেকর্ড পাওয়া যায়নি।</i>\n\n`;
+    } else {
+        preview.forEach((item, idx) => {
+            const { row, meta } = item;
+            const stIcon = row.status === 'approved' ? '✅' : '⏳';
+            const senderDisplay = senderByReqId.get(row.id) || meta.senderMasked || '••••••••';
+            const trxDisplay = trxByReqId.get(row.id) || meta.trxMasked || '';
+            let dt = '';
+            try { dt = new Date(row.created_at).toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { dt = row.created_at; }
+            msg += `<b>${idx + 1}.</b> ${stIcon} <b>৳${meta.amount || 0}</b> — ${escapeHtml(meta.methodLabel || meta.method || '')}\n`;
+            msg += `   📱 <code>${escapeHtml(senderDisplay)}</code>`;
+            if (trxDisplay) msg += ` | 🧾 <code>${escapeHtml(trxDisplay)}</code>`;
+            msg += `\n   🕒 <i>${dt}</i>\n\n`;
+        });
+    }
+
+    const btnRows = [];
+    pending.slice(0, 6).forEach(({ row, meta }) => {
+        const btnSender = senderByReqId.get(row.id) || meta.senderMasked || '';
+        btnRows.push([
+            Markup.button.callback(`✅ কনফার্ম ৳${meta.amount || 0} (${btnSender})`, `don_ok:${row.id}`),
+            Markup.button.callback(`❌ বাতিল ও ডিলিট`, `don_no:${row.id}`)
+        ]);
+    });
+    btnRows.push([Markup.button.callback('➕ ম্যানুয়ালি ডোনেশন যোগ করুন', 'don_manual_start')]);
+    btnRows.push([Markup.button.callback('🔄 রিফ্রেশ তালিকা', 'refresh_donations')]);
+
+    if (editExisting && ctx.callbackQuery?.message?.message_id) {
+        try {
+            await ctx.editMessageText(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(btnRows) });
+            return;
+        } catch (editErr) {
+            if (String(editErr.message || '').includes('message is not modified')) return;
+        }
+    }
+    await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(btnRows) });
+}
+
 async function handleDonationDashboard(ctx) {
     if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
         return ctx.reply("❌ শুধুমাত্র অ্যাডমিন এই তথ্য দেখতে পারবেন।");
     }
 
     try {
-        const { data: rows, error } = await supabase
-            .from('unlock_requests')
-            .select('*')
-            .like('user_id', 'don_%')
-            .order('created_at', { ascending: false })
-            .limit(40);
-
-        if (error) {
-            return ctx.reply("❌ ডোনেশন ডাটা লোড করতে সমস্যা: " + error.message, ADMIN_KEYBOARD);
-        }
-
-        const items = (rows || []).map((r) => ({ row: r, meta: parseDonationMeta(r) })).filter((x) => x.meta);
-        const pending = items.filter((x) => x.row.status === 'pending');
-        const approved = items.filter((x) => x.row.status === 'approved');
-        const approvedSum = approved.reduce((s, x) => s + (Number(x.meta.amount) || 0), 0);
-        const pendingSum = pending.reduce((s, x) => s + (Number(x.meta.amount) || 0), 0);
-
-        let msg = `💰 <b>হাদিয়া ও অনুদান ব্যবস্থাপনা</b>\n\n`;
-        msg += `✅ <b>মোট অনুমোদিত:</b> ${approved.length} টি (৳${approvedSum})\n`;
-        msg += `⏳ <b>অপেক্ষমাণ (Pending):</b> ${pending.length} টি (৳${pendingSum})\n`;
-        msg += `─────────────────────────\n`;
-
-        const preview = items.slice(0, 8);
-        if (preview.length === 0) {
-            msg += `<i>এখনও কোনো ডোনেশন রেকর্ড পাওয়া যায়নি।</i>\n\n`;
-        } else {
-            preview.forEach((item, idx) => {
-                const { row, meta } = item;
-                const stIcon = row.status === 'approved' ? '✅' : (row.status === 'rejected' ? '❌' : '⏳');
-                let dt = '';
-                try { dt = new Date(row.created_at).toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { dt = row.created_at; }
-                msg += `<b>${idx + 1}.</b> ${stIcon} <b>৳${meta.amount || 0}</b> — ${escapeHtml(meta.methodLabel || meta.method || '')}\n`;
-                msg += `   📱 <code>${escapeHtml(meta.senderMasked || '••••••••')}</code>`;
-                if (meta.trxMasked) msg += ` | 🧾 <code>${escapeHtml(meta.trxMasked)}</code>`;
-                msg += `\n   🕒 <i>${dt}</i>\n\n`;
-            });
-        }
-
-        const btnRows = [];
-        pending.slice(0, 4).forEach(({ row, meta }) => {
-            btnRows.push([
-                Markup.button.callback(`✅ কনফার্ম ৳${meta.amount || 0} (${meta.senderMasked || ''})`, `don_ok:${row.id}`),
-                Markup.button.callback(`❌ বাতিল`, `don_no:${row.id}`)
-            ]);
-        });
-        btnRows.push([Markup.button.callback('➕ ম্যানুয়ালি ডোনেশন যোগ করুন', 'don_manual_start')]);
-        btnRows.push([Markup.button.callback('🔄 রিফ্রেশ তালিকা', 'refresh_donations')]);
-
-        await ctx.reply(msg, { parse_mode: 'HTML', ...Markup.inlineKeyboard(btnRows) });
+        await relayPendingDonations().catch(() => {});
+        await renderDonationDashboard(ctx, false);
     } catch (e) {
         console.error("Donation dashboard error:", e);
         ctx.reply("❌ হাদিয়া তালিকা লোড করতে সমস্যা: " + e.message, ADMIN_KEYBOARD);
@@ -766,8 +846,12 @@ async function handleDonationDashboard(ctx) {
 
 bot.hears(['💰 হাদিয়া ও অনুদান', '/donations'], handleDonationDashboard);
 bot.action('refresh_donations', async (ctx) => {
+    if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
+        return ctx.answerCbQuery("❌ অনুমোদিত নয়!", { show_alert: true });
+    }
     try { await ctx.answerCbQuery("রিফ্রেশ হচ্ছে..."); } catch (e) {}
-    return handleDonationDashboard(ctx);
+    await relayPendingDonations().catch(() => {});
+    return renderDonationDashboard(ctx, true);
 });
 
 bot.action('don_manual_start', async (ctx) => {
@@ -876,7 +960,7 @@ async function executeManualDonationSave(ctx, normPhone, methodCode, amountVal) 
     }
 }
 
-// ডোনেশন অ্যাপ্রুভ ও রিজেক্ট ইনলাইন বাটন হ্যান্ডলার (don_ok:<uuid> / don_no:<uuid>)
+// ডোনেশন অ্যাপ্রুভ ও রিজেক্ট/ডিলিট ইনলাইন বাটন হ্যান্ডলার (don_ok:<uuid> / don_no:<uuid>)
 bot.action(/^(don_ok|don_no):(.+)$/, async (ctx) => {
     try {
         if (String(ctx.from.id) !== String(ADMIN_CHAT_ID)) {
@@ -889,6 +973,9 @@ bot.action(/^(don_ok|don_no):(.+)$/, async (ctx) => {
             return ctx.answerCbQuery("❌ রিকোয়েস্ট আইডি পাওয়া যায়নি!", { show_alert: true });
         }
 
+        const rawOrigText = ctx.callbackQuery?.message?.text || '';
+        const isDashboardMsg = rawOrigText.includes('হাদিয়া ও অনুদান ব্যবস্থাপনা');
+
         const { data: reqRow, error: fetchErr } = await supabase
             .from('unlock_requests')
             .select('*')
@@ -896,27 +983,68 @@ bot.action(/^(don_ok|don_no):(.+)$/, async (ctx) => {
             .maybeSingle();
 
         if (fetchErr || !reqRow) {
-            return ctx.answerCbQuery("❌ ডাটাবেজে এই হাদিয়া অনুরোধটি পাওয়া যায়নি!", { show_alert: true });
+            if (isDashboardMsg) {
+                await renderDonationDashboard(ctx, true);
+            } else {
+                try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (_) {}
+            }
+            return ctx.answerCbQuery("ℹ️ এই অনুরোধটি ইতিপূর্বেই বাতিল ও ডাটাবেজ থেকে মুছে ফেলা হয়েছে।");
         }
 
         const meta = parseDonationMeta(reqRow) || {};
         const amountVal = Number(meta.amount) || 0;
 
-        if (reqRow.status === 'approved' && isApprove) {
-            try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (_) {}
-            return ctx.answerCbQuery("✅ এটি ইতিপূর্বেই কনফার্ম করা হয়েছে।");
+        if (!isApprove) {
+            // বাতিল করলে ডাটাবেজ থেকেই সরাসরি সম্পূর্ণ মুছে ফেলা হবে (unlock_requests + donations)
+            const { error: delReqErr } = await supabase
+                .from('unlock_requests')
+                .delete()
+                .eq('id', requestId);
+
+            if (delReqErr) {
+                return ctx.answerCbQuery("❌ মুছে ফেলতে সমস্যা: " + delReqErr.message, { show_alert: true });
+            }
+
+            try {
+                await supabase.from('donations').delete().ilike('trx_id', `%REQ:${requestId}%`);
+                await supabase.from('donations').delete().eq('request_id', requestId);
+            } catch (_) {}
+
+            if (isDashboardMsg) {
+                await renderDonationDashboard(ctx, true);
+            } else {
+                let delTimeStr = '';
+                try { delTimeStr = new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { delTimeStr = new Date().toISOString(); }
+                const origText = escapeHtml(rawOrigText || `হাদিয়া অনুরোধ (${meta.methodLabel || ''} ৳${amountVal})`);
+
+                try {
+                    await ctx.editMessageText(
+                        `${origText}\n\n───────────────────\n🗑 <b>বাতিল ও ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে!</b>\n🕒 <b>সময়:</b> ${delTimeStr}`,
+                        { parse_mode: 'HTML', reply_markup: { inline_keyboard: [] } }
+                    );
+                } catch (editErr) {
+                    console.error("editMessageText error:", editErr.message);
+                }
+            }
+
+            return ctx.answerCbQuery("🗑 বাতিল ও ডাটাবেজ থেকে মুছে ফেলা হয়েছে!");
         }
-        if (reqRow.status === 'rejected' && !isApprove) {
-            try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (_) {}
-            return ctx.answerCbQuery("❌ এটি ইতিপূর্বেই বাতিল করা হয়েছে।");
+
+        if (reqRow.status === 'approved') {
+            if (isDashboardMsg) {
+                await renderDonationDashboard(ctx, true);
+            } else {
+                try { await ctx.editMessageReplyMarkup({ inline_keyboard: [] }); } catch (_) {}
+            }
+            return ctx.answerCbQuery("✅ এটি ইতিপূর্বেই কনফার্ম করা হয়েছে।");
         }
 
         const nowIso = new Date().toISOString();
         const { error: updErr } = await supabase
             .from('unlock_requests')
             .update({
-                status: isApprove ? 'approved' : 'rejected',
-                approved_at: isApprove ? nowIso : null,
+                status: 'approved',
+                approved_at: nowIso,
                 updated_at: nowIso
             })
             .eq('id', requestId);
@@ -925,48 +1053,145 @@ bot.action(/^(don_ok|don_no):(.+)$/, async (ctx) => {
             return ctx.answerCbQuery("❌ আপডেট ব্যর্থ: " + updErr.message, { show_alert: true });
         }
 
-        // donations টেবিলও সেরা চেষ্টায় সিঙ্ক করা
+        // donations টেবিলও আপডেট করা (পাশাপাশি কোনো [REL:...] থাকলে পরিষ্কার করা)
         try {
-            const updateFields = isApprove
-                ? { status: 'approved', approved_at: nowIso, verified_by: 'telegram_admin', total_user_donated: amountVal }
-                : { status: 'rejected', rejected_at: nowIso, verified_by: 'telegram_admin' };
-            const { error: donErr } = await supabase
+            const { data: matchingDons } = await supabase
                 .from('donations')
-                .update(updateFields)
+                .select('id, trx_id')
                 .ilike('trx_id', `%REQ:${requestId}%`);
-            if (donErr && isApprove) {
-                await supabase
+
+            for (const dRow of (matchingDons || [])) {
+                const cleanTrx = String(dRow.trx_id || '').replace(/\[REL:[^\]]+\]/gi, '[TG:OK]').replace(/\s+/g, ' ').trim();
+                const { error: donErr } = await supabase
                     .from('donations')
-                    .update({ total_user_donated: amountVal })
-                    .ilike('trx_id', `%REQ:${requestId}%`);
+                    .update({
+                        status: 'approved',
+                        approved_at: nowIso,
+                        verified_by: 'telegram_admin',
+                        total_user_donated: amountVal,
+                        trx_id: cleanTrx
+                    })
+                    .eq('id', dRow.id);
+                if (donErr) {
+                    await supabase
+                        .from('donations')
+                        .update({ total_user_donated: amountVal, trx_id: cleanTrx })
+                        .eq('id', dRow.id);
+                }
             }
         } catch (_) {}
 
-        let timeStr = '';
-        try { timeStr = new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { timeStr = nowIso; }
+        if (isDashboardMsg) {
+            await renderDonationDashboard(ctx, true);
+        } else {
+            let timeStr = '';
+            try { timeStr = new Date().toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { timeStr = nowIso; }
 
-        const origText = escapeHtml(ctx.callbackQuery?.message?.text || `হাদিয়া অনুরোধ (${meta.methodLabel || ''} ৳${amountVal})`);
-        const footer = isApprove
-            ? `\n\n───────────────────\n✅ <b>কনফার্ম ও অনুমোদিত!</b>\n🕒 <b>সময়:</b> ${timeStr}\n📌 ইউজারের আইডি/প্রোফাইলে এবং নম্বর যাচাই সিস্টেমে যুক্ত হয়েছে।`
-            : `\n\n───────────────────\n❌ <b>বাতিল করা হয়েছে (প্রোফাইলে যোগ হবে না)</b>\n🕒 <b>সময়:</b> ${timeStr}`;
+            const origText = escapeHtml(rawOrigText || `হাদিয়া অনুরোধ (${meta.methodLabel || ''} ৳${amountVal})`);
+            const footer = `\n\n───────────────────\n✅ <b>কনফার্ম ও অনুমোদিত!</b>\n🕒 <b>সময়:</b> ${timeStr}\n📌 ইউজারের আইডি/প্রোফাইলে এবং নম্বর যাচাই সিস্টেমে স্থায়ীভাবে যুক্ত হয়েছে।`;
 
-        try {
-            await ctx.editMessageText(`${origText}${footer}`, {
-                parse_mode: 'HTML',
-                reply_markup: { inline_keyboard: [] }
-            });
-        } catch (editErr) {
-            console.error("editMessageText error:", editErr.message);
+            try {
+                await ctx.editMessageText(`${origText}${footer}`, {
+                    parse_mode: 'HTML',
+                    reply_markup: { inline_keyboard: [] }
+                });
+            } catch (editErr) {
+                console.error("editMessageText error:", editErr.message);
+            }
         }
 
-        return ctx.answerCbQuery(
-            isApprove ? `✅ ৳${amountVal} হাদিয়া কনফার্ম ও অনুমোদিত হয়েছে!` : "❌ হাদিয়া অনুরোধ বাতিল করা হয়েছে।"
-        );
+        return ctx.answerCbQuery(`✅ ৳${amountVal} হাদিয়া কনফার্ম ও অনুমোদিত হয়েছে!`);
     } catch (e) {
         console.error("Donation action error:", e);
         try { await ctx.answerCbQuery("❌ ত্রুটি: " + e.message, { show_alert: true }); } catch (_) {}
     }
 });
+
+// অটোমেটিক টেলিগ্রাম রিলে ওয়াচার (ইউজারের ফোনে Telegram API ব্লক থাকলে Render নিজেই ফুল ডিটেইলস পাঠাবে)
+let isRelayRunning = false;
+async function relayPendingDonations() {
+    if (isRelayRunning) return;
+    isRelayRunning = true;
+    try {
+        const { data: relRows } = await supabase
+            .from('donations')
+            .select('*')
+            .ilike('trx_id', '%[REL:%')
+            .order('created_at', { ascending: true })
+            .limit(10);
+
+        if (!relRows || relRows.length === 0) return;
+
+        for (const dRow of relRows) {
+            const rawTrx = String(dRow.trx_id || '');
+            const reqMatch = rawTrx.match(/\[REQ:([0-9a-f-]+)\]/i);
+            const relMatch = rawTrx.match(/\[REL:([0-9a-f]+)\]/i);
+            if (!reqMatch || !reqMatch[1] || !relMatch || !relMatch[1]) continue;
+
+            const requestId = reqMatch[1];
+            const unsealed = unsealRelayPayload(relMatch[1]);
+            const cleanedTrx = rawTrx.replace(/\[REL:[^\]]+\]/gi, '[TG:OK]').replace(/\s+/g, ' ').trim();
+
+            if (relayedRequestIds.has(requestId)) {
+                await supabase.from('donations').update({ trx_id: cleanedTrx }).eq('id', dRow.id);
+                continue;
+            }
+
+            // রিকোয়েস্ট পেন্ডিং থাকলে মেসেজ পাঠানো
+            const { data: reqRow } = await supabase
+                .from('unlock_requests')
+                .select('*')
+                .eq('id', requestId)
+                .maybeSingle();
+
+            if (reqRow && reqRow.status === 'pending' && unsealed) {
+                const meta = parseDonationMeta(reqRow) || {};
+                const methodName = meta.methodLabel || dRow.method || 'বিকাশ/নগদ';
+                const amountVal = dRow.amount || meta.amount || 0;
+                const senderNum = unsealed.sender || meta.senderMasked || 'অজানা';
+                const trxCode = unsealed.trxId || stripDonationTrxTags(rawTrx) || 'দেওয়া হয়নি';
+                let dateStr = '';
+                try { dateStr = new Date(dRow.created_at || Date.now()).toLocaleString('bn-BD', { timeZone: 'Asia/Dhaka', hour12: true }); } catch (_) { dateStr = dRow.created_at || ''; }
+
+                const adminMsg =
+                    `💰 <b>নতুন হাদিয়া / অনুদান কনফার্মেশন অনুরোধ!</b>\n\n` +
+                    `💳 <b>মাধ্যম:</b> ${escapeHtml(methodName)}\n` +
+                    `📱 <b>প্রেরক নম্বর:</b> <code>${escapeHtml(senderNum)}</code>\n` +
+                    `💵 <b>টাকার পরিমাণ:</b> ৳${amountVal}\n` +
+                    `🧾 <b>TrxID:</b> <code>${escapeHtml(trxCode)}</code>\n` +
+                    `🆔 <b>Device ID:</b> <code>${escapeHtml(meta.devId || 'android')}</code>\n` +
+                    `🕒 <b>তারিখ:</b> ${escapeHtml(dateStr)}\n` +
+                    `📌 <b>বর্তমান স্ট্যাটাস:</b> ⏳ অ্যাডমিন কনফার্মেশনের অপেক্ষায়\n\n` +
+                    `<i>বিকাশ/নগদ মেসেজ যাচাই করে নিচের বাটনে চাপ দিন:</i>`;
+
+                const inlineKb = Markup.inlineKeyboard([
+                    [
+                        Markup.button.callback('✅ কনফার্ম করুন', `don_ok:${requestId}`),
+                        Markup.button.callback('❌ বাতিল ও মুছে ফেলুন', `don_no:${requestId}`)
+                    ]
+                ]);
+
+                try {
+                    await bot.telegram.sendMessage(ADMIN_CHAT_ID, adminMsg, {
+                        parse_mode: 'HTML',
+                        ...inlineKb
+                    });
+                    if (relayedRequestIds.size > 200) relayedRequestIds.clear();
+                    relayedRequestIds.add(requestId);
+                } catch (sendErr) {
+                    console.error("Relay Telegram send error:", sendErr.message);
+                    continue;
+                }
+            }
+
+            await supabase.from('donations').update({ trx_id: cleanedTrx }).eq('id', dRow.id);
+        }
+    } catch (e) {
+        console.error("Relay polling error:", e.message);
+    } finally {
+        isRelayRunning = false;
+    }
+}
 
 // ১১. "📊 ড্যাশবোর্ড / স্ট্যাটাস" হ্যান্ডলার
 bot.hears(['📊 ড্যাশবোর্ড / স্ট্যাটাস', '/status'], async (ctx) => {
@@ -1022,7 +1247,9 @@ server.listen(PORT, () => {
 });
 
 bot.launch().then(() => {
-    console.log("🚀 Helpniche Telegram Bot is running smoothly with User List, Donation Verification, and Smart Unlock...");
+    console.log("🚀 Helpniche Telegram Bot is running smoothly with Auto Donation Push, DB Delete-on-Cancel, and Smart Unlock...");
+    setTimeout(() => relayPendingDonations(), 3000);
+    setInterval(() => relayPendingDonations(), 10000);
 });
 
 process.once('SIGINT', () => { bot.stop('SIGINT'); server.close(); });

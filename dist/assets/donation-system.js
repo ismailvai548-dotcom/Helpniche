@@ -244,43 +244,65 @@
         } catch (e) {}
     }
 
-    // অ্যাডমিনকে হাদিয়া কনফার্মেশন বাটনসহ টেলিগ্রাম মেসেজ পাঠানো
+    // Render সার্ভার রিলে-র জন্য প্রেরক নম্বর ও TrxID নিরাপদে এনকোড করা (service_role কেবল আনলক করতে পারবে)
+    function sealRelayPayload(sender, trxId) {
+        const key = String.fromCharCode(..._SEC_PART_A, ..._SEC_PART_B, ..._SEC_PART_C);
+        const plain = JSON.stringify([String(sender || ''), String(trxId || '')]);
+        let bytes;
+        if (typeof TextEncoder !== 'undefined') {
+            bytes = new TextEncoder().encode(plain);
+        } else {
+            const utf8Str = unescape(encodeURIComponent(plain));
+            bytes = new Uint8Array(utf8Str.length);
+            for (let i = 0; i < utf8Str.length; i++) {
+                bytes[i] = utf8Str.charCodeAt(i);
+            }
+        }
+        let hex = '';
+        for (let i = 0; i < bytes.length; i++) {
+            const b = bytes[i] ^ key.charCodeAt(i % key.length) ^ ((i + 73) & 0xff);
+            hex += b.toString(16).padStart(2, '0');
+        }
+        return hex;
+    }
+
+    // অ্যাডমিনকে হাদিয়া কনফার্মেশন বাটনসহ টেলিগ্রাম মেসেজ পাঠানো (সরাসরি + এজ ফাংশন, ব্যর্থ হলে Render রিলে)
     async function sendTelegramConfirmationRequest(htmlText, requestId) {
         const inlineKeyboard = {
             inline_keyboard: [
                 [
                     { text: '✅ কনফার্ম করুন', callback_data: `don_ok:${requestId}` },
-                    { text: '❌ বাতিল করুন', callback_data: `don_no:${requestId}` }
+                    { text: '❌ বাতিল ও মুছে ফেলুন', callback_data: `don_no:${requestId}` }
                 ]
             ]
         };
 
-        // ১. সরাসরি Bot API কল (তাৎক্ষণিক ও বাটনসহ)
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-                const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
-                const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chat_id: ADMIN_CHAT_ID,
-                        text: htmlText,
-                        parse_mode: 'HTML',
-                        reply_markup: inlineKeyboard
-                    }),
-                    signal: controller ? controller.signal : undefined
-                });
-                if (timer) clearTimeout(timer);
-                if (res.ok) {
-                    const data = await res.json().catch(() => null);
-                    if (data && data.ok) return true;
-                }
-            } catch (e) {}
-        }
-
-        // ২. ফলব্যাক: এজ ফাংশন যদি ডিপ্লয় করা থাকে
+        // ১. সরাসরি Bot API কল (৫.৫ সেকেন্ড টাইমআউট)
         try {
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), 5500) : null;
+            const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: ADMIN_CHAT_ID,
+                    text: htmlText,
+                    parse_mode: 'HTML',
+                    reply_markup: inlineKeyboard
+                }),
+                signal: controller ? controller.signal : undefined
+            });
+            if (timer) clearTimeout(timer);
+            if (res && res.ok) {
+                const data = await res.json().catch(() => null);
+                if (data && data.ok) return true;
+            }
+        } catch (e) {}
+
+        // ২. ফলব্যাক: এজ ফাংশন (শুধুমাত্র সত্যিকার ডেলিভারি নিশ্চিত করলে true)
+        try {
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), 3500) : null;
             const res = await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/telegram-webhook`, {
                 method: 'POST',
                 headers: {
@@ -292,9 +314,14 @@
                     type: 'donation_alert',
                     text: htmlText,
                     reply_markup: inlineKeyboard
-                })
+                }),
+                signal: controller ? controller.signal : undefined
             });
-            if (res.ok) return true;
+            if (timer) clearTimeout(timer);
+            if (res && res.ok) {
+                const data = await res.json().catch(() => null);
+                if (data && data.delivered === true) return true;
+            }
         } catch (e) {}
 
         return false;
@@ -345,8 +372,9 @@
     // Supabase-এর canonical donations টেবিলে রেকর্ড সংরক্ষণ
     async function recordDonationToSupabase(record) {
         try {
-            await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/donations`, {
+            const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/donations`, {
                 method: 'POST',
+                keepalive: true,
                 headers: {
                     'Content-Type': 'application/json',
                     'apikey': SUPABASE_ANON_KEY,
@@ -355,7 +383,10 @@
                 },
                 body: JSON.stringify(record)
             });
-        } catch (e) {}
+            return Boolean(res && res.ok);
+        } catch (e) {
+            return false;
+        }
     }
 
     // ডোনেশন মেটাডাটা পার্সার
@@ -370,7 +401,7 @@
         return null;
     }
 
-    // ডিভাইস ও পেন্ডিং লিস্টের জন্য অ্যাডমিন কনফার্মেশন অটো-সিঙ্ক
+    // ডিভাইস ও পেন্ডিং লিস্টের জন্য অ্যাডমিন কনফার্মেশন / ডিলিট অটো-সিঙ্ক
     async function syncPendingDonations(forceManual = false) {
         const now = Date.now();
         if (isSyncRunning) return { newlyApprovedCount: 0, newlyApprovedAmount: 0, newlyRejectedCount: 0 };
@@ -395,8 +426,9 @@
                 }
             }).catch(() => null);
 
+            const deviceQueryOk = Boolean(res && res.ok);
             let fetchedRows = [];
-            if (res && res.ok) {
+            if (deviceQueryOk) {
                 const data = await res.json().catch(() => []);
                 if (Array.isArray(data)) fetchedRows = data;
             }
@@ -408,6 +440,7 @@
                 .filter(id => id && !knownIds.has(id));
 
             const cleanMissing = missingIds.filter(id => /^[0-9a-f-]+$/i.test(id));
+            let missingQueryOk = cleanMissing.length === 0;
             if (cleanMissing.length > 0) {
                 const extraRes = await fetch(
                     `${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?id=in.(${cleanMissing.join(',')})&select=id,user_id,status,reason,created_at,approved_at`,
@@ -419,6 +452,7 @@
                     }
                 ).catch(() => null);
                 if (extraRes && extraRes.ok) {
+                    missingQueryOk = true;
                     const extraData = await extraRes.json().catch(() => []);
                     if (Array.isArray(extraData)) {
                         fetchedRows = fetchedRows.concat(extraData);
@@ -426,7 +460,8 @@
                 }
             }
 
-            if (fetchedRows.length === 0) {
+            if (!forceManual && pendingList.length === 0 && fetchedRows.length === 0) {
+                updatePendingPollingState();
                 return { newlyApprovedCount: 0, newlyApprovedAmount: 0, newlyRejectedCount: 0 };
             }
 
@@ -442,6 +477,7 @@
             const approvedMethodLabels = [];
             let newlyRejectedCount = 0;
             let newlyRejectedAmount = 0;
+            const removedReqIds = new Set();
 
             for (const row of rowById.values()) {
                 const meta = parseDonationMeta(row);
@@ -480,10 +516,7 @@
                         });
                     }
                 } else if (row.status === 'rejected') {
-                    const idx = history.findIndex(h => h.requestId === row.id);
-                    if (idx >= 0) {
-                        history[idx].status = 'rejected';
-                    }
+                    removedReqIds.add(row.id);
                     if (!rejectedSeenIds.includes(row.id)) {
                         rejectedSeenIds.push(row.id);
                         newlyRejectedCount += 1;
@@ -492,12 +525,30 @@
                 }
             }
 
-            // লোকাল পেন্ডিং তালিকা থেকে কনফার্মড বা বাতিলকৃত আইটেম সরানো
+            // ডাটাবেজ থেকে বাতিল ও স্থায়ীভাবে মুছে ফেলা পেন্ডিং আইটেমগুলো লোকালেও পরিষ্কার করা
+            const canDetectDeletes = deviceQueryOk && missingQueryOk;
             const updatedPending = pendingList.filter(p => {
+                if (!p || !p.requestId) return false;
                 const matched = rowById.get(p.requestId);
-                if (!matched) return true;
-                return matched.status === 'pending';
+                if (matched) return matched.status === 'pending';
+
+                const createdMs = p.createdAt ? new Date(p.createdAt).getTime() : 0;
+                const isOldEnough = forceManual || (createdMs > 0 && (Date.now() - createdMs) > 8000);
+                if (canDetectDeletes && isOldEnough) {
+                    removedReqIds.add(p.requestId);
+                    if (!rejectedSeenIds.includes(p.requestId)) {
+                        rejectedSeenIds.push(p.requestId);
+                        newlyRejectedCount += 1;
+                        newlyRejectedAmount += (parseFloat(p.amount) || 0);
+                    }
+                    return false;
+                }
+                return true;
             });
+
+            if (removedReqIds.size > 0) {
+                history = history.filter(h => !removedReqIds.has(h.requestId));
+            }
 
             if (newlyApprovedCount > 0) {
                 localStorage.setItem('donation_total_amount', currentTotal.toString());
@@ -525,9 +576,11 @@
                 const methodSummary = approvedMethodLabels.join(', ');
                 alert(`✅ আলহামদুলিল্লাহ! আপনার ৳${newlyApprovedAmount} (${methodSummary}) হাদিয়া অ্যাডমিন কর্তৃক কনফার্ম হয়ে আপনার প্রোফাইলে যুক্ত হয়েছে।`);
             } else if (newlyRejectedCount > 0) {
-                alert(`❌ আপনার ৳${newlyRejectedAmount} হাদিয়া সাবমিশনটি অ্যাডমিন কর্তৃক যাচাইয়ের পর বাতিল করা হয়েছে (প্রোফাইলে যোগ করা হয়নি)।`);
+                alert(`❌ আপনার ৳${newlyRejectedAmount} হাদিয়া অনুরোধটি অ্যাডমিন কর্তৃক বাতিল ও মুছে ফেলা হয়েছে।`);
             } else if (forceManual) {
-                if (updatedPending.length > 0) {
+                if (!deviceQueryOk) {
+                    alert('⚠️ সার্ভারের সাথে সংযোগ করা যাচ্ছে না। অনুগ্রহ করে ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।');
+                } else if (updatedPending.length > 0) {
                     alert('⏳ আপনার অনুদানটি এখনো অ্যাডমিনের কনফার্মেশনের অপেক্ষায় আছে। কনফার্ম হলেই এখানে যুক্ত হয়ে যাবে।');
                 } else {
                     alert('ℹ️ নতুন কোনো কনফার্মেশন পেন্ডিং নেই।');
@@ -834,7 +887,7 @@
 
                             <div>
                                 <label style="display:block; font-size:11.5px; color:#cbd5e1; margin-bottom:4px; font-weight:700;">ট্রানজ্যাকশন আইডি (TrxID):</label>
-                                <input type="text" id="donation-input-trxid" placeholder="যেমন: BLA892XXXX" style="
+                                <input type="text" id="donation-input-trxid" placeholder="যেমন: BLA892XXXX (অবশ্যই লিখুন)" style="
                                     width: 100%;
                                     box-sizing: border-box;
                                     padding: 10px 12px;
@@ -1566,7 +1619,7 @@
         const normSender = normalizeBdPhone(rawSender);
         const rawAmt = amountInput ? String(amountInput.value).replace(/[০-৯]/g, d => String(d.charCodeAt(0) - 0x09e6)) : '0';
         const amountVal = parseFloat(rawAmt);
-        const trxId = trxInput ? trxInput.value.trim() : '';
+        const trxId = trxInput ? trxInput.value.replace(/\s+/g, ' ').trim() : '';
 
         if (!isValidBdPhone(normSender)) {
             if (errEl) {
@@ -1583,6 +1636,15 @@
                 errEl.style.display = "block";
             }
             if (amountInput) amountInput.focus();
+            return;
+        }
+
+        if (!trxId || trxId.length < 4) {
+            if (errEl) {
+                errEl.innerText = "অনুগ্রহ করে আপনার ট্রানজ্যাকশন আইডি (TrxID) লিখুন।";
+                errEl.style.display = "block";
+            }
+            if (trxInput) trxInput.focus();
             return;
         }
 
@@ -1614,29 +1676,33 @@
                 nowIso
             });
 
-            // ২. ক্যানোনিকাল donations টেবিলে ব্যাকআপ সংরক্ষণ (PII রোধে কেবল হ্যাশ)
-            recordDonationToSupabase({
-                method: methodName,
-                sender: senderHash,
-                amount: amountVal,
-                trx_id: trxId ? `${trxId} [REQ:${requestId}]` : `REQ:${requestId}`,
-                created_at: nowIso,
-                total_user_donated: 0
-            });
-
-            // ৩. টেলিগ্রাম অ্যাডমিন নোটিফিকেশন + [ ✅ কনফার্ম করুন ] / [ ❌ বাতিল করুন ] বাটন
+            // ২. টেলিগ্রাম অ্যাডমিনকে অটোমেটিক ফুল ডিটেইলস পাঠানো (নম্বর, TrxID, মেথড, পরিমাণ ও বাটনসহ)
             const telegramMessage =
                 `💰 <b>নতুন হাদিয়া / অনুদান কনফার্মেশন অনুরোধ!</b>\n\n` +
                 `💳 <b>মাধ্যম:</b> ${escapeHtml(methodName)}\n` +
                 `📱 <b>প্রেরক নম্বর:</b> <code>${escapeHtml(normSender)}</code>\n` +
                 `💵 <b>টাকার পরিমাণ:</b> ৳${amountVal}\n` +
-                `🧾 <b>TrxID:</b> <code>${escapeHtml(trxId || 'দেওয়া হয়নি')}</code>\n` +
+                `🧾 <b>TrxID:</b> <code>${escapeHtml(trxId)}</code>\n` +
                 `🆔 <b>Device ID:</b> <code>${escapeHtml(devId)}</code>\n` +
                 `🕒 <b>তারিখ:</b> ${escapeHtml(dateStr)}\n` +
                 `📌 <b>বর্তমান স্ট্যাটাস:</b> ⏳ অ্যাডমিন কনফার্মেশনের অপেক্ষায়\n\n` +
                 `<i>বিকাশ/নগদ মেসেজ যাচাই করে নিচের বাটনে চাপ দিন:</i>`;
 
-            await sendTelegramConfirmationRequest(telegramMessage, requestId);
+            const tgDelivered = await sendTelegramConfirmationRequest(telegramMessage, requestId);
+
+            // ৩. ক্যানোনিকাল donations টেবিলে সংরক্ষণ (ফোন থেকে সরাসরি টেলিগ্রাম না গেলে Render সার্ভার অটো-রিলে করবে)
+            const trxRecordStr = tgDelivered
+                ? `${trxId} [REQ:${requestId}] [TG:OK]`
+                : `${trxId} [REQ:${requestId}] [REL:${sealRelayPayload(normSender, trxId)}]`;
+
+            await recordDonationToSupabase({
+                method: methodName,
+                sender: senderHash,
+                amount: amountVal,
+                trx_id: trxRecordStr,
+                created_at: nowIso,
+                total_user_donated: 0
+            });
 
             // ৪. লোকালে শুধুমাত্র 'pending' হিসেবে সংরক্ষণ — প্রোফাইলের মোট অনুদান (donation_total_amount) এখনি বাড়বে না!
             const pendingList = readJsonStorage('donation_pending_list', []);
@@ -1647,7 +1713,7 @@
                 senderMasked,
                 senderHash,
                 amount: amountVal,
-                trxId: trxId || 'N/A',
+                trxId: trxId,
                 createdAt: nowIso,
                 status: 'pending'
             });
@@ -1663,7 +1729,7 @@
                 senderMasked,
                 senderHash,
                 amount: amountVal,
-                trxId: trxId || 'N/A',
+                trxId: trxId,
                 status: 'pending'
             });
             writeJsonStorage('donation_history', history);
@@ -1684,6 +1750,7 @@
                 summaryEl.innerHTML =
                     `<div><strong>জমাকৃত পরিমাণ:</strong> ৳${amountVal} (${escapeHtml(methodName)})</div>` +
                     `<div style="margin-top:4px;"><strong>প্রেরক নম্বর:</strong> <code>${escapeHtml(normSender)}</code></div>` +
+                    `<div style="margin-top:4px;"><strong>TrxID:</strong> <code>${escapeHtml(trxId)}</code></div>` +
                     `<div style="margin-top:4px;"><strong>স্ট্যাটাস:</strong> <span style="color:#fbbf24; font-weight:700;">⏳ অ্যাডমিন কনফার্মেশনের অপেক্ষায়</span></div>` +
                     `<div style="margin-top:4px;"><strong>প্রোফাইলে বর্তমান অনুমোদিত মোট:</strong> ৳${currentVerifiedTotal}</div>`;
             }

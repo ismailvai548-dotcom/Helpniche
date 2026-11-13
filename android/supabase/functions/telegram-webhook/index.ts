@@ -87,11 +87,12 @@ serve(async (req) => {
     // 0. App Client Notifications (Donations, System alerts, Unlock events)
     if (update && (update.type === "admin_notification" || update.type === "donation_alert" || update.type === "client_event")) {
       const alertText = update.text || update.message || "";
-      if (alertText && ADMIN_CHAT_ID) {
-        await sendTelegramMessage(ADMIN_CHAT_ID, alertText, update.reply_markup);
+      let delivered = false;
+      if (alertText && ADMIN_CHAT_ID && TELEGRAM_BOT_TOKEN) {
+        delivered = Boolean(await sendTelegramMessage(ADMIN_CHAT_ID, alertText, update.reply_markup));
       }
-      return new Response(JSON.stringify({ success: true, delivered: true }), {
-        status: 200,
+      return new Response(JSON.stringify({ success: delivered, delivered }), {
+        status: delivered ? 200 : 502,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
@@ -313,7 +314,7 @@ serve(async (req) => {
         }
       }
 
-      // Handle Donation Confirm / Reject Callbacks (don_ok:<requestId> / don_no:<requestId>)
+      // Handle Donation Confirm / Delete-on-Cancel Callbacks (don_ok:<requestId> / don_no:<requestId>)
       else if (dataStr.startsWith("don_ok:") || dataStr.startsWith("don_no:")) {
         const isApprove = dataStr.startsWith("don_ok:");
         const requestId = dataStr.slice(7).trim();
@@ -329,56 +330,106 @@ serve(async (req) => {
           .maybeSingle();
 
         if (!reqRow) {
-          await answerCallbackQuery(query.id, "❌ ডাটাবেজে এই হাদিয়া অনুরোধটি পাওয়া যায়নি!", true);
+          if (query.message && query.message.message_id) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageReplyMarkup`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+                reply_markup: { inline_keyboard: [] }
+              })
+            }).catch(() => {});
+          }
+          await answerCallbackQuery(query.id, "ℹ️ এই অনুরোধটি ইতিপূর্বেই বাতিল ও ডাটাবেজ থেকে মুছে ফেলা হয়েছে।", false);
           return new Response("OK");
         }
 
-        if (reqRow.status === "approved" && isApprove) {
-          await answerCallbackQuery(query.id, "✅ এটি ইতিপূর্বেই কনফার্ম করা হয়েছে।", false);
+        const origPlain = (query.message?.text || "হাদিয়া অনুরোধ")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+
+        if (!isApprove) {
+          const { error: delReqErr } = await supabase
+            .from("unlock_requests")
+            .delete()
+            .eq("id", requestId);
+
+          if (delReqErr) {
+            await answerCallbackQuery(query.id, "❌ মুছে ফেলতে সমস্যা: " + delReqErr.message, true);
+            return new Response("OK");
+          }
+
+          try {
+            await supabase.from("donations").delete().ilike("trx_id", `%REQ:${requestId}%`);
+            await supabase.from("donations").delete().eq("request_id", requestId);
+          } catch (_) {}
+
+          if (query.message && query.message.message_id) {
+            await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chat_id: query.message.chat.id,
+                message_id: query.message.message_id,
+                text: `${origPlain}\n\n───────────────────\n🗑 <b>বাতিল ও ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে!</b>`,
+                parse_mode: "HTML",
+                reply_markup: { inline_keyboard: [] }
+              })
+            }).catch(() => {});
+          }
+
+          await answerCallbackQuery(query.id, "🗑 বাতিল ও ডাটাবেজ থেকে মুছে ফেলা হয়েছে!", false);
           return new Response("OK");
         }
-        if (reqRow.status === "rejected" && !isApprove) {
-          await answerCallbackQuery(query.id, "❌ এটি ইতিপূর্বেই বাতিল করা হয়েছে।", false);
+
+        if (reqRow.status === "approved") {
+          await answerCallbackQuery(query.id, "✅ এটি ইতিপূর্বেই কনফার্ম করা হয়েছে।", false);
           return new Response("OK");
         }
 
         const nowIso = new Date().toISOString();
         let meta: any = {};
         try { meta = JSON.parse(reqRow.reason || "{}"); } catch (_) {}
+        const amountVal = Number(meta.amount) || 0;
 
         await supabase
           .from("unlock_requests")
           .update({
-            status: isApprove ? "approved" : "rejected",
-            approved_at: isApprove ? nowIso : null,
+            status: "approved",
+            approved_at: nowIso,
             updated_at: nowIso
           })
           .eq("id", requestId);
 
-        // Best-effort sync to canonical donations table (if linked & columns exist)
+        // Best-effort sync to canonical donations table (clean any [REL:...] tags too)
         try {
-          const updateFields: Record<string, any> = isApprove
-            ? { status: "approved", approved_at: nowIso, verified_by: "telegram_admin", total_user_donated: Number(meta.amount) || 0 }
-            : { status: "rejected", rejected_at: nowIso, verified_by: "telegram_admin" };
-          const { error: donErr } = await supabase
+          const { data: matchingDons } = await supabase
             .from("donations")
-            .update(updateFields)
+            .select("id, trx_id")
             .ilike("trx_id", `%REQ:${requestId}%`);
-          if (donErr && isApprove) {
-            await supabase
+
+          for (const dRow of (matchingDons || [])) {
+            const cleanTrx = String(dRow.trx_id || "").replace(/\[REL:[^\]]+\]/gi, "[TG:OK]").replace(/\s+/g, " ").trim();
+            const { error: donErr } = await supabase
               .from("donations")
-              .update({ total_user_donated: Number(meta.amount) || 0 })
-              .ilike("trx_id", `%REQ:${requestId}%`);
+              .update({
+                status: "approved",
+                approved_at: nowIso,
+                verified_by: "telegram_admin",
+                total_user_donated: amountVal,
+                trx_id: cleanTrx
+              })
+              .eq("id", dRow.id);
+            if (donErr) {
+              await supabase
+                .from("donations")
+                .update({ total_user_donated: amountVal, trx_id: cleanTrx })
+                .eq("id", dRow.id);
+            }
           }
         } catch (_) {}
-
-        const origPlain = (query.message?.text || "হাদিয়া অনুরোধ")
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-        const statusBanner = isApprove
-          ? "✅ <b>কনফার্ম ও অনুমোদিত!</b> (ইউজারের প্রোফাইলে যুক্ত হবে)"
-          : "❌ <b>বাতিল করা হয়েছে</b> (প্রোফাইলে যোগ হবে না)";
 
         if (query.message && query.message.message_id) {
           await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/editMessageText`, {
@@ -387,18 +438,14 @@ serve(async (req) => {
             body: JSON.stringify({
               chat_id: query.message.chat.id,
               message_id: query.message.message_id,
-              text: `${origPlain}\n\n───────────────────\n${statusBanner}`,
+              text: `${origPlain}\n\n───────────────────\n✅ <b>কনফার্ম ও অনুমোদিত!</b> (ইউজারের প্রোফাইলে যুক্ত হবে)`,
               parse_mode: "HTML",
               reply_markup: { inline_keyboard: [] }
             })
           }).catch(() => {});
         }
 
-        await answerCallbackQuery(
-          query.id,
-          isApprove ? "✅ হাদিয়া কনফার্ম ও অনুমোদিত হয়েছে!" : "❌ হাদিয়া অনুরোধ বাতিল করা হয়েছে।",
-          false
-        );
+        await answerCallbackQuery(query.id, "✅ হাদিয়া কনফার্ম ও অনুমোদিত হয়েছে!", false);
       }
     }
 
