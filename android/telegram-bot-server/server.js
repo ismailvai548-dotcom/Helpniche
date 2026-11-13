@@ -665,26 +665,66 @@ async function executeUnlock(ctx, deviceId, minutes, durationText, targetUserId 
             return ctx.reply("❌ সুপাবেস ডাটাবেসে সেভ হতে সমস্যা হয়েছে: " + insErr.message);
         }
 
-        // unlock_requests আপডেট করা (ডিভাইসের জিরো-টাচ রিমোট আনলকের জন্য)
+        // unlock_requests আপডেট করা (ডিভাইসের জিরো-টাচ রিমোট আনলকের জন্য — কেবল ১টি সর্বশেষ/টার্গেট রো)
         try {
-            const { data: updatedRows } = await supabase
+            const approvedIso = new Date().toISOString();
+
+            // পূর্বে কোনো অব্যবহৃত/অবশিষ্ট approved রো থাকলে তা পরিষ্কার করা (যাতে রি-ইনস্টলে পুরনো রো থেকে পুনরায় আনলক না হয়)
+            await supabase
                 .from('unlock_requests')
                 .update({
-                    status: 'approved',
-                    approved_at: new Date().toISOString(),
-                    reason: `remote_unlock:${minutes}`
+                    status: 'pending',
+                    reason: 'remote_unlock_superseded'
                 })
                 .eq('device_id', cleanDevId)
-                .select();
+                .eq('status', 'approved');
 
-            if (!updatedRows || updatedRows.length === 0) {
+            let updatedSingle = false;
+            if (requestId) {
+                const { data: reqUpdated } = await supabase
+                    .from('unlock_requests')
+                    .update({
+                        status: 'approved',
+                        approved_at: approvedIso,
+                        reason: `remote_unlock:${minutes}`
+                    })
+                    .eq('id', requestId)
+                    .select('id');
+                if (reqUpdated && reqUpdated.length > 0) updatedSingle = true;
+            }
+
+            if (!updatedSingle) {
+                const { data: latestReqs } = await supabase
+                    .from('unlock_requests')
+                    .select('id')
+                    .eq('device_id', cleanDevId)
+                    .not('user_id', 'like', 'don_%')
+                    .order('created_at', { ascending: false })
+                    .limit(1);
+
+                if (latestReqs && latestReqs.length > 0) {
+                    const { data: latestUpdated } = await supabase
+                        .from('unlock_requests')
+                        .update({
+                            status: 'approved',
+                            approved_at: approvedIso,
+                            reason: `remote_unlock:${minutes}`
+                        })
+                        .eq('id', latestReqs[0].id)
+                        .select('id');
+                    if (latestUpdated && latestUpdated.length > 0) updatedSingle = true;
+                }
+            }
+
+            if (!updatedSingle) {
                 await supabase
                     .from('unlock_requests')
                     .insert({
                         device_id: cleanDevId,
                         device_name: 'Android Device',
+                        user_id: 'device_' + cleanDevId,
                         status: 'approved',
-                        approved_at: new Date().toISOString(),
+                        approved_at: approvedIso,
                         reason: `remote_unlock:${minutes}`
                     });
             }

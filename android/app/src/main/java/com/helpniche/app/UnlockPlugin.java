@@ -150,9 +150,14 @@ public class UnlockPlugin extends Plugin {
                 deviceId = "UNKNOWN_DEVICE";
             }
             String deviceName = (Build.MANUFACTURER + " " + Build.MODEL).trim();
+            long firstInstallTime = 0L;
+            try {
+                firstInstallTime = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).firstInstallTime;
+            } catch (Exception ignored) {}
             JSObject ret = new JSObject();
             ret.put("deviceId", deviceId);
             ret.put("deviceName", deviceName);
+            ret.put("firstInstallTime", firstInstallTime);
             call.resolve(ret);
         } catch (Exception e) {
             Log.e(TAG, "Error getting device ID", e);

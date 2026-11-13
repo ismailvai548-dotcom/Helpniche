@@ -28,7 +28,9 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
 
     let currentDeviceId = '';
+    let appFirstInstallTime = 0;
     let isSessionCurrentlyActive = false;
+    let skipMissingRemoteRpc = false;
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initUnlockUI);
@@ -71,6 +73,26 @@
                 const res = await plugin.getDeviceId();
                 if (res && res.deviceId) {
                     currentDeviceId = res.deviceId.trim().toLowerCase();
+
+                    let localInstall = Number(res.firstInstallTime) || 0;
+                    if (!localInstall) {
+                        localInstall = parseInt(localStorage.getItem('unlock_local_install_ms') || '0', 10) || Date.now();
+                        localStorage.setItem('unlock_local_install_ms', String(localInstall));
+                    }
+                    appFirstInstallTime = localInstall;
+
+                    // নতুন ইনস্টলেশন হলে পুরনো লোকাল সিঙ্ক কী রিসেট করা
+                    const savedPkgInstall = localStorage.getItem('unlock_pkg_install_ms');
+                    if (savedPkgInstall !== String(appFirstInstallTime)) {
+                        localStorage.setItem('unlock_pkg_install_ms', String(appFirstInstallTime));
+                        localStorage.removeItem('last_handled_remote_unlock_id');
+                        localStorage.removeItem('last_handled_remote_approved_at');
+                        localStorage.removeItem('unlock_server_install_ms');
+                        localStorage.removeItem('unlock_device_registered_install');
+                        lastHandledUnlockId = '';
+                        lastHandledApprovedAt = '';
+                    }
+
                     const deviceEl = document.getElementById('unlock-device-id-display');
                     if (deviceEl) deviceEl.innerText = currentDeviceId;
                     autoRegisterDevice(currentDeviceId);
@@ -84,11 +106,27 @@
         setInterval(checkUnlockStatus, 2000);
     }
 
+    function resolveServerInstallMs(serverNowMs) {
+        const cached = parseInt(localStorage.getItem('unlock_server_install_ms') || '0', 10) || 0;
+        if (cached > 0) return cached;
+        if (serverNowMs > 0) {
+            const elapsedSinceInstall = appFirstInstallTime > 0 ? Math.max(0, Date.now() - appFirstInstallTime) : 0;
+            const computed = Math.max(0, serverNowMs - elapsedSinceInstall);
+            localStorage.setItem('unlock_server_install_ms', String(computed));
+            return computed;
+        }
+        return appFirstInstallTime || Date.now();
+    }
+
     async function autoRegisterDevice(devId) {
         if (!devId) return;
+        const installMarker = String(appFirstInstallTime || '1');
+        if (localStorage.getItem('unlock_device_registered_install') === installMarker) {
+            return;
+        }
         try {
             const devName = (navigator.userAgent.includes('Android') ? 'Android Device' : (navigator.userAgent.slice(0, 30) || 'Device'));
-            await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests`, {
+            const regRes = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -104,6 +142,14 @@
                     user_id: 'device_' + devId.trim().toLowerCase()
                 })
             });
+            if (regRes && regRes.ok) {
+                const dateHdr = regRes.headers?.get?.('date');
+                const srvNow = dateHdr ? new Date(dateHdr).getTime() : 0;
+                if (srvNow > 0 && !isNaN(srvNow)) {
+                    resolveServerInstallMs(srvNow);
+                }
+                localStorage.setItem('unlock_device_registered_install', installMarker);
+            }
         } catch (e) {
             console.log("Device auto-registration note:", e);
         }
@@ -113,51 +159,90 @@
     let lastHandledUnlockId = localStorage.getItem('last_handled_remote_unlock_id') || '';
     let lastHandledApprovedAt = localStorage.getItem('last_handled_remote_approved_at') || '';
 
+    async function batchConsumeRemoteRows(rowIds, reasonTag) {
+        const cleanIds = (rowIds || []).map(id => String(id || '').trim()).filter(Boolean);
+        if (cleanIds.length === 0) return;
+        try {
+            await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?id=in.(${cleanIds.join(',')})&status=eq.approved`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'apikey': SUPABASE_ANON_KEY,
+                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                    'Prefer': 'return=minimal'
+                },
+                body: JSON.stringify({
+                    status: 'pending',
+                    reason: reasonTag || 'remote_unlocked_consumed'
+                })
+            });
+        } catch (_) {}
+    }
+
     async function checkRemoteApproval() {
         if (isCheckingRemote || !currentDeviceId) return;
         isCheckingRemote = true;
         try {
-            // ১. অটোমিক আরপিসি কল দিয়ে রিমোট অনুমোদন যাচাই ও কনজিউম করা (RLS সুরক্ষিত)
-            const rpcRes = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/rpc/check_and_consume_remote_unlock`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'apikey': SUPABASE_ANON_KEY,
-                    'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-                },
-                body: JSON.stringify({
-                    p_device_id: currentDeviceId
-                })
-            }).catch(() => null);
+            // ১. অটোমিক আরপিসি কল দিয়ে রিমোট অনুমোদন যাচাই ও কনজিউম করা (যদি সার্ভার-সাইডে সক্রিয় থাকে)
+            if (!skipMissingRemoteRpc) {
+                const rpcRes = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/rpc/check_and_consume_remote_unlock`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    },
+                    body: JSON.stringify({
+                        p_device_id: currentDeviceId
+                    })
+                }).catch(() => null);
 
-            if (rpcRes && rpcRes.ok) {
-                const data = await rpcRes.json();
-                if (data && data.success) {
-                    if (data.request_id && data.request_id === lastHandledUnlockId) {
+                if (rpcRes && rpcRes.status === 404) {
+                    skipMissingRemoteRpc = true;
+                } else if (rpcRes && rpcRes.ok) {
+                    const data = await rpcRes.json();
+                    if (data && data.success) {
+                        const dateHdr = rpcRes.headers?.get?.('date');
+                        const serverNowMs = (dateHdr && !isNaN(new Date(dateHdr).getTime())) ? new Date(dateHdr).getTime() : Date.now();
+                        const installCutoffMs = resolveServerInstallMs(serverNowMs) - 5000;
+
+                        if (data.approved_at) {
+                            const appMs = new Date(data.approved_at).getTime();
+                            if (!isNaN(appMs) && appMs < installCutoffMs) {
+                                return;
+                            }
+                        }
+
+                        if (data.request_id && data.request_id === lastHandledUnlockId) {
+                            return;
+                        }
+                        if (data.request_id) {
+                            lastHandledUnlockId = data.request_id;
+                            localStorage.setItem('last_handled_remote_unlock_id', data.request_id);
+                        }
+                        if (data.approved_at) {
+                            lastHandledApprovedAt = data.approved_at;
+                            localStorage.setItem('last_handled_remote_approved_at', data.approved_at);
+                        }
+
+                        const mins = data.duration_minutes || 5;
+                        const plugin = getPlugin();
+                        if (plugin?.setUnlockDuration) {
+                            await plugin.setUnlockDuration({ minutes: mins });
+                        }
+                        const overlay = document.getElementById('unlock-modal-overlay');
+                        if (overlay) overlay.style.display = 'none';
+
+                        isSessionCurrentlyActive = true;
+                        const durText = mins >= 52560000 ? 'স্থায়ীভাবে' : `${mins} মিনিটের জন্য`;
+                        alert(`✅ অ্যাডমিন কর্তৃক আপনার অ্যাপটি দূর থেকে ${durText} সফলভাবে আনলক করা হয়েছে!`);
                         return;
                     }
-                    if (data.request_id) {
-                        lastHandledUnlockId = data.request_id;
-                        localStorage.setItem('last_handled_remote_unlock_id', data.request_id);
-                    }
-
-                    const mins = data.duration_minutes || 5;
-                    const plugin = getPlugin();
-                    if (plugin?.setUnlockDuration) {
-                        await plugin.setUnlockDuration({ minutes: mins });
-                    }
-                    const overlay = document.getElementById('unlock-modal-overlay');
-                    if (overlay) overlay.style.display = 'none';
-
-                    isSessionCurrentlyActive = true;
-                    const durText = mins >= 52560000 ? 'স্থায়ীভাবে' : `${mins} মিনিটের জন্য`;
-                    alert(`✅ অ্যাডমিন কর্তৃক আপনার অ্যাপটি দূর থেকে ${durText} সফলভাবে আনলক করা হয়েছে!`);
-                    return;
                 }
             }
 
-            // ২. ফলব্যাক: সরাসরি রেস্ট কুয়েরি চেক
-            const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?device_id=eq.${encodeURIComponent(currentDeviceId)}&status=eq.approved&select=id,reason,status,approved_at`, {
+            // ২. ফলব্যাক: সরাসরি রেস্ট কুয়েরি চেক (সর্বশেষ অনুমোদিত রিমোট আনলক আগে দেখা হবে)
+            const res = await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?device_id=eq.${encodeURIComponent(currentDeviceId)}&status=eq.approved&select=id,reason,status,approved_at,created_at&order=approved_at.desc.nullslast,created_at.desc`, {
                 headers: {
                     'apikey': SUPABASE_ANON_KEY,
                     'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
@@ -166,67 +251,68 @@
 
             if (res && res.ok) {
                 const rows = await res.json();
-                if (rows && rows.length > 0) {
-                    const req = rows[0];
+                if (!Array.isArray(rows) || rows.length === 0) return;
 
-                    // আগের একই অ্যাপ্রুভাল আইডি বা টাইমস্ট্যাম্প ইতিমধ্যে হ্যান্ডেল হয়ে থাকলে পুনরায় অ্যালার্ট দেখানো নিষিদ্ধ
-                    if (req.id && req.id === lastHandledUnlockId) {
-                        return;
-                    }
-                    if (req.approved_at && req.approved_at === lastHandledApprovedAt) {
-                        return;
-                    }
+                const remoteRows = rows.filter(r => r && typeof r.reason === 'string' && r.reason.startsWith('remote_unlock:'));
+                if (remoteRows.length === 0) return;
 
-                    let mins = 5;
-                    if (req.reason && req.reason.startsWith('remote_unlock:')) {
-                        mins = parseInt(req.reason.split(':')[1], 10) || 5;
-                    }
+                const dateHdr = res.headers?.get?.('date');
+                const serverNowMs = (dateHdr && !isNaN(new Date(dateHdr).getTime())) ? new Date(dateHdr).getTime() : Date.now();
+                const installCutoffMs = resolveServerInstallMs(serverNowMs) - 5000;
 
-                    // অনুমোদন যদি অতি পুরনো হয় (বর্তমান সময় থেকে সেশন শেষ হয়ে গেছে), তবে অ্যালার্ট না দেওয়া
-                    if (req.approved_at) {
-                        const approvedTime = new Date(req.approved_at).getTime();
-                        if (!isNaN(approvedTime) && (Date.now() - approvedTime > (mins * 60 * 1000))) {
-                            return;
-                        }
-                    }
+                const allRemoteIds = remoteRows.map(r => r.id).filter(Boolean);
+                let validReq = null;
+                let validMins = 5;
 
-                    if (req.id) {
-                        lastHandledUnlockId = req.id;
-                        localStorage.setItem('last_handled_remote_unlock_id', req.id);
-                    }
-                    if (req.approved_at) {
-                        lastHandledApprovedAt = req.approved_at;
-                        localStorage.setItem('last_handled_remote_approved_at', req.approved_at);
-                    }
+                for (const req of remoteRows) {
+                    const mins = parseInt(req.reason.split(':')[1], 10) || 5;
+                    const tsStr = req.approved_at || req.created_at;
+                    const approvedMs = tsStr ? new Date(tsStr).getTime() : NaN;
 
-                    const plugin = getPlugin();
-                    if (plugin?.setUnlockDuration) {
-                        await plugin.setUnlockDuration({ minutes: mins });
-                    }
+                    if (isNaN(approvedMs)) continue;
+                    // বর্তমান অ্যাপ ইনস্টল হওয়ার আগের কোনো পুরনো অ্যাপ্রুভাল হলে তা বাতিল/উপেক্ষা করা
+                    if (approvedMs < installCutoffMs) continue;
+                    // অনুমোদিত মেয়াদ ইতিমধ্যে শেষ হয়ে থাকলে উপেক্ষা করা
+                    if ((serverNowMs - approvedMs) > (mins * 60 * 1000)) continue;
+                    // একই অ্যাপ্রুভাল ইতিমধ্যে প্রসেস হয়ে থাকলে উপেক্ষা করা
+                    if (req.id && req.id === lastHandledUnlockId) continue;
+                    if (req.approved_at && req.approved_at === lastHandledApprovedAt) continue;
 
-                    // Acknowledge by updating status back to pending
-                    await fetch(`${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?id=eq.${req.id}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'apikey': SUPABASE_ANON_KEY,
-                            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                            'Prefer': 'return=minimal'
-                        },
-                        body: JSON.stringify({
-                            status: 'pending',
-                            reason: 'remote_unlocked_consumed'
-                        })
-                    }).catch(() => {});
-
-                    // Hide modal if open
-                    const overlay = document.getElementById('unlock-modal-overlay');
-                    if (overlay) overlay.style.display = 'none';
-
-                    isSessionCurrentlyActive = true;
-                    const durText = mins >= 52560000 ? 'স্থায়ীভাবে' : `${mins} মিনিটের জন্য`;
-                    alert(`✅ অ্যাডমিন কর্তৃক আপনার অ্যাপটি দূর থেকে ${durText} সফলভাবে আনলক করা হয়েছে!`);
+                    validReq = req;
+                    validMins = mins;
+                    break;
                 }
+
+                if (!validReq) {
+                    // সব রিমোট রো পুরনো/প্রি-ইনস্টল/মেয়াদোত্তীর্ণ — ডাটাবেজে এগুলো কনজিউমড করে রাখা যাতে ভবিষ্যতে না আসে
+                    await batchConsumeRemoteRows(allRemoteIds, 'remote_unlock_stale_consumed');
+                    return;
+                }
+
+                if (validReq.id) {
+                    lastHandledUnlockId = validReq.id;
+                    localStorage.setItem('last_handled_remote_unlock_id', validReq.id);
+                }
+                if (validReq.approved_at) {
+                    lastHandledApprovedAt = validReq.approved_at;
+                    localStorage.setItem('last_handled_remote_approved_at', validReq.approved_at);
+                }
+
+                const plugin = getPlugin();
+                if (plugin?.setUnlockDuration) {
+                    await plugin.setUnlockDuration({ minutes: validMins });
+                }
+
+                // এই ডিভাইসের সকল পেন্ডিং approved রিমোট আনলক রো একসাথে কনজিউম করা
+                await batchConsumeRemoteRows(allRemoteIds, 'remote_unlocked_consumed');
+
+                // Hide modal if open
+                const overlay = document.getElementById('unlock-modal-overlay');
+                if (overlay) overlay.style.display = 'none';
+
+                isSessionCurrentlyActive = true;
+                const durText = validMins >= 52560000 ? 'স্থায়ীভাবে' : `${validMins} মিনিটের জন্য`;
+                alert(`✅ অ্যাডমিন কর্তৃক আপনার অ্যাপটি দূর থেকে ${durText} সফলভাবে আনলক করা হয়েছে!`);
             }
         } catch (e) {
             console.log("Remote check note:", e);
