@@ -83,28 +83,33 @@ public class LocalDnsVpnService extends VpnService {
     };
 
     // মেমরি-অপ্টিমাইজড ডোমেইন ব্লকলিস্ট সেট
-    private static volatile Set<String> BLOCKED_DOMAINS = new HashSet<>();
+    private static volatile Set<String> BLOCKED_DOMAINS = java.util.Collections.emptySet();
     private static volatile boolean isBlocklistLoaded = false;
+    private static final java.util.concurrent.atomic.AtomicBoolean isBlocklistLoading = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     /**
      * ব্যাকগ্রাউন্ড থ্রেডে blocklist লোড করার মেথড।
-     * প্রথমে assets/blocklist.txt.gz চেষ্টা করে; না পেলে assets/blocklist.txt (plain)
+     * প্রথমে assets/blocklist.txt চেষ্টা করে; না পেলে assets/blocklist.txt.gz
      * ফলব্যাক হিসেবে লোড করে — যাতে build-এ ভুল ফাইল গেলেও AdBlock নীরবে মরে না যায়।
      */
     private void loadBlocklistFromAssets() {
-        if (isBlocklistLoaded) return;
+        if (isBlocklistLoaded || !isBlocklistLoading.compareAndSet(false, true)) return;
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
-            boolean loaded = tryLoadBlocklist("blocklist.txt", false);
-            if (!loaded) {
-                Log.w(TAG, "plain blocklist.txt not found, falling back to blocklist.txt.gz");
-                loaded = tryLoadBlocklist("blocklist.txt.gz", true);
+            try {
+                boolean loaded = tryLoadBlocklist("blocklist.txt", false);
+                if (!loaded) {
+                    Log.w(TAG, "plain blocklist.txt not found, falling back to blocklist.txt.gz");
+                    loaded = tryLoadBlocklist("blocklist.txt.gz", true);
+                }
+                if (!loaded) {
+                    Log.e(TAG, "CRITICAL: No blocklist asset found (tried .txt and .gz). AdBlock DNS sinkhole is DISABLED.");
+                }
+            } finally {
+                isBlocklistLoading.set(false);
+                executor.shutdown();
             }
-            if (!loaded) {
-                Log.e(TAG, "CRITICAL: No blocklist asset found (tried .txt and .gz). AdBlock DNS sinkhole is DISABLED.");
-            }
-            executor.shutdown();
         });
     }
 
@@ -163,7 +168,7 @@ public class LocalDnsVpnService extends VpnService {
             }
 
             synchronized (LocalDnsVpnService.class) {
-                BLOCKED_DOMAINS = tempSet;
+                BLOCKED_DOMAINS = java.util.Collections.unmodifiableSet(tempSet);
                 isBlocklistLoaded = true;
             }
             Log.i(TAG, "Blocklist loaded successfully from " + assetName + "! Total blocked domains: " + tempSet.size());
@@ -695,7 +700,6 @@ public class LocalDnsVpnService extends VpnService {
                     "com.google.android.apps.bard",
                     "com.anthropic.claude",
                     "com.microsoft.copilot",
-                    "com.microsoft.bing",
                     "ai.perplexity.app.android",
                     "com.deepseek.chat",
                     "com.poe.android",
@@ -705,6 +709,10 @@ public class LocalDnsVpnService extends VpnService {
             };
 
             for (String packageName : disallowedAppPackages) {
+                if (currentBlockedApps != null && currentBlockedApps.contains(packageName.toLowerCase())) {
+                    // ইউজার যদি Network Control-এ এই অ্যাপের ইন্টারনেট ব্লক করে থাকে, তবে VPN বাইপাস দেওয়া যাবে না
+                    continue;
+                }
                 try {
                     builder.addDisallowedApplication(packageName);
                 } catch (PackageManager.NameNotFoundException ignored) {
@@ -862,9 +870,45 @@ public class LocalDnsVpnService extends VpnService {
 
             int dnsOffset = 48;
             String queryDomain = parseDnsQueryDomain(packet, dnsOffset, length);
+
+            if (isFirewallMode) {
+                if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
+                    byte[] packetCopy = Arrays.copyOf(packet, length);
+                    dnsThreadPool.submit(() -> sendSinkholeDnsResponseV6(packetCopy, length, 40, dnsOffset, out));
+                }
+                return;
+            }
+
             if (queryDomain != null) {
                 byte[] packetCopy = Arrays.copyOf(packet, length);
-                if (isAdDomain(queryDomain)) {
+                boolean shouldSinkhole = isAdDomain(queryDomain);
+
+                // Android 10+ (API 29+): Check if IPv6 DNS packet originates from a network-blocked app
+                if (!shouldSinkhole && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && currentBlockedApps != null && !currentBlockedApps.isEmpty()) {
+                    try {
+                        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                        if (cm != null) {
+                            InetAddress srcAddr = InetAddress.getByAddress(Arrays.copyOfRange(packet, 8, 24));
+                            InetAddress dstAddr = InetAddress.getByAddress(Arrays.copyOfRange(packet, 24, 40));
+                            int srcPort = ((packet[40] & 0xFF) << 8) | (packet[41] & 0xFF);
+                            int dstPort = ((packet[42] & 0xFF) << 8) | (packet[43] & 0xFF);
+                            int ownerUid = cm.getConnectionOwnerUid(android.system.OsConstants.IPPROTO_UDP, new InetSocketAddress(srcAddr, srcPort), new InetSocketAddress(dstAddr, dstPort));
+                            if (ownerUid > 0) {
+                                String[] pkgs = getPackageManager().getPackagesForUid(ownerUid);
+                                if (pkgs != null) {
+                                    for (String p : pkgs) {
+                                        if (currentBlockedApps.contains(p.toLowerCase())) {
+                                            shouldSinkhole = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+
+                if (shouldSinkhole) {
                     if (dnsThreadPool != null && !dnsThreadPool.isShutdown()) {
                         dnsThreadPool.submit(() -> sendSinkholeDnsResponseV6(packetCopy, length, 40, dnsOffset, out));
                     }

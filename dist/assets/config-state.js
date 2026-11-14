@@ -200,6 +200,22 @@ if (focusSessionEndTime > 0 && focusSessionEndTime <= Date.now()) {
     clearFocusSessionCreditState();
     focusSessionEndTime = 0;
     isFocusSessionActive = false;
+    try {
+        if (window.Capacitor && window.Capacitor.Plugins) {
+            if (window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.setFocusLock) {
+                window.Capacitor.Plugins.UnlockPlugin.setFocusLock({ locked: false, endTimeMs: 0 });
+            }
+            if (window.Capacitor.Plugins.FocusAudioPlugin && window.Capacitor.Plugins.FocusAudioPlugin.stopAudio) {
+                window.Capacitor.Plugins.FocusAudioPlugin.stopAudio();
+            }
+        }
+    } catch (e) {}
+} else if (isFocusSessionActive) {
+    try {
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.setFocusLock) {
+            window.Capacitor.Plugins.UnlockPlugin.setFocusLock({ locked: true, endTimeMs: focusSessionEndTime });
+        }
+    } catch (e) {}
 }
 var focusTimerInterval = null;
 var spiralAnimInterval = null;

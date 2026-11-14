@@ -275,6 +275,29 @@ public class AlarmOverlayService extends Service {
                 } catch (Exception e) {
                     Log.w(TAG, "Prayer audio asset not found for " + assetPath + ", falling back to durood.mp3", e);
                 }
+            } else if (audioType != null && audioType.startsWith("custom_file:")) {
+                String filePath = audioType.substring("custom_file:".length()).trim();
+                try {
+                    java.io.File customFile = new java.io.File(filePath);
+                    if (customFile.exists() && customFile.length() > 0) {
+                        mediaPlayer.setDataSource(customFile.getAbsolutePath());
+                        sourceSet = true;
+                        Log.i(TAG, "Loaded custom alarm file: " + filePath);
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Custom alarm file failed (" + filePath + "), falling back to durood", e);
+                    mediaPlayer.reset();
+                }
+            } else if (audioType != null && audioType.startsWith("custom_uri:")) {
+                String uriStr = audioType.substring("custom_uri:".length()).trim();
+                try {
+                    mediaPlayer.setDataSource(this, Uri.parse(uriStr));
+                    sourceSet = true;
+                    Log.i(TAG, "Loaded custom alarm URI: " + uriStr);
+                } catch (Exception e) {
+                    Log.w(TAG, "Custom alarm URI failed (" + uriStr + "), falling back to durood", e);
+                    mediaPlayer.reset();
+                }
             }
 
             if (!sourceSet) {

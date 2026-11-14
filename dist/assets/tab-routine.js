@@ -661,6 +661,7 @@ window.toggleAlarmItem = function(idx) {
             minute: m,
             enabled: item.enabled,
             audioType: 'alarm',
+            customAudioBase64: item.audioData || '',
             repeatMode: item.repeatMode || 'everyday',
             repeatDays: item.repeatDays || [1,2,3,4,5,6,7]
         });

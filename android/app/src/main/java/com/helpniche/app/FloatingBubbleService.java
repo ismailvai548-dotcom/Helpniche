@@ -46,6 +46,8 @@ public class FloatingBubbleService extends Service {
     private Runnable countdownRunnable;
 
     private int remainingSeconds = 0;
+    private long endTimeMs = 0L;
+    private boolean warned30s = false;
     private boolean isBlinkingRed = false;
     private boolean isBankingMode = false;
 
@@ -69,10 +71,14 @@ public class FloatingBubbleService extends Service {
             } else {
                 remainingSeconds = 300; // Default 5 minutes
             }
+            endTimeMs = System.currentTimeMillis() + (remainingSeconds * 1000L);
+            warned30s = false;
         } else if (remainingSeconds <= 0) {
             android.content.SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
             isBankingMode = prefs.getBoolean("banking_pause_active", false);
             remainingSeconds = 300;
+            endTimeMs = System.currentTimeMillis() + (remainingSeconds * 1000L);
+            warned30s = false;
         }
 
         // Stop any active countdown task to avoid duplicate ticking
@@ -312,7 +318,11 @@ public class FloatingBubbleService extends Service {
         countdownRunnable = new Runnable() {
             @Override
             public void run() {
-                remainingSeconds--;
+                if (endTimeMs > 0L) {
+                    remainingSeconds = (int) Math.max(0L, (endTimeMs - System.currentTimeMillis() + 999L) / 1000L);
+                } else {
+                    remainingSeconds--;
+                }
 
                 String timeText = formatMMSS(remainingSeconds);
 
@@ -322,6 +332,13 @@ public class FloatingBubbleService extends Service {
 
                 if (remainingSeconds % 5 == 0 || remainingSeconds <= 10) {
                     updateNotificationText(timeText);
+                }
+
+                if (isBankingMode && !warned30s && remainingSeconds <= 30 && remainingSeconds > 0) {
+                    warned30s = true;
+                    try {
+                        Toast.makeText(getApplicationContext(), "⚠️ ব্যাংকিং পজ ৩০ সেকেন্ডের মধ্যে শেষ হবে!", Toast.LENGTH_LONG).show();
+                    } catch (Exception ignored) {}
                 }
 
                 // Last 10 seconds: RED ALERT with blinking/pulsing signal

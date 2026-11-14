@@ -309,7 +309,7 @@
     }
 
     // Supabase-এ পেন্ডিং ভেরিফিকেশন রিকোয়েস্ট সংরক্ষণ (unlock_requests টেবিলে donation_ প্রিফিক্সসহ আলাদা আইসোলেশন)
-    async function createDonationVerificationRequest({ devId, methodCode, methodLabel, senderHash, senderMasked, amountVal, trxId, nowIso }) {
+    async function createDonationVerificationRequest({ devId, methodCode, methodLabel, senderHash, senderMasked, amountVal, trxId, trxHash, nowIso }) {
         const reasonObj = {
             type: 'donation',
             v: 1,
@@ -319,6 +319,7 @@
             senderMasked: senderMasked,
             senderHash: senderHash,
             trxMasked: maskTrxId(trxId),
+            trxHash: trxHash || '',
             devId: devId,
             submittedAt: nowIso
         };
@@ -1040,6 +1041,24 @@
                                 </div>
                             </div>
 
+                            <div style="margin-bottom:12px;">
+                                <label style="display:block; font-size:11.5px; color:#94a3b8; margin-bottom:5px; font-weight:700;">
+                                    ট্রানজ্যাকশন আইডি (TrxID) <span style="font-weight:500; color:#64748b;">(নতুন ফোনে রিকভারির জন্য আবশ্যক)</span>:
+                                </label>
+                                <input id="donation-verify-trx-input" type="text" placeholder="যেমন: BKA8291XYZ" style="
+                                    width: 100%;
+                                    padding: 10px 12px;
+                                    background: #1e293b;
+                                    border: 1px solid #334155;
+                                    border-radius: 10px;
+                                    color: #ffffff;
+                                    font-size: 13.5px;
+                                    font-family: monospace;
+                                    box-sizing: border-box;
+                                    outline: none;
+                                " />
+                            </div>
+
                             <div id="donation-verify-result-box" style="display:none; border-radius:10px; padding:12px; font-size:12.5px; line-height:1.55; margin-bottom:14px;"></div>
 
                             <button id="btn-donation-verify-submit" style="
@@ -1256,12 +1275,26 @@
             return;
         }
 
+        const adminBkash = normalizeBdPhone(activeConfig.bkash_number || '01773622548');
+        const adminNagad = normalizeBdPhone(activeConfig.nagad_number || '01773622548');
+        if (norm === adminBkash || norm === adminNagad) {
+            if (errEl) {
+                errEl.innerText = "এটি আমাদের হাদিয়া গ্রহণের অফিশিয়াল নম্বর। অনুগ্রহ করে যে নম্বর থেকে টাকা পাঠিয়েছেন (আপনার প্রেরক নম্বর) সেটি লিখুন।";
+                errEl.style.display = 'block';
+            }
+            if (phoneInput) phoneInput.focus();
+            return;
+        }
+
         if (errEl) errEl.style.display = 'none';
         currentVerifyPhone = norm;
         currentVerifyMethod = null;
 
         const badge = document.getElementById('donation-verify-phone-badge');
         if (badge) badge.innerText = norm;
+
+        const trxVerifyInp = document.getElementById('donation-verify-trx-input');
+        if (trxVerifyInp) trxVerifyInp.value = '';
 
         const resBox = document.getElementById('donation-verify-result-box');
         if (resBox) resBox.style.display = 'none';
@@ -1313,6 +1346,8 @@
     async function executeDonationVerify() {
         const resBox = document.getElementById('donation-verify-result-box');
         const btnSubmit = document.getElementById('btn-donation-verify-submit');
+        const trxVerifyInp = document.getElementById('donation-verify-trx-input');
+        const enteredTrx = trxVerifyInp ? trxVerifyInp.value.replace(/\s+/g, ' ').trim() : '';
 
         if (!currentVerifyPhone || !isValidBdPhone(currentVerifyPhone)) {
             showVerifyPhoneStep();
@@ -1336,7 +1371,10 @@
         if (resBox) resBox.style.display = 'none';
 
         try {
+            const devId = await getClientDeviceId();
             const senderHash = await sha256Hex(currentVerifyPhone);
+            const enteredTrxHash = enteredTrx ? await sha256Hex(enteredTrx.toUpperCase()) : '';
+            const enteredTrxMasked = enteredTrx ? maskTrxId(enteredTrx) : '';
             const userKey = `don_${currentVerifyMethod}_${senderHash}`;
             const methodLabel = formatMethodLabel(currentVerifyMethod);
 
@@ -1369,6 +1407,8 @@
                             senderMasked: meta.senderMasked || maskPhone(currentVerifyPhone),
                             senderHash: meta.senderHash || senderHash,
                             trxMasked: meta.trxMasked || '',
+                            trxHash: meta.trxHash || '',
+                            devId: meta.devId || '',
                             createdAt: r.created_at,
                             approvedAt: r.approved_at
                         });
@@ -1404,6 +1444,8 @@
                                     senderMasked: maskPhone(currentVerifyPhone),
                                     senderHash: senderHash,
                                     trxMasked: '',
+                                    trxHash: '',
+                                    devId: '',
                                     createdAt: item.created_at,
                                     approvedAt: item.approved_at
                                 });
@@ -1419,16 +1461,57 @@
             const rejectedRows = allRecords.filter(r => r.status === 'rejected');
 
             const creditedIds = readJsonStorage('donation_credited_ids', []);
+            const history = readJsonStorage('donation_history', []);
+            const pendingList = readJsonStorage('donation_pending_list', []);
             let currentTotal = parseFloat(localStorage.getItem('donation_total_amount') || '0');
             if (isNaN(currentTotal) || currentTotal < 0) currentTotal = 0;
 
             const approvedTotalForPair = approvedRows.reduce((s, r) => s + r.amount, 0);
             const uncreditedApproved = approvedRows.filter(r => !creditedIds.includes(r.id));
 
+            // নতুন ডিভাইসে অন্য কারো নম্বর অনুমান করে হাদিয়া ক্লেইম রোধ:
+            // যদি এই ডিভাইসে পূর্বে এই নম্বরের কোনো রেকর্ড না থাকে এবং ডিভাইস আইডি না মেলে, তবে TrxID যাচাই বাধ্যতামূলক
+            const isKnownDeviceForSender =
+                history.some(h => h.senderHash === senderHash) ||
+                pendingList.some(p => p.senderHash === senderHash) ||
+                approvedRows.some(r => r.devId && r.devId === devId);
+
+            if (uncreditedApproved.length > 0 && !isKnownDeviceForSender) {
+                if (!enteredTrx || enteredTrx.length < 4) {
+                    if (resBox) {
+                        resBox.style.display = 'block';
+                        resBox.style.background = 'rgba(251, 191, 36, 0.14)';
+                        resBox.style.border = '1px solid #fbbf24';
+                        resBox.style.color = '#fde68a';
+                        resBox.innerHTML =
+                            `<div><strong>🔐 নিরাপত্তার স্বার্থে TrxID প্রয়োজন</strong></div>` +
+                            `<div style="margin-top:6px;">নতুন ফোনে বা অ্যাপ রি-ইনস্টলের পর পূর্বের হাদিয়া যুক্ত করতে অনুগ্রহ করে আপনার যেকোনো একটি পেমেন্টের <strong>ট্রানজ্যাকশন আইডি (TrxID)</strong> উপরের বক্সে লিখে আবার এন্টার দিন।</div>`;
+                    }
+                    if (trxVerifyInp) trxVerifyInp.focus();
+                    return;
+                }
+
+                const trxMatchesAny = approvedRows.some(r =>
+                    (r.trxHash && r.trxHash === enteredTrxHash) ||
+                    (r.trxMasked && enteredTrxMasked && r.trxMasked.toUpperCase() === enteredTrxMasked.toUpperCase())
+                );
+                if (!trxMatchesAny) {
+                    if (resBox) {
+                        resBox.style.display = 'block';
+                        resBox.style.background = 'rgba(248, 113, 113, 0.14)';
+                        resBox.style.border = '1px solid #f87171';
+                        resBox.style.color = '#fca5a5';
+                        resBox.innerHTML =
+                            `<div><strong>❌ ট্রানজ্যাকশন আইডি (TrxID) মেলেনি</strong></div>` +
+                            `<div style="margin-top:6px;">আপনার প্রদত্ত TrxID এই নম্বরের অনুমোদিত হাদিয়ার সাথে মেলেনি। অনুগ্রহ করে সঠিক TrxID দিয়ে আবার চেষ্টা করুন।</div>`;
+                    }
+                    if (trxVerifyInp) trxVerifyInp.focus();
+                    return;
+                }
+            }
+
             if (uncreditedApproved.length > 0) {
                 let newlyAddedAmount = 0;
-                const history = readJsonStorage('donation_history', []);
-                const pendingList = readJsonStorage('donation_pending_list', []);
 
                 uncreditedApproved.forEach(r => {
                     newlyAddedAmount += r.amount;
@@ -1611,6 +1694,17 @@
             return;
         }
 
+        const adminBkash = normalizeBdPhone(activeConfig.bkash_number || '01773622548');
+        const adminNagad = normalizeBdPhone(activeConfig.nagad_number || '01773622548');
+        if (normSender === adminBkash || normSender === adminNagad) {
+            if (errEl) {
+                errEl.innerText = "এটি আমাদের হাদিয়া গ্রহণের অফিশিয়াল নম্বর। অনুগ্রহ করে যে নম্বর থেকে টাকা পাঠিয়েছেন (আপনার প্রেরক নম্বর) সেটি লিখুন।";
+                errEl.style.display = "block";
+            }
+            if (senderInput) senderInput.focus();
+            return;
+        }
+
         if (!amountVal || isNaN(amountVal) || amountVal <= 0) {
             if (errEl) {
                 errEl.innerText = "অনুগ্রহ করে প্রেরিত টাকার সঠিক পরিমাণ লিখুন।";
@@ -1623,6 +1717,23 @@
         if (!trxId || trxId.length < 4) {
             if (errEl) {
                 errEl.innerText = "অনুগ্রহ করে আপনার ট্রানজ্যাকশন আইডি (TrxID) লিখুন।";
+                errEl.style.display = "block";
+            }
+            if (trxInput) trxInput.focus();
+            return;
+        }
+
+        // ডুপ্লিকেট TrxID চেক (লোকাল হিস্ট্রি ও পেন্ডিং লিস্ট)
+        const normTrxUpper = trxId.toUpperCase();
+        const existingPending = readJsonStorage('donation_pending_list', []);
+        const existingHistory = readJsonStorage('donation_history', []);
+        const isLocalDuplicate =
+            existingPending.some(p => p && p.trxId && String(p.trxId).trim().toUpperCase() === normTrxUpper) ||
+            existingHistory.some(h => h && h.status !== 'rejected' && h.trxId && String(h.trxId).trim().toUpperCase() === normTrxUpper);
+
+        if (isLocalDuplicate) {
+            if (errEl) {
+                errEl.innerText = "এই ট্রানজ্যাকশন আইডিটি (TrxID) ইতিমধ্যেই জমা দেওয়া হয়েছে।";
                 errEl.style.display = "block";
             }
             if (trxInput) trxInput.focus();
@@ -1643,7 +1754,39 @@
         try {
             const devId = await getClientDeviceId();
             const senderHash = await sha256Hex(normSender);
+            const trxHash = await sha256Hex(normTrxUpper);
             const senderMasked = maskPhone(normSender);
+
+            // সার্ভার ডুপ্লিকেট চেক: একই প্রেরক ও মাধ্যমে একই TrxID ইতিমধ্যে পেন্ডিং বা অনুমোদিত আছে কিনা
+            try {
+                const dupCheckUrl = `${SUPABASE_PROJECT_URL}/rest/v1/unlock_requests?user_id=eq.${encodeURIComponent(`don_${methodCode}_${senderHash}`)}&status=neq.rejected&select=id,reason&limit=25`;
+                const dupRes = await fetch(dupCheckUrl, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    }
+                });
+                if (dupRes && dupRes.ok) {
+                    const dupRows = await dupRes.json();
+                    if (Array.isArray(dupRows)) {
+                        const hasServerDup = dupRows.some(r => {
+                            const m = parseDonationMeta(r);
+                            return m && ((m.trxHash && m.trxHash === trxHash) || (m.trxMasked && m.trxMasked === maskTrxId(trxId) && Number(m.amount) === amountVal));
+                        });
+                        if (hasServerDup) {
+                            if (errEl) {
+                                errEl.innerText = "এই ট্রানজ্যাকশন আইডিটি (TrxID) ইতিমধ্যেই ডাটাবেজে জমা রয়েছে।";
+                                errEl.style.display = "block";
+                            }
+                            if (btnSubmit) {
+                                btnSubmit.disabled = false;
+                                btnSubmit.innerText = "নিশ্চিত করুন";
+                            }
+                            return;
+                        }
+                    }
+                }
+            } catch (_) {}
 
             // ১. Supabase-এ পেন্ডিং ভেরিফিকেশন রিকোয়েস্ট তৈরি করা (এখনও অনুমোদিত নয়)
             const requestId = await createDonationVerificationRequest({
@@ -1654,6 +1797,7 @@
                 senderMasked,
                 amountVal,
                 trxId,
+                trxHash,
                 nowIso
             });
 

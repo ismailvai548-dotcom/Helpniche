@@ -807,7 +807,24 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
-        return prefs.getBoolean(KEY_FOCUS_LOCKED, false);
+        boolean locked = prefs.getBoolean(KEY_FOCUS_LOCKED, false);
+        if (!locked) return false;
+
+        long focusUntil = prefs.getLong("focus_lock_until", 0L);
+        if (focusUntil > 0L && System.currentTimeMillis() >= focusUntil) {
+            prefs.edit()
+                    .putBoolean(KEY_FOCUS_LOCKED, false)
+                    .putLong("focus_lock_until", 0L)
+                    .apply();
+            try {
+                Intent stopAudio = new Intent(context, FocusAudioService.class);
+                stopAudio.setAction(FocusAudioService.ACTION_STOP);
+                context.startService(stopAudio);
+            } catch (Exception ignored) {}
+            return false;
+        }
+
+        return true;
 
     }
 
@@ -1193,6 +1210,7 @@ public class BlockerAccessibilityService extends AccessibilityService {
                 lower.contains("cromite") ||
                 lower.contains("torproject") ||
                 lower.contains("via.gp") ||
+                lower.contains("microsoft.bing") ||
                 lower.contains("ucturbo");
     }
 
@@ -1781,26 +1799,84 @@ public class BlockerAccessibilityService extends AccessibilityService {
         } catch (Exception ignored) {}
     }
 
-    private boolean isSettingsListScreen(AccessibilityNodeInfo rootNode) {
-        if (rootNode == null) return false;
+    private void collectNodeTreeSnapshot(AccessibilityNodeInfo node, StringBuilder textOut, StringBuilder idOut, int depth) {
+        if (node == null || depth > 25) return;
         try {
-            int appCount = 0;
-            String[] listMarkers = {
-                    "chrome", "youtube", "camera", "clock", "calculator", "calendar",
-                    "contacts", "drive", "files", "gmail", "maps", "messages", "photos",
-                    "talkback", "switch access", "accessibility menu", "downloaded apps",
-                    "installed apps", "all apps", "manage apps", "app management",
-                    "ডিভাইস সেটিংস", "ইনস্টল করা অ্যাপ", "অ্যাক্সেসিবিলিটি মেনু"
-            };
-            for (String marker : listMarkers) {
-                if (scanNodeTreeForText(rootNode, marker)) {
-                    appCount++;
-                    if (appCount >= 2) {
-                        return true;
+            CharSequence t = node.getText();
+            if (t != null && t.length() > 0) {
+                textOut.append(t.toString().toLowerCase()).append('\n');
+            }
+            CharSequence d = node.getContentDescription();
+            if (d != null && d.length() > 0) {
+                textOut.append(d.toString().toLowerCase()).append('\n');
+            }
+            CharSequence id = node.getViewIdResourceName();
+            if (id != null && id.length() > 0) {
+                idOut.append(id.toString().toLowerCase()).append('\n');
+            }
+            int count = node.getChildCount();
+            for (int i = 0; i < count; i++) {
+                AccessibilityNodeInfo child = node.getChild(i);
+                if (child != null) {
+                    try {
+                        collectNodeTreeSnapshot(child, textOut, idOut, depth + 1);
+                    } finally {
+                        child.recycle();
                     }
                 }
             }
         } catch (Exception ignored) {}
+    }
+
+    private boolean containsAny(String haystack, String... needles) {
+        if (haystack == null || haystack.isEmpty()) return false;
+        for (String n : needles) {
+            if (n != null && !n.isEmpty() && haystack.contains(n.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSettingsListScreen(String snapshotText, String snapshotIds, String className) {
+        if (snapshotText == null) return false;
+        String clsLower = className != null ? className.toLowerCase() : "";
+        // Never treat an App Info detail page, Uninstaller dialog, or Device Admin page as a list screen
+        if (clsLower.contains("installedappdetails") ||
+                clsLower.contains("appinfodashboard") ||
+                clsLower.contains("uninstaller") ||
+                clsLower.contains("deviceadmin") ||
+                clsLower.contains("alertdialog")) {
+            return false;
+        }
+        if (containsAny(snapshotIds,
+                "entity_header", "app_snippet", "action_buttons",
+                "uninstall_button", "force_stop", "clear_data", "clear_cache",
+                "android:id/button1", "android:id/alertTitle")) {
+            return false;
+        }
+        if (containsAny(snapshotText,
+                "force stop", "ফোর্স স্টপ", "storage & cache", "স্টোরেজ",
+                "deactivate and uninstall", "do you want to uninstall", "আনইনস্টল করতে চান")) {
+            return false;
+        }
+
+        int appCount = 0;
+        String[] listMarkers = {
+                "chrome", "youtube", "camera", "clock", "calculator", "calendar",
+                "contacts", "drive", "files", "gmail", "maps", "messages", "photos",
+                "talkback", "switch access", "accessibility menu", "downloaded apps",
+                "installed apps", "all apps", "manage apps", "app management",
+                "ডিভাইস সেটিংস", "ইনস্টল করা অ্যাপ", "অ্যাক্সেসিবিলিটি মেনু"
+        };
+        for (String marker : listMarkers) {
+            if (snapshotText.contains(marker)) {
+                appCount++;
+                if (appCount >= 4) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -1830,34 +1906,58 @@ public class BlockerAccessibilityService extends AccessibilityService {
         if (rootNode == null) return;
 
         try {
+            CharSequence classNameSeq = event.getClassName();
+            String className = classNameSeq != null ? classNameSeq.toString() : "";
+            String clsLower = className.toLowerCase();
+
+            // Single-pass node tree snapshot to avoid 13x main-thread traversals
+            StringBuilder textSb = new StringBuilder(512);
+            StringBuilder idSb = new StringBuilder(256);
+            if (event.getText() != null) {
+                for (CharSequence seq : event.getText()) {
+                    if (seq != null) textSb.append(seq.toString().toLowerCase()).append('\n');
+                }
+            }
+            if (event.getContentDescription() != null) {
+                textSb.append(event.getContentDescription().toString().toLowerCase()).append('\n');
+            }
+            collectNodeTreeSnapshot(rootNode, textSb, idSb, 0);
+            String snapshotText = textSb.toString();
+            String snapshotIds = idSb.toString();
+
             // ১. যদি এটি সাধারণ অ্যাপ তালিকা বা মূল সেটিংস লিস্ট স্ক্রিন হয়, তবে কখনই ব্লক করা যাবে না!
-            if (isSettingsListScreen(rootNode)) {
+            if (isSettingsListScreen(snapshotText, snapshotIds, className)) {
                 return;
             }
 
-            CharSequence classNameSeq = event.getClassName();
-            String className = classNameSeq != null ? classNameSeq.toString() : "";
+            boolean isFocusTargeted = containsAny(snapshotText, FOCUS_APP_IDENTIFIERS);
 
-            // ২. ডিভাইস অ্যাডমিন নিষ্ক্রিয় করার চেষ্টা
-            boolean isDeviceAdminDeactivate = className.contains("DeviceAdminDeactivate") ||
-                    className.contains("DeviceAdminAdd") ||
-                    scanNodeTreeForText(rootNode, "device admin", "ডিভাইস অ্যাডমিন");
+            // ২. ডিভাইস অ্যাডমিন নিষ্ক্রিয় করার চেষ্টা (Language-independent class + ID + text)
+            boolean isDeviceAdminScreen = clsLower.contains("deviceadmindeactivate") ||
+                    clsLower.contains("deviceadminadd") ||
+                    containsAny(snapshotIds, "admin_warning", "restricted_action", "action_button") ||
+                    containsAny(snapshotText, "device admin", "ডিভাইস অ্যাডমিন");
 
-            boolean isFocusTargeted = checkNodeOrSource(event, rootNode, FOCUS_APP_IDENTIFIERS);
-
-            if (isDeviceAdminDeactivate && isFocusTargeted) {
-                boolean hasDeactivateAction = scanNodeTreeForText(rootNode, "deactivate", "নিষ্ক্রিয়", "remove active admin");
+            if (isDeviceAdminScreen && isFocusTargeted) {
+                boolean hasDeactivateAction = clsLower.contains("deviceadmindeactivate") ||
+                        clsLower.contains("deviceadminadd") ||
+                        containsAny(snapshotIds, "action_button", "button1") ||
+                        containsAny(snapshotText, "deactivate", "নিষ্ক্রিয়", "remove active admin");
                 if (hasDeactivateAction) {
                     blockAndGoHome("Helpniche ডিভাইস অ্যাডমিন নিষ্ক্রিয় করা নিষিদ্ধ!");
                     return;
                 }
             }
 
-            // ৩. প্যাকেজ ইনস্টলার আনইনস্টল ডায়ালগ
+            // ৩. প্যাকেজ ইনস্টলার আনইনস্টল ডায়ালগ (Language-independent class + ID + text)
             if (packageName.contains("packageinstaller") || packageName.contains("installer")) {
                 if (isFocusTargeted) {
-                    boolean isUninstallDialog = checkNodeOrSource(event, rootNode, UNINSTALL_DEACTIVATE_TERMS) ||
-                            checkNodeOrSource(event, rootNode, "uninstall", "আনইনস্টল করতে চান", "do you want to uninstall");
+                    boolean isUninstallDialog = clsLower.contains("uninstaller") ||
+                            clsLower.contains("uninstallappprogress") ||
+                            clsLower.contains("alertdialog") ||
+                            containsAny(snapshotIds, "android:id/button1", "android:id/alerttitle") ||
+                            containsAny(snapshotText, UNINSTALL_DEACTIVATE_TERMS) ||
+                            containsAny(snapshotText, "uninstall", "আনইনস্টল করতে চান", "do you want to uninstall");
                     if (isUninstallDialog) {
                         blockAndGoHome("Helpniche আনইনস্টল করা নিষিদ্ধ!");
                         return;
@@ -1867,27 +1967,40 @@ public class BlockerAccessibilityService extends AccessibilityService {
 
             // ৪. সেটিংস অ্যাপে স্পেসিফিক Helpniche App Info বা Accessibility toggle পেজ
             if (isFocusTargeted) {
-                boolean isUninstallOrForceStop = checkNodeOrSource(event, rootNode, UNINSTALL_DEACTIVATE_TERMS) ||
-                        checkNodeOrSource(event, rootNode, "force stop", "ফোর্স স্টপ", "disable app", "অ্যাপ নিষ্ক্রিয়");
+                boolean hasAppDetailHeader = clsLower.contains("installedappdetails") ||
+                        clsLower.contains("appinfodashboard") ||
+                        clsLower.contains("spaactivity") ||
+                        containsAny(snapshotIds,
+                                "entity_header", "app_snippet", "action_buttons",
+                                "uninstall_button", "force_stop", "right_button", "button1_positive");
+
+                boolean isUninstallOrForceStop = hasAppDetailHeader ||
+                        containsAny(snapshotText, UNINSTALL_DEACTIVATE_TERMS) ||
+                        containsAny(snapshotText, "force stop", "ফোর্স স্টপ", "disable app", "অ্যাপ নিষ্ক্রিয়");
 
                 if (isUninstallOrForceStop) {
                     blockAndGoHome("Helpniche আনইনস্টল বা নিষ্ক্রিয় করা নিষিদ্ধ!");
                     return;
                 }
 
-                if (checkNodeOrSource(event, rootNode, STORAGE_CLEAR_TERMS)) {
+                boolean hasStorageClear = clsLower.contains("appstorage") ||
+                        containsAny(snapshotIds, "clear_data", "clear_storage", "button_clear") ||
+                        containsAny(snapshotText, STORAGE_CLEAR_TERMS);
+
+                if (hasStorageClear) {
                     blockAndGoHome("Helpniche অ্যাপ ডেটা বা স্টোরেজ ক্লিয়ার করা নিষিদ্ধ!");
                     return;
                 }
 
-                if (checkNodeOrSource(event, rootNode, "stop helpniche", "turn off helpniche", "disable helpniche", "helpniche বন্ধ")) {
+                if (containsAny(snapshotText, "stop helpniche", "turn off helpniche", "disable helpniche", "helpniche বন্ধ")) {
                     blockAndGoHome("Helpniche সুরক্ষা সার্ভিস বন্ধ করা নিষিদ্ধ!");
                     return;
                 }
             }
 
             // ৫. ভিপিএন ডিসকানেক্ট করার চেষ্টা
-            if (isVpnDisconnectAttempt(rootNode, packageName)) {
+            if (isVpnDisconnectAttempt(rootNode, packageName) ||
+                    (isFocusTargeted && (clsLower.contains("vpndialog") || containsAny(snapshotIds, "vpn_disconnect", "disconnect")))) {
                 blockAndGoHome("Helpniche ভিপিএন ডিসকানেক্ট করা নিষিদ্ধ!");
                 return;
             }

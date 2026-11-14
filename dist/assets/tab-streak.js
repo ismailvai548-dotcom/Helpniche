@@ -27,7 +27,7 @@ function getActiveTarget() {
 }
 
 function syncTargetDataNative(target) {
-    const diffDays = Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600));
+    const diffDays = Math.max(0, Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600)));
     const currentRank = getCurrentRank(diffDays);
 
     if (window.Capacitor?.Plugins?.UnlockPlugin?.syncTargetData) {
@@ -39,6 +39,7 @@ function syncTargetDataNative(target) {
                 endTime: target ? target.endTime : 0,
                 isActive: !!(target && target.isActive),
                 streakDays: diffDays,
+                streakStartTime: streakStartTime || 0,
                 rankTitle: currentRank.title
             });
         } catch (e) {
@@ -413,7 +414,7 @@ function renderStreakTab() {
 }
 
 function renderRanksSubView() {
-    const diffDays = Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600));
+    const diffDays = Math.max(0, Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600)));
     return `
         <div class="screen-wrapper">
             <div class="header-row">

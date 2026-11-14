@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    TAB 1: HOME DASHBOARD (Minimal Circular UI & Focus Portal)
    ========================================================================== */
 function renderHomeDashboard() {
@@ -8,7 +8,7 @@ function renderHomeDashboard() {
 
     const durationText = getProtectionDurationText();
 
-    const diffDays = Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600));
+    const diffDays = Math.max(0, Math.floor((Date.now() - streakStartTime) / (1000 * 24 * 3600)));
     const currentRank = getCurrentRank(diffDays);
     const isBn = (currentLang === 'bn');
 

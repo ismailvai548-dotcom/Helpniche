@@ -615,7 +615,7 @@ function startFocusSession(mins) {
     localStorage.setItem('FOCUS_SESSION_PLANNED_MINS', mins.toString());
     localStorage.setItem('FOCUS_SESSION_CREDITED_MINS', '0');
     isFocusSessionActive = true;
-    setNativeFocusLock(true);
+    setNativeFocusLock(true, focusSessionEndTime, mins);
 
     switchTab('focus');
 }
@@ -643,16 +643,20 @@ function startFocusTimerLoop() {
             creditElapsedFocusMinutes();
             localStorage.removeItem('FOCUS_SESSION_END_TIME');
             clearFocusSessionCreditState();
-            setNativeFocusLock(false);
+            setNativeFocusLock(false, 0, 0);
             audioEngine.stop(true);
             switchTab('focus');
         }
     }, 1000);
 }
 
-function setNativeFocusLock(locked) {
+function setNativeFocusLock(locked, endTimeMs, durationMinutes) {
     if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.UnlockPlugin && window.Capacitor.Plugins.UnlockPlugin.setFocusLock) {
-        window.Capacitor.Plugins.UnlockPlugin.setFocusLock({ locked: locked });
+        window.Capacitor.Plugins.UnlockPlugin.setFocusLock({
+            locked: !!locked,
+            endTimeMs: locked ? (endTimeMs || focusSessionEndTime || 0) : 0,
+            durationMinutes: locked ? (durationMinutes || 60) : 0
+        });
     }
 }
 

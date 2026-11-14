@@ -69,6 +69,12 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
     public static void handleScreenLocked(Context context) {
         if (context == null) return;
         try {
+            SharedPreferences prefs = context.getApplicationContext().getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+            boolean smartSaver = prefs.getBoolean("smart_battery_saver_enabled", true);
+            if (!smartSaver || LocalDnsVpnService.hasActiveNetworkBlocks(context)) {
+                Log.i(TAG, "Screen locked: Keeping VPN alive (smartSaver=" + smartSaver + ", activeNetworkBlocks=true).");
+                return;
+            }
             if (LocalDnsVpnService.isVpnRunning() || LocalDnsVpnService.isVpnStartingOrRunning()) {
                 Log.i(TAG, "Screen locked or turned off: Stopping VPN to save power.");
                 LocalDnsVpnService.stopVpn(context);
@@ -269,13 +275,13 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
                             .build()
             );
             mediaPlayer.setVolume(1.0f, 1.0f);
-            mediaPlayer.prepare();
-            mediaPlayer.start();
+            mediaPlayer.setOnPreparedListener(MediaPlayer::start);
             mediaPlayer.setOnCompletionListener(mp -> stopAndReleaseMediaPlayer());
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 stopAndReleaseMediaPlayer();
                 return true;
             });
+            mediaPlayer.prepareAsync();
         } catch (Exception e) {
             Log.e(TAG, "Error playing custom audio file", e);
             stopAndReleaseMediaPlayer();
@@ -330,13 +336,13 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
                             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                             .build()
             );
-            mediaPlayer.prepare();
-            mediaPlayer.start();
+            mediaPlayer.setOnPreparedListener(MediaPlayer::start);
             mediaPlayer.setOnCompletionListener(mp -> stopAndReleaseMediaPlayer());
             mediaPlayer.setOnErrorListener((mp, what, extra) -> {
                 stopAndReleaseMediaPlayer();
                 return true;
             });
+            mediaPlayer.prepareAsync();
         } catch (Exception e) {
             Log.e(TAG, "Error playing Uri sound", e);
             stopAndReleaseMediaPlayer();
@@ -355,28 +361,51 @@ public class ScreenUnlockReceiver extends BroadcastReceiver {
 
     private static boolean isTtsInitialized = false;
 
+    private static synchronized void shutdownTts() {
+        if (tts != null) {
+            try {
+                tts.stop();
+                tts.shutdown();
+            } catch (Exception ignored) {}
+            tts = null;
+        }
+        isTtsInitialized = false;
+    }
+
     private static void speakUserTextOnce(Context context, String text) {
         if (text == null || text.trim().isEmpty()) return;
         final String speechText = text.trim();
         try {
-            if (tts == null) {
-                tts = new TextToSpeech(context.getApplicationContext(), status -> {
-                    if (status == TextToSpeech.SUCCESS) {
-                        isTtsInitialized = true;
-                        int langResult = tts.setLanguage(new Locale("bn", "BD"));
-                        if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
-                            tts.setLanguage(Locale.getDefault());
+            shutdownTts();
+            tts = new TextToSpeech(context.getApplicationContext(), status -> {
+                if (status == TextToSpeech.SUCCESS && tts != null) {
+                    isTtsInitialized = true;
+                    tts.setOnUtteranceProgressListener(new android.speech.tts.UtteranceProgressListener() {
+                        @Override
+                        public void onStart(String utteranceId) {}
+
+                        @Override
+                        public void onDone(String utteranceId) {
+                            shutdownTts();
                         }
-                        tts.speak(speechText, TextToSpeech.QUEUE_FLUSH, null, "unlock_user_msg_id");
-                    } else {
-                        isTtsInitialized = false;
+
+                        @Override
+                        public void onError(String utteranceId) {
+                            shutdownTts();
+                        }
+                    });
+                    int langResult = tts.setLanguage(new Locale("bn", "BD"));
+                    if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        tts.setLanguage(Locale.getDefault());
                     }
-                });
-            } else if (isTtsInitialized) {
-                tts.speak(speechText, TextToSpeech.QUEUE_FLUSH, null, "unlock_dhikr_id");
-            }
+                    tts.speak(speechText, TextToSpeech.QUEUE_FLUSH, null, "unlock_user_msg_id");
+                } else {
+                    shutdownTts();
+                }
+            });
         } catch (Exception e) {
             Log.e(TAG, "Error playing TTS on unlock", e);
+            shutdownTts();
         }
     }
 }

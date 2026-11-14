@@ -322,6 +322,11 @@ public class MainActivity extends BridgeActivity {
                 );
                 getBridge().getWebView().evaluateJavascript(js, null);
             }
+
+            if (vpn && admin && restrictedDone && accessibility && battery && !prefs.getBoolean("brand_guidance_shown_once", false)) {
+                prefs.edit().putBoolean("brand_guidance_shown_once", true).apply();
+                runOnUiThread(this::showBrandGuidanceDialog);
+            }
         } catch (Exception e) {
             Log.e(TAG, "Error during onboarding step execution", e);
         }

@@ -315,10 +315,33 @@ public class UnlockPlugin extends Plugin {
     public void setFocusLock(PluginCall call) {
         try {
             Boolean locked = call.getBoolean("locked", false);
+            boolean isLocked = Boolean.TRUE.equals(locked);
+            Long endTimeMs = call.getLong("endTimeMs", 0L);
+            Integer durationMins = call.getInt("durationMinutes", 60);
+            long focusUntil = 0L;
+            if (isLocked) {
+                if (endTimeMs != null && endTimeMs > System.currentTimeMillis()) {
+                    focusUntil = endTimeMs;
+                } else {
+                    int mins = (durationMins != null && durationMins > 0) ? durationMins : 60;
+                    focusUntil = System.currentTimeMillis() + (mins * 60L * 1000L);
+                }
+            }
             SharedPreferences prefs = getContext().getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
-            prefs.edit().putBoolean("is_focus_locked", Boolean.TRUE.equals(locked)).apply();
+            prefs.edit()
+                    .putBoolean("is_focus_locked", isLocked)
+                    .putLong("focus_lock_until", focusUntil)
+                    .apply();
+            if (!isLocked) {
+                try {
+                    Intent stopAudio = new Intent(getContext(), FocusAudioService.class);
+                    stopAudio.setAction(FocusAudioService.ACTION_STOP);
+                    getContext().startService(stopAudio);
+                } catch (Exception ignored) {}
+            }
             JSObject ret = new JSObject();
             ret.put("success", true);
+            ret.put("focusUntil", focusUntil);
             call.resolve(ret);
         } catch (Exception e) {
             Log.e(TAG, "Error setting focus lock", e);
@@ -336,9 +359,32 @@ public class UnlockPlugin extends Plugin {
             int minute = call.getInt("minute", 30);
             boolean enabled = call.getBoolean("enabled", true);
             String audioType = call.getString("audioType", "alarm");
+            String customAudioBase64 = call.getString("customAudioBase64", "");
+            String audioUri = call.getString("audioUri", "");
             String repeatMode = call.getString("repeatMode", "everyday");
             JSArray repeatDaysArr = call.getArray("repeatDays");
             String repeatDaysStr = repeatDaysArr != null ? repeatDaysArr.toString() : "[1,2,3,4,5,6,7]";
+
+            if (customAudioBase64 != null && !customAudioBase64.trim().isEmpty()) {
+                try {
+                    String cleanBase64 = customAudioBase64.trim();
+                    if (cleanBase64.contains(",")) {
+                        cleanBase64 = cleanBase64.substring(cleanBase64.indexOf(",") + 1);
+                    }
+                    byte[] audioBytes = Base64.decode(cleanBase64, Base64.DEFAULT);
+                    File audioFile = new File(getContext().getFilesDir(), "custom_alarm_" + Math.abs(id) + ".mp3");
+                    try (FileOutputStream fos = new FileOutputStream(audioFile)) {
+                        fos.write(audioBytes);
+                        fos.flush();
+                    }
+                    audioType = "custom_file:" + audioFile.getAbsolutePath();
+                    Log.i(TAG, "Saved custom alarm audio file: " + audioFile.getAbsolutePath());
+                } catch (Exception fileErr) {
+                    Log.e(TAG, "Failed saving custom alarm audio base64", fileErr);
+                }
+            } else if (audioUri != null && !audioUri.trim().isEmpty() && (audioType == null || "alarm".equals(audioType))) {
+                audioType = "custom_uri:" + audioUri.trim();
+            }
 
             AlarmManagerHelper.AlarmItem item = new AlarmManagerHelper.AlarmItem();
             item.id = id;
@@ -884,7 +930,8 @@ public class UnlockPlugin extends Plugin {
             if (call.hasOption("startTime")) editor.putLong("target_start_time", call.getLong("startTime", 0L));
             if (call.hasOption("endTime")) editor.putLong("target_end_time", call.getLong("endTime", 0L));
             if (call.hasOption("isActive")) editor.putBoolean("target_is_active", Boolean.TRUE.equals(call.getBoolean("isActive", false)));
-            if (call.hasOption("streakDays")) editor.putInt("streak_days", call.getInt("streakDays", 0));
+            if (call.hasOption("streakDays")) editor.putInt("streak_days", Math.max(0, call.getInt("streakDays", 0)));
+            if (call.hasOption("streakStartTime")) editor.putLong("streak_start_time", call.getLong("streakStartTime", 0L));
             if (call.hasOption("rankTitle")) editor.putString("rank_title", call.getString("rankTitle", "সংগ্রামী পথিক"));
             editor.apply();
 

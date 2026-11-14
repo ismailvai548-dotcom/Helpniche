@@ -1786,6 +1786,8 @@ function bindGlobalEvents() {
 
                         audioType: 'alarm',
 
+                        customAudioBase64: alarmAudioData || '',
+
                         repeatMode: repeatMode,
 
                         repeatDays: selectedDays.length > 0 ? selectedDays : [1,2,3,4,5,6,7]
@@ -1800,7 +1802,10 @@ function bindGlobalEvents() {
 
             }
 
-
+            alarmAudioData = null;
+            alarmAudioName = '';
+            const nameEl = document.getElementById('new-alarm-audio-name');
+            if (nameEl) nameEl.innerText = 'ডিফল্ট ভয়েস';
 
             document.getElementById('alarm-modal').style.display = 'none';
 

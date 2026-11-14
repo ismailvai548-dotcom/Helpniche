@@ -60,6 +60,25 @@ public class FocusAudioService extends Service {
         return null;
     }
 
+    private final android.os.Handler expiryHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable expiryCheckRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                android.content.SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+                boolean locked = prefs.getBoolean("is_focus_locked", false);
+                long until = prefs.getLong("focus_lock_until", 0L);
+                if (!locked || (until > 0L && System.currentTimeMillis() >= until)) {
+                    prefs.edit().putBoolean("is_focus_locked", false).putLong("focus_lock_until", 0L).apply();
+                    Log.i(TAG, "Focus session expired natively: stopping FocusAudioService.");
+                    stopAudioPlayback();
+                    return;
+                }
+            } catch (Exception ignored) {}
+            expiryHandler.postDelayed(this, 5000L);
+        }
+    };
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null) {
@@ -83,12 +102,39 @@ public class FocusAudioService extends Service {
             }
         }
 
+        android.content.SharedPreferences prefs = getSharedPreferences("HelpnichePrefs", Context.MODE_PRIVATE);
+        long focusUntil = prefs.getLong("focus_lock_until", 0L);
+        if (focusUntil > 0L && System.currentTimeMillis() >= focusUntil) {
+            prefs.edit().putBoolean("is_focus_locked", false).putLong("focus_lock_until", 0L).apply();
+            stopAudioPlayback();
+            return START_NOT_STICKY;
+        }
+
         String audioUri = intent != null ? intent.getStringExtra(EXTRA_AUDIO_URI) : null;
-        String audioType = intent != null ? intent.getStringExtra(EXTRA_AUDIO_TYPE) : "library";
-        String audioName = intent != null ? intent.getStringExtra(EXTRA_AUDIO_NAME) : "Focus Audio";
+        String audioType = intent != null ? intent.getStringExtra(EXTRA_AUDIO_TYPE) : null;
+        String audioName = intent != null ? intent.getStringExtra(EXTRA_AUDIO_NAME) : null;
+
+        if (audioUri == null || audioUri.trim().isEmpty()) {
+            audioUri = prefs.getString("focus_audio_uri", "");
+        } else {
+            prefs.edit().putString("focus_audio_uri", audioUri).apply();
+        }
+        if (audioType == null || audioType.trim().isEmpty()) {
+            audioType = prefs.getString("focus_audio_type", "library");
+        } else {
+            prefs.edit().putString("focus_audio_type", audioType).apply();
+        }
+        if (audioName == null || audioName.trim().isEmpty()) {
+            audioName = prefs.getString("focus_audio_name", "Focus Audio");
+        } else {
+            prefs.edit().putString("focus_audio_name", audioName).apply();
+        }
 
         startForegroundServiceNotification(audioName);
         startAudioPlayback(audioUri, audioType);
+
+        expiryHandler.removeCallbacks(expiryCheckRunnable);
+        expiryHandler.postDelayed(expiryCheckRunnable, 5000L);
 
         return START_STICKY;
     }
@@ -136,6 +182,9 @@ public class FocusAudioService extends Service {
 
         try {
             mediaPlayer = new MediaPlayer();
+            try {
+                mediaPlayer.setWakeMode(getApplicationContext(), android.os.PowerManager.PARTIAL_WAKE_LOCK);
+            } catch (Exception ignored) {}
             mediaPlayer.setAudioAttributes(
                 new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -143,18 +192,33 @@ public class FocusAudioService extends Service {
                     .build()
             );
 
+            boolean sourceSet = false;
             if (uriStr != null && !uriStr.trim().isEmpty()) {
-                if ("raw".equalsIgnoreCase(type) || uriStr.startsWith("raw/")) {
-                    String resourceName = uriStr.replace("raw/", "");
-                    int rawResId = getResources().getIdentifier(resourceName, "raw", getPackageName());
-                    if (rawResId == 0) rawResId = R.raw.durood;
-                    Uri rawUri = Uri.parse("android.resource://" + getPackageName() + "/" + rawResId);
-                    mediaPlayer.setDataSource(this, rawUri);
-                } else {
-                    Uri audioUri = Uri.parse(uriStr);
-                    mediaPlayer.setDataSource(this, audioUri);
+                try {
+                    if ("raw".equalsIgnoreCase(type) || uriStr.startsWith("raw/")) {
+                        String resourceName = uriStr.replace("raw/", "");
+                        int rawResId = getResources().getIdentifier(resourceName, "raw", getPackageName());
+                        if (rawResId == 0) rawResId = R.raw.durood;
+                        Uri rawUri = Uri.parse("android.resource://" + getPackageName() + "/" + rawResId);
+                        mediaPlayer.setDataSource(this, rawUri);
+                    } else {
+                        Uri audioUri = Uri.parse(uriStr);
+                        mediaPlayer.setDataSource(this, audioUri);
+                    }
+                    sourceSet = true;
+                } catch (Exception uriErr) {
+                    Log.w(TAG, "Custom audio URI failed (" + uriStr + "), falling back to R.raw.durood", uriErr);
+                    mediaPlayer.reset();
+                    mediaPlayer.setAudioAttributes(
+                        new AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_MEDIA)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                            .build()
+                    );
                 }
-            } else {
+            }
+
+            if (!sourceSet) {
                 // Default fallback sound: R.raw.durood
                 Uri rawUri = Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.durood);
                 mediaPlayer.setDataSource(this, rawUri);
@@ -199,6 +263,7 @@ public class FocusAudioService extends Service {
     }
 
     private void stopAudioPlayback() {
+        expiryHandler.removeCallbacks(expiryCheckRunnable);
         stopMediaPlayer();
         try {
             stopForeground(STOP_FOREGROUND_REMOVE);
@@ -208,6 +273,7 @@ public class FocusAudioService extends Service {
 
     @Override
     public void onDestroy() {
+        expiryHandler.removeCallbacks(expiryCheckRunnable);
         if (activeInstance == this) {
             activeInstance = null;
         }

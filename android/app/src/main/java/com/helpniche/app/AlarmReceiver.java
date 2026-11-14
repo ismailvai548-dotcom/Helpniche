@@ -204,9 +204,19 @@ public class AlarmReceiver extends BroadcastReceiver {
             String title = intent.getStringExtra("title");
             String timeStr = intent.getStringExtra("time");
             String audioType = intent.getStringExtra("audioType");
+            boolean isSnooze = intent.getBooleanExtra("isSnooze", false);
 
             if (title == null || title.trim().isEmpty()) title = "Helpniche অ্যালার্ম";
             if (timeStr == null || timeStr.trim().isEmpty()) timeStr = "⏰ সময় হয়েছে!";
+
+            // সাথে সাথে পরবর্তী দিনের অ্যালার্ম শিডিউল করে রাখা, যাতে একই সময়ে একাধিক অ্যালার্ম বাজলেও কোনোটি হারিয়ে না যায়
+            if (!isSnooze && originalAlarmId != 0) {
+                try {
+                    AlarmManagerHelper.scheduleNextDayAlarm(context, originalAlarmId);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error pre-scheduling next day alarm in receiver", e);
+                }
+            }
 
             // 1. Start AlarmOverlayService as Foreground Service (Posts FullScreenIntent notification & manages sound)
             Intent serviceIntent = new Intent(context, AlarmOverlayService.class);

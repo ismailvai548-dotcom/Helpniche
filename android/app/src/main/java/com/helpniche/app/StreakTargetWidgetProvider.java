@@ -70,11 +70,15 @@ public class StreakTargetWidgetProvider extends AppWidgetProvider {
             long targetStartTime = prefs.getLong("target_start_time", 0L);
             long targetEndTime = prefs.getLong("target_end_time", 0L);
             int targetDays = prefs.getInt("target_days", 0);
-            int streakDays = prefs.getInt("streak_days", 0);
+            int streakDays = Math.max(0, prefs.getInt("streak_days", 0));
+            long streakStartTime = prefs.getLong("streak_start_time", 0L);
 
             RemoteViews views = new RemoteViews(context.getPackageName(), R.layout.streak_target_widget_layout);
 
             long now = System.currentTimeMillis();
+            if (streakStartTime > 0L) {
+                streakDays = (int) Math.max(0L, (now - streakStartTime) / (24L * 3600L * 1000L));
+            }
 
             if (isTargetActive && targetEndTime > 0) {
                 String header = (targetTitle != null && !targetTitle.trim().isEmpty()) ? targetTitle.trim() : "টার্গেট";
