@@ -495,7 +495,13 @@ public class LocalDnsVpnService extends VpnService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForegroundServiceNotification();
+        if (!startForegroundServiceNotification()) {
+            Log.e(TAG, "Cannot run LocalDnsVpnService without foreground promotion. Stopping cleanly.");
+            showProtectionPausedNotification(this);
+            stopVpn(this);
+            isStarting = false;
+            return START_NOT_STICKY;
+        }
 
         if (BlockerAccessibilityService.isUnlocked(this) || BlockerAccessibilityService.isPermanentUnlocked(this)) {
             Log.i(TAG, "Protection is currently unlocked. Stopping VPN.");
@@ -554,7 +560,7 @@ public class LocalDnsVpnService extends VpnService {
         }
     }
 
-    private void startForegroundServiceNotification() {
+    private boolean startForegroundServiceNotification() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 NotificationChannel channel = new NotificationChannel(
@@ -576,17 +582,19 @@ public class LocalDnsVpnService extends VpnService {
                     .setContentText("পর্নোগ্রাফিক ফিল্টার ও ফ্যামিলি ডিএনএস সচল")
                     .setSmallIcon(R.mipmap.ic_launcher)
                     .setPriority(NotificationCompat.PRIORITY_MIN)
-                    .setOngoing(false)
-                    .setAutoCancel(true)
+                    .setOngoing(true)
+                    .setAutoCancel(false)
                     .build();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED);
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
+            return true;
         } catch (Exception e) {
-            Log.e(TAG, "Failed to start foreground notification", e);
+            Log.e(TAG, "Failed to start foreground notification for LocalDnsVpnService", e);
+            return false;
         }
     }
 

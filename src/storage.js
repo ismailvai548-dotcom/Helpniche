@@ -10,8 +10,7 @@ const KEYS = {
   LIFETIME_ZIKR_COUNT: 'lifetime_zikr_count',
 };
 
-// অ্যাডমিনের দেওয়া সিক্রেট মাস্টার কোড (যা আপনি টেলিগ্রামে দিবেন)
-export const ADMIN_SECRET_CODE = '7860';
+// টেলিগ্রাম বটের মাধ্যমে অ্যাডমিন ভেরিফিকেশন
 export const TELEGRAM_ADMIN_LINK = 'https://t.me/helpniche_bot'; // অফিশিয়াল টেলিগ্রাম বট লিঙ্ক
 
 export const ADULT_KEYWORDS = ['porn', 'xxx', 'xvideos', 'xnxx', 'adult', 'sex'];
@@ -85,12 +84,8 @@ export const toggleShortsGuard = () => {
   return { success: true, state: newState };
 };
 
-// টেলিগ্রাম কোড দিয়ে আনইনস্টল গার্ড নিষ্ক্রিয় করা
-export const unlockAdminWithSecretCode = (inputCode) => {
-  if (inputCode.trim() === ADMIN_SECRET_CODE) {
-    localStorage.setItem(KEYS.ANTI_UNINSTALL, 'false');
-    return true;
-  }
+// অফলাইন কোড আনলক নিষ্ক্রিয় করা হয়েছে (সার্ভার ওটিপি আবশ্যক)
+export const unlockAdminWithSecretCode = () => {
   return false;
 };
 

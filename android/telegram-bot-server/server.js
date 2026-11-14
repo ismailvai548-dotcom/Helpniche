@@ -5,14 +5,18 @@ import crypto from 'crypto';
 import { Telegraf, Markup } from 'telegraf';
 import { createClient } from '@supabase/supabase-js';
 
-// ১. ক্রেডেনশিয়াল কনফিগারেশন
-const BOT_TOKEN = process.env.BOT_TOKEN || '8808381690:AAH0wNxbtraOhxP6q3v7mQuqfhCQHXX6EMM';
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '6271611009';
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://dlxmzzvcpoysoouakadt.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODEzMDc0MSwiZXhwIjoyMDkzNzA2NzQxfQ.4NS9sJkAkM2x4p2CmhgmZ95N1XdamwnKpH98hRktOw8';
+// ১. ক্রেডেনশিয়াল কনফিগারেশন (Environment Variables ONLY — never hardcode secrets)
+const BOT_TOKEN = process.env.BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || '';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || process.env.TELEGRAM_ADMIN_CHAT_ID || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.SUPABASE_PROJECT_URL || 'https://dlxmzzvcpoysoouakadt.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SECRET_KEY || '';
+
+if (!BOT_TOKEN || !ADMIN_CHAT_ID || !SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    console.error("Critical: Missing required environment variables (TELEGRAM_BOT_TOKEN, ADMIN_CHAT_ID, SECRET_KEY).");
+}
 
 const bot = new Telegraf(BOT_TOKEN);
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient(SUPABASE_URL || 'https://placeholder.supabase.co', SUPABASE_SERVICE_KEY || 'placeholder');
 
 // সেশন স্টোরেজ (অ্যাডমিনের স্টেপ ট্র্যাকিং)
 const adminSessions = new Map();
@@ -58,18 +62,12 @@ function parseDonationMeta(row) {
     return null;
 }
 
-const RELAY_VAULT_KEY = 'H3lpN1ch3_S3cur1ty_M4st3r_K3y';
-
-function unsealRelayPayload(hexStr) {
+function decodeRelayPayload(hexStr) {
     try {
         const cleanHex = String(hexStr || '').trim();
         if (!cleanHex || cleanHex.length % 2 !== 0) return null;
-        const buf = Buffer.from(cleanHex, 'hex');
-        const out = Buffer.alloc(buf.length);
-        for (let i = 0; i < buf.length; i++) {
-            out[i] = buf[i] ^ RELAY_VAULT_KEY.charCodeAt(i % RELAY_VAULT_KEY.length) ^ ((i + 73) & 0xff);
-        }
-        const parsed = JSON.parse(out.toString('utf8'));
+        const jsonStr = Buffer.from(cleanHex, 'hex').toString('utf8');
+        const parsed = JSON.parse(jsonStr);
         if (Array.isArray(parsed) && parsed.length >= 2) {
             return { sender: String(parsed[0] || ''), trxId: String(parsed[1] || '') };
         }
@@ -802,7 +800,7 @@ async function renderDonationDashboard(ctx, editExisting = false) {
         if (m && m[1]) {
             const relMatch = raw.match(/\[REL:([0-9a-f]+)\]/i);
             if (relMatch && relMatch[1]) {
-                const unsealed = unsealRelayPayload(relMatch[1]);
+                const unsealed = decodeRelayPayload(relMatch[1]);
                 if (unsealed) {
                     if (unsealed.sender) senderByReqId.set(m[1], unsealed.sender);
                     if (unsealed.trxId) trxByReqId.set(m[1], unsealed.trxId);
@@ -1153,6 +1151,31 @@ async function relayPendingDonations() {
     if (isRelayRunning) return;
     isRelayRunning = true;
     try {
+        // ১. ক্লায়েন্ট ইভেন্ট নোটিফিকেশন রিলে (unlock_requests টেবিল থেকে)
+        const { data: notifyRows } = await supabase
+            .from('unlock_requests')
+            .select('*')
+            .like('user_id', 'notify_%')
+            .eq('status', 'pending')
+            .order('created_at', { ascending: true })
+            .limit(10);
+
+        for (const nRow of (notifyRows || [])) {
+            try {
+                const payload = JSON.parse(nRow.reason || '{}');
+                if (payload && payload.text && ADMIN_CHAT_ID) {
+                    await bot.telegram.sendMessage(ADMIN_CHAT_ID, String(payload.text), {
+                        parse_mode: 'HTML',
+                        ...(payload.reply_markup ? { reply_markup: payload.reply_markup } : {})
+                    });
+                }
+                await supabase.from('unlock_requests').delete().eq('id', nRow.id);
+            } catch (nErr) {
+                console.error("Client notify relay error:", nErr.message);
+            }
+        }
+
+        // ২. পেন্ডিং হাদিয়া / অনুদান রিলে
         const { data: relRows } = await supabase
             .from('donations')
             .select('*')
@@ -1169,7 +1192,7 @@ async function relayPendingDonations() {
             if (!reqMatch || !reqMatch[1] || !relMatch || !relMatch[1]) continue;
 
             const requestId = reqMatch[1];
-            const unsealed = unsealRelayPayload(relMatch[1]);
+            const unsealed = decodeRelayPayload(relMatch[1]);
             const cleanedTrx = rawTrx.replace(/\[REL:[^\]]+\]/gi, '[TG:OK]').replace(/\s+/g, ' ').trim();
 
             if (relayedRequestIds.has(requestId)) {
@@ -1275,9 +1298,58 @@ bot.hears(['📊 ড্যাশবোর্ড / স্ট্যাটাস', 
     }
 });
 
-// ১২. Render-এর জন্য ওয়েব পোর্ট
+// ১২. Render-এর জন্য ওয়েব পোর্ট ও ব্যাকএন্ড নোটিফিকেশন এন্ডপয়েন্ট
 const PORT = process.env.PORT || 10000;
 const server = http.createServer((req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, apikey');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        return res.end();
+    }
+
+    if (req.method === 'POST' && (req.url === '/api/notify-admin' || req.url === '/notify-admin')) {
+        let body = '';
+        req.on('data', (chunk) => {
+            body += chunk.toString();
+            if (body.length > 65536) req.destroy();
+        });
+        req.on('end', async () => {
+            try {
+                const payload = JSON.parse(body || '{}');
+                const text = String(payload.text || payload.message || '').trim();
+                if (!text || !ADMIN_CHAT_ID || !BOT_TOKEN) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ ok: false, delivered: false }));
+                }
+                const extra = { parse_mode: 'HTML' };
+                if (payload.reply_markup) {
+                    extra.reply_markup = payload.reply_markup;
+                } else if (payload.requestId) {
+                    extra.reply_markup = {
+                        inline_keyboard: [[
+                            { text: '✅ কনফার্ম করুন', callback_data: `don_ok:${payload.requestId}` },
+                            { text: '❌ বাতিল ও মুছে ফেলুন', callback_data: `don_no:${payload.requestId}` }
+                        ]]
+                    };
+                }
+                await bot.telegram.sendMessage(ADMIN_CHAT_ID, text, extra);
+                if (payload.requestId) {
+                    relayedRequestIds.add(String(payload.requestId));
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ ok: true, delivered: true }));
+            } catch (err) {
+                console.error("Notify endpoint error:", err.message);
+                res.writeHead(502, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ ok: false, delivered: false }));
+            }
+        });
+        return;
+    }
+
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('FocusDurood / Helpniche Telegram Bot is Active & Running 24/7 on Render!');
 });
@@ -1286,11 +1358,13 @@ server.listen(PORT, () => {
     console.log(`🌐 Web listener active on port: ${PORT}`);
 });
 
-bot.launch().then(() => {
-    console.log("🚀 Helpniche Telegram Bot is running smoothly with Auto Donation Push, DB Delete-on-Cancel, and Smart Unlock...");
-    setTimeout(() => relayPendingDonations(), 3000);
-    setInterval(() => relayPendingDonations(), 10000);
-});
+if (BOT_TOKEN) {
+    bot.launch().then(() => {
+        console.log("🚀 Helpniche Telegram Bot is running smoothly with Auto Donation Push, DB Delete-on-Cancel, and Smart Unlock...");
+        setTimeout(() => relayPendingDonations(), 3000);
+        setInterval(() => relayPendingDonations(), 10000);
+    });
+}
 
-process.once('SIGINT', () => { bot.stop('SIGINT'); server.close(); });
-process.once('SIGTERM', () => { bot.stop('SIGTERM'); server.close(); });
+process.once('SIGINT', () => { try { bot.stop('SIGINT'); } catch (_) {} server.close(); });
+process.once('SIGTERM', () => { try { bot.stop('SIGTERM'); } catch (_) {} server.close(); });

@@ -7,26 +7,7 @@
 
     const SUPABASE_PROJECT_URL = window.SUPABASE_PROJECT_URL || "https://dlxmzzvcpoysoouakadt.supabase.co";
     const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRseG16enZjcG95c29vdWFrYWR0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxMzA3NDEsImV4cCI6MjA5MzcwNjc0MX0.iXQRyqevSoRXvpUG291OFr4bzQq6yEoN6lXvikoJK5g";
-
-    // Masked Telegram Admin credential resolver (mirrors unlock-ui pattern)
-    const _SEC_PART_A = [72, 51, 108, 112, 78, 49, 99, 104, 51, 95];
-    const _SEC_PART_B = [83, 51, 99, 117, 114, 49, 116, 121, 95];
-    const _SEC_PART_C = [77, 52, 115, 116, 51, 114, 95, 75, 51, 121];
-
-    function _resolveSecVal(byteSeq) {
-        const k = String.fromCharCode(..._SEC_PART_A, ..._SEC_PART_B, ..._SEC_PART_C);
-        let out = '';
-        for (let i = 0; i < byteSeq.length; i++) {
-            out += String.fromCharCode(byteSeq[i] ^ k.charCodeAt(i % k.length) ^ (i + 42));
-        }
-        return out;
-    }
-
-    const _ENC_T_BYTES = [90,32,112,101,83,38,98,111,56,92,93,71,20,10,122,127,0,58,23,2,107,3,92,10,96,42,126,69,73,56,22,116,79,116,27,70,101,45,71,90,57,6,100,106,42];
-    const _ENC_A_BYTES = [84,42,119,108,86,47,98,105,49,85];
-
-    const TELEGRAM_BOT_TOKEN = _resolveSecVal(_ENC_T_BYTES);
-    const ADMIN_CHAT_ID = _resolveSecVal(_ENC_A_BYTES);
+    const BACKEND_SERVER_URL = (window.HELPNICHE_BACKEND_URL || "").replace(/\/+$/, "");
 
     // ডিফল্ট কনফিগারেশন (অফলাইনেও যাতে কাজ করে)
     const DEFAULT_CONFIG = {
@@ -244,9 +225,8 @@
         } catch (e) {}
     }
 
-    // Render সার্ভার রিলে-র জন্য প্রেরক নম্বর ও TrxID নিরাপদে এনকোড করা (service_role কেবল আনলক করতে পারবে)
+    // Render সার্ভার রিলে-র জন্য প্রেরক নম্বর ও TrxID হেক্স ফরম্যাটে এনকোড করা
     function sealRelayPayload(sender, trxId) {
-        const key = String.fromCharCode(..._SEC_PART_A, ..._SEC_PART_B, ..._SEC_PART_C);
         const plain = JSON.stringify([String(sender || ''), String(trxId || '')]);
         let bytes;
         if (typeof TextEncoder !== 'undefined') {
@@ -260,13 +240,12 @@
         }
         let hex = '';
         for (let i = 0; i < bytes.length; i++) {
-            const b = bytes[i] ^ key.charCodeAt(i % key.length) ^ ((i + 73) & 0xff);
-            hex += b.toString(16).padStart(2, '0');
+            hex += bytes[i].toString(16).padStart(2, '0');
         }
         return hex;
     }
 
-    // অ্যাডমিনকে হাদিয়া কনফার্মেশন বাটনসহ টেলিগ্রাম মেসেজ পাঠানো (সরাসরি + এজ ফাংশন, ব্যর্থ হলে Render রিলে)
+    // অ্যাডমিনকে হাদিয়া কনফার্মেশন বাটনসহ টেলিগ্রাম মেসেজ পাঠানো (শুধুমাত্র ব্যাকএন্ড এন্ডপয়েন্ট / এজ ফাংশন / Render রিলে)
     async function sendTelegramConfirmationRequest(htmlText, requestId) {
         const inlineKeyboard = {
             inline_keyboard: [
@@ -277,29 +256,31 @@
             ]
         };
 
-        // ১. সরাসরি Bot API কল (৫.৫ সেকেন্ড টাইমআউট)
-        try {
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const timer = controller ? setTimeout(() => controller.abort(), 5500) : null;
-            const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: ADMIN_CHAT_ID,
-                    text: htmlText,
-                    parse_mode: 'HTML',
-                    reply_markup: inlineKeyboard
-                }),
-                signal: controller ? controller.signal : undefined
-            });
-            if (timer) clearTimeout(timer);
-            if (res && res.ok) {
-                const data = await res.json().catch(() => null);
-                if (data && data.ok) return true;
-            }
-        } catch (e) {}
+        // ১. ব্যাকএন্ড সার্ভার এন্ডপয়েন্ট কল (যদি কনফিগার করা থাকে)
+        if (BACKEND_SERVER_URL) {
+            try {
+                const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timer = controller ? setTimeout(() => controller.abort(), 5000) : null;
+                const res = await fetch(`${BACKEND_SERVER_URL}/api/notify-admin`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'donation_alert',
+                        requestId: requestId,
+                        text: htmlText,
+                        reply_markup: inlineKeyboard
+                    }),
+                    signal: controller ? controller.signal : undefined
+                });
+                if (timer) clearTimeout(timer);
+                if (res && res.ok) {
+                    const data = await res.json().catch(() => null);
+                    if (data && data.delivered === true) return true;
+                }
+            } catch (e) {}
+        }
 
-        // ২. ফলব্যাক: এজ ফাংশন (শুধুমাত্র সত্যিকার ডেলিভারি নিশ্চিত করলে true)
+        // ২. ফলব্যাক: ব্যাকএন্ড এজ ফাংশন (শুধুমাত্র সত্যিকার ডেলিভারি নিশ্চিত করলে true, অন্যথায় Render সার্ভার অটো-রিলে করবে)
         try {
             const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
             const timer = controller ? setTimeout(() => controller.abort(), 3500) : null;
